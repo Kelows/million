@@ -1,8 +1,14 @@
 # The Closed Loop
 
 Where every module converges. Written 2026-08-27, after the whale autopsy and the
-first discovery/funding/screener iterations. This is the product thesis: each tool
+first discovery/funding/screener iterations. This is the system thesis: each tool
 is a stage of one pipeline, and the Gems feed is where the pipeline pays out.
+
+**Scope decision (2026-08-27): this is a personal system for the two of us, not a
+product.** No users, no custody questions, no growth concerns. The end state is a
+perpetual, autonomous loop: subs stream whale activity in, the roster maintains
+itself, consensus fires as events, junk dies at the gauntlet, gems accumulate —
+and entries execute on rules, first on paper, then (stats permitting) live.
 
 ## The loop
 
@@ -64,11 +70,15 @@ Ordered by dependency, not ambition:
    automatically; passing tokens appear in real time with an alert hook
    (Telegram/Discord webhook out). This is the moment the loop is actually closed:
    discovery → screening → signal without a human clicking between stages.
+   The roster self-maintains in the same motion: new counterparties are
+   auto-previewed and absorbed when clean; infra/farmed wallets are flagged out;
+   dormant wallets decay; funding chains follow actors across address rotations.
 3. **Paper trading** — every gem event records a simulated entry (configurable
    size, latency assumption, exit rule) and tracks it to resolution. This produces
    the number that decides everything else: does following the loop have positive
    expectancy after latency? No auto-execution until this says yes over a real
-   sample (weeks, not days).
+   sample (weeks, not days). Built right, paper -> live is a single flag flip:
+   the whole pipeline runs identically either way, only the fill is real.
 4. **Copyability score** — replay each whale's entries with +2 blocks of latency
    against real price paths; a whale whose edge dies in two blocks is decoration,
    not signal. Feeds wallet ranking and gem ranking both.
@@ -78,17 +88,26 @@ Ordered by dependency, not ambition:
 6. **Exclusion module** — infra score + manual exclude, with configurable-hop
    crawl to purge sibling wallets of anything excluded.
 7. **Executor** — manual first: gem feed → pre-trade gauntlet re-check → human
-   confirms → Jupiter swap with platform-fee bps (non-custodial; see
-   docs/custody notes and the Custody artifact). Auto-mode is gated exclusively
-   on paper-trading expectancy, never on excitement.
-8. **Monetization** (if it ever goes multi-user): platform fee on executor swaps,
-   referral fees — fee-on-flow without custody. We sell the road, we never hold
-   the cargo.
+   confirms → Jupiter swap (non-custodial, our own keys, no one else's money).
+   Auto-mode is gated exclusively on paper-trading expectancy, never on
+   excitement. Rules over feelings: sizing from config, exit defined before
+   entry, hard daily loss cap that halts the loop when hit.
+8. **Deployment** — one always-on NestJS process (small VPS or a spare machine at
+   home): webhook receiver + event queue + the existing modules. The web UI stays
+   the cockpit; the daemon does the work.
+9. **Monetization** — parked. Only relevant if this ever serves anyone but us;
+   the non-custodial fee-on-flow path (platform bps on executor swaps) is
+   documented in the Custody artifact if that day comes.
 
 ## Invariants (things v2 must not break)
 
-- Non-custodial, always. No float, no deposits, no "send us SOL".
+- Non-custodial, always. No float, no deposits, no "send us SOL". Personal
+  system or not, we never hold anyone else's money.
 - The gauntlet is advisory until paper stats justify more; the human owns entries.
+- The kill switch outranks the loop: a daily loss cap, a global pause flag, and
+  position-size ceilings are enforced in the executor itself, not in the UI.
+- Capital exposed to the loop is capital we can lose to zero; the loop never
+  touches more than its allocation.
 - Every automated judgment (flag, verdict, score) shows its inputs in the UI —
   no black-box "trust me" labels.
 - Dependency direction: analysis/ is the shared source layer; feature modules
