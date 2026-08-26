@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { FilterField, FilterState } from '../lib/useTableFilters';
 
 interface FilterModalProps<T> {
@@ -24,7 +25,7 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
       <button type="button" className="btn py-1! px-2! text-[0.6rem]!" onClick={() => setOpen(true)}>
         Filters{activeCount > 0 && ` (${activeCount})`}
       </button>
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
@@ -79,7 +80,8 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
