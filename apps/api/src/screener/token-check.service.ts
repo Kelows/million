@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import type { CheckStatus, TokenCheck, TokenCheckThresholds, TokenReport } from '@million/shared';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
-import { DexScreenerService } from '../analysis/dexscreener.service';
 import { RugcheckService } from './rugcheck.service';
 
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
