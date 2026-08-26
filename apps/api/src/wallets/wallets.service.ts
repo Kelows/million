@@ -4,6 +4,7 @@ import type { Wallet } from '@prisma/client';
 import type { WalletImport, WalletMetrics, WalletRecord, WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 import { TokenMetaService } from '../analysis/token-meta.service';
 import { computeMetrics } from '../analysis/metrics';
 
@@ -13,6 +14,7 @@ export class WalletsService {
     private readonly prisma: PrismaService,
     private readonly helius: HeliusService,
     private readonly tokenMeta: TokenMetaService,
+    private readonly dexscreener: DexScreenerService,
     private readonly config: ConfigService,
   ) {}
 
@@ -53,8 +55,11 @@ export class WalletsService {
     await this.prisma.wallet.update({ where: { address }, data: { status: 'analyzing', error: null } });
     try {
       const maxPages = Number(this.config.get('ANALYSIS_MAX_PAGES') ?? 5);
-      const { txs, truncated } = await this.helius.fetchSwaps(address, maxPages);
-      const metrics = computeMetrics(address, txs, truncated);
+      const [{ txs, truncated }, solPrice] = await Promise.all([
+        this.helius.fetchHistory(address, maxPages),
+        this.dexscreener.fetchSolPriceUsd(),
+      ]);
+      const metrics = computeMetrics(address, txs, truncated, solPrice);
       const symbols = await this.tokenMeta.getSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
       const updated = await this.prisma.wallet.update({

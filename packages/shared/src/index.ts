@@ -27,7 +27,8 @@ export type WalletFlag =
   | 'SNIPER_SPEED' // median hold under 5 minutes — you cannot copy this manually
   | 'HIGH_WINRATE_SUS' // >90% win rate over many tokens — possibly farmed for copy-traders
   | 'LOW_ACTIVITY' // too few closed trades to trust the stats
-  | 'DORMANT'; // no swaps in the last 14 days
+  | 'DORMANT' // no swaps in the last 14 days
+  | 'BOT_INFRA'; // automated infrastructure (broker/volume/MEV), not a trader
 
 export interface TokenBreakdown {
   mint: string;
@@ -36,7 +37,11 @@ export interface TokenBreakdown {
   sells: number;
   solIn: number; // SOL spent buying
   solOut: number; // SOL received selling
+  usdIn?: number; // USDC/USDT spent buying
+  usdOut?: number; // USDC/USDT received selling
   realizedPnlSol: number;
+  realizedPnlUsd?: number;
+  entrySol?: number; // total entry cost expressed in SOL (usd leg converted at analysis-time price)
   holdMinutes: number | null; // first buy -> last sell
   open: boolean; // still holding a position
 }
@@ -49,11 +54,22 @@ export interface WalletMetrics {
   closedTokens: number;
   winRate: number | null; // profitable closed tokens / closed tokens
   realizedPnlSol: number;
+  realizedPnlUsd?: number;
+  realizedPnlTotalSol?: number; // sol legs + usd legs converted at analysis-time SOL price
+  solPriceUsd?: number;
   medianHoldMinutes: number | null;
   firstSeen: string | null; // ISO
   lastSeen: string | null; // ISO
   flags: WalletFlag[];
   tokens: TokenBreakdown[];
+  infra?: {
+    txPerDay: number;
+    externalFeePayerShare: number;
+    deliveries: number; // tokens sent out without proceeds
+    sweepIns: number; // quote-only inflow txs
+    uniqueCounterparties: number;
+  };
+  topFeePayer?: { address: string; share: number } | null;
 }
 
 export type WalletStatus = 'idle' | 'analyzing' | 'done' | 'error';
@@ -128,13 +144,14 @@ export const DEFAULT_MIN_OPEN_SOL = 1;
 
 /** A wallet's open positions — stablecoins and dust-sized entries excluded. */
 export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT_MIN_OPEN_SOL): TokenBreakdown[] {
-  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol) && t.solIn >= minSol);
+  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol) && (t.entrySol ?? t.solIn) >= minSol);
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
 export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
 
 export function isQualifyingWallet(m: WalletMetrics): boolean {
+  if (m.flags.includes('BOT_INFRA')) return false; // plumbing, not a trader
   if (m.winRate === null) return false;
   return m.winRate > WATCH_CRITERIA.minWinRate && m.closedTokens >= WATCH_CRITERIA.minClosedTokens;
 }

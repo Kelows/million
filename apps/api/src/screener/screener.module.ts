@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HeliusService } from '../analysis/helius.service';
-import { DexScreenerService } from './dexscreener.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 import { RugcheckService } from './rugcheck.service';
 import { ScreenerController } from './screener.controller';
 import { TokenCheckService } from './token-check.service';

@@ -34,3 +34,9 @@ export function fmtAgo(iso: string | null): string {
   if (seconds < 86400 * 30) return `${Math.floor(seconds / 86400)}d ago`;
   return `${Math.floor(seconds / (86400 * 30))}mo ago`;
 }
+
+/** Total realized PnL in SOL terms (usd legs converted at analysis-time price; falls back for old analyses). */
+export function totalPnlSol(m: { realizedPnlSol: number; realizedPnlTotalSol?: number } | null | undefined): number | null {
+  if (!m) return null;
+  return m.realizedPnlTotalSol ?? m.realizedPnlSol;
+}

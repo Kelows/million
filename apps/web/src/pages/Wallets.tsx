@@ -4,7 +4,7 @@ import { useAnalyzeWallet, useHealth, useImportWallets, useRemoveWallet, useWall
 import { FlagChip } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
-import { fmtAgo, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
@@ -23,7 +23,7 @@ function openCount(w: WalletRecord): number | null {
 const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'openOnly', label: 'open positions only (excl. stables)', type: 'toggle', get: (w) => (openCount(w) ?? 0) > 0 },
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
-  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openCount(w) },
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
@@ -31,7 +31,7 @@ const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
   { key: 'winRate', get: (w) => w.metrics?.winRate ?? null },
-  { key: 'pnl', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'pnl', get: (w) => totalPnlSol(w.metrics) },
   { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
   { key: 'open', get: (w) => openCount(w) },
   { key: 'lastSeen', get: (w) => (w.metrics?.lastSeen ? new Date(w.metrics.lastSeen).getTime() : null) },
@@ -201,8 +201,8 @@ export function Wallets() {
                       <td className="px-4 py-2"><Addr address={w.address} /></td>
                       <td className="px-4 py-2 text-ink">{w.label ?? <span className="text-dim">—</span>}</td>
                       <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
-                      <td className={`px-4 py-2 text-right ${w.metrics ? ((w.metrics.realizedPnlSol >= 0) ? 'text-profit' : 'text-loss') : 'text-dim'}`}>
-                        {w.metrics ? fmtSol(w.metrics.realizedPnlSol) : '—'}
+                      <td className={`px-4 py-2 text-right ${w.metrics ? ((totalPnlSol(w.metrics) ?? 0) >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>
+                        {w.metrics ? fmtSol(totalPnlSol(w.metrics) ?? 0) : '—'}
                       </td>
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
                       <td className="px-4 py-2">

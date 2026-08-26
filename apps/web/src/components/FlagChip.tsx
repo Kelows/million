@@ -6,6 +6,7 @@ const FLAG_INFO: Record<WalletFlag, { label: string; title: string; warn: boolea
   HIGH_WINRATE_SUS: { label: 'sus winrate', title: '>90% win rate over 20+ tokens — possibly farmed for copy-traders', warn: true },
   LOW_ACTIVITY: { label: 'low data', title: 'Fewer than 5 closed trades — stats not trustworthy yet', warn: false },
   DORMANT: { label: 'dormant', title: 'No swaps in the last 14 days', warn: false },
+  BOT_INFRA: { label: 'infra', title: 'Automated infrastructure (broker/volume/MEV), not a trader — stats meaningless, excluded from recs', warn: true },
 };
 
 export function FlagChip({ flag }: { flag: WalletFlag }) {

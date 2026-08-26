@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { useWallets } from '../api';
 import { StatTile } from '../components/StatTile';
 import { Addr } from '../components/Addr';
-import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
@@ -14,7 +14,7 @@ import { isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shar
 
 const WATCH_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
-  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length },
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
@@ -22,13 +22,13 @@ const WATCH_FILTERS: FilterField<WalletRecord>[] = [
 export function Dashboard() {
   const { data: wallets = [], isLoading } = useWallets();
   const analyzed = wallets.filter((w) => w.metrics);
-  const totalPnl = analyzed.reduce((s, w) => s + (w.metrics?.realizedPnlSol ?? 0), 0);
+  const totalPnl = analyzed.reduce((s, w) => s + (totalPnlSol(w.metrics) ?? 0), 0);
   const winRates = analyzed.map((w) => w.metrics?.winRate).filter((r): r is number => r !== null && r !== undefined);
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
   const [filters, setFilters] = useStoredFilters('million.filters.watch');
   const watchAll = analyzed
     .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens, loadMinOpenSol()).length > 0)
-    .sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0));
+    .sort((a, b) => (totalPnlSol(b.metrics) ?? 0) - (totalPnlSol(a.metrics) ?? 0));
   const top = applyFilters(watchAll, WATCH_FILTERS, filters);
   const pag = usePagination(top, 10);
 
@@ -95,8 +95,8 @@ export function Dashboard() {
                         </Link>
                       </td>
                       <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
-                      <td className={`px-4 py-2 text-right ${(w.metrics?.realizedPnlSol ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {fmtSol(w.metrics?.realizedPnlSol ?? 0)}
+                      <td className={`px-4 py-2 text-right ${(totalPnlSol(w.metrics) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {fmtSol(totalPnlSol(w.metrics) ?? 0)}
                       </td>
                       <td className="px-4 py-2 text-warn">{openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length}</td>
                       <td className="px-4 py-2 text-dim" title={w.metrics?.lastSeen ?? ''}>{fmtAgo(w.metrics?.lastSeen ?? null)}</td>

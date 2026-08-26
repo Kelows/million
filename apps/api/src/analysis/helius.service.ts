@@ -19,8 +19,10 @@ export interface HeliusTx {
   timestamp: number; // unix seconds
   type: string;
   source: string;
+  feePayer?: string;
   tokenTransfers: HeliusTokenTransfer[];
   nativeTransfers: HeliusNativeTransfer[];
+  accountData?: { account: string; nativeBalanceChange: number }[];
 }
 
 const BASE = 'https://api.helius.xyz/v0';
@@ -54,6 +56,11 @@ export class HeliusService {
     return this.fetchTxs(address, 'TRANSFER', maxPages);
   }
 
+  /** Fetch ALL transaction types — custom-program swaps hide behind type UNKNOWN. */
+  fetchHistory(address: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+    return this.fetchTxs(address, '', maxPages);
+  }
+
   private async fetchTxs(address: string, type: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
     const key = this.key();
     const txs: HeliusTx[] = [];
@@ -63,7 +70,7 @@ export class HeliusService {
     for (let page = 0; page < maxPages; page++) {
       const url = new URL(`${BASE}/addresses/${address}/transactions`);
       url.searchParams.set('api-key', key);
-      url.searchParams.set('type', type);
+      if (type) url.searchParams.set('type', type);
       url.searchParams.set('limit', '100');
       if (before) url.searchParams.set('before', before);
 

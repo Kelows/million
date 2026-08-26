@@ -11,9 +11,22 @@ export interface DexPair {
   pairUrl: string | null;
 }
 
+const WSOL = 'So11111111111111111111111111111111111111112';
+
 /** DexScreener public API — no key required. */
 @Injectable()
 export class DexScreenerService {
+  private solPrice: { value: number; at: number } | null = null;
+
+  /** Live SOL/USD price, cached 5 minutes. Falls back to $200 if the API is down. */
+  async fetchSolPriceUsd(): Promise<number> {
+    if (this.solPrice && Date.now() - this.solPrice.at < 5 * 60_000) return this.solPrice.value;
+    const pair = await this.fetchBestPair(WSOL).catch(() => null);
+    const value = pair?.priceUsd ?? 200;
+    this.solPrice = { value, at: Date.now() };
+    return value;
+  }
+
   async fetchBestPair(mint: string): Promise<DexPair | null> {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`).catch(() => null);
     if (!res?.ok) return null;

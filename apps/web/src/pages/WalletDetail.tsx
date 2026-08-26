@@ -4,7 +4,7 @@ import { useAnalyzeWallet, useImportWallets, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
-import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { usePagination } from '../lib/usePagination';
 import { loadSubscriptions, saveSubscriptions } from '../lib/subscriptions';
@@ -17,7 +17,7 @@ const TOKEN_COLUMNS: SortColumn<TokenBreakdown>[] = [
   { key: 'trades', get: (t) => t.buys + t.sells },
   { key: 'solIn', get: (t) => t.solIn },
   { key: 'solOut', get: (t) => t.solOut },
-  { key: 'realized', get: (t) => t.realizedPnlSol },
+  { key: 'realized', get: (t) => t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / 200 },
   { key: 'hold', get: (t) => t.holdMinutes },
   { key: 'state', get: (t) => (t.open ? 1 : 0) },
 ];
@@ -90,6 +90,11 @@ export function WalletDetail() {
             <a href={classicUrl('wallet', wallet.address)} target="_blank" rel="noopener noreferrer" className="text-dim hover:text-neon">Solscan ↗</a>
           </div>
           <div className="flex gap-1 mt-2 flex-wrap">{(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} />)}</div>
+          {m?.topFeePayer && (
+            <div className="text-xs text-dim mt-2">
+              orchestrator: <Addr address={m.topFeePayer.address} /> pays fees on {Math.round(m.topFeePayer.share * 100)}% of txs
+            </div>
+          )}
         </div>
         <div className="text-right">
           <button
@@ -122,9 +127,9 @@ export function WalletDetail() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatTile
               label="Realized PnL"
-              value={fmtSol(m.realizedPnlSol)}
-              sub={m.truncated ? `recent ${m.analyzedTxCount} swaps (truncated)` : `${m.analyzedTxCount} swaps`}
-              tone={m.realizedPnlSol >= 0 ? 'profit' : 'loss'}
+              value={fmtSol(totalPnlSol(m) ?? 0)}
+              sub={`${m.realizedPnlUsd ? `incl. $${Math.round(m.realizedPnlUsd).toLocaleString('en-US')} in stable legs · ` : ''}${m.truncated ? `recent ${m.analyzedTxCount} txs (truncated)` : `${m.analyzedTxCount} txs`}`}
+              tone={(totalPnlSol(m) ?? 0) >= 0 ? 'profit' : 'loss'}
             />
             <StatTile label="Win rate" value={fmtPct(m.winRate)} sub={`${m.closedTokens} closed tokens`} />
             <StatTile label="Median hold" value={fmtHold(m.medianHoldMinutes)} sub="first buy → last sell" />
@@ -153,8 +158,11 @@ export function WalletDetail() {
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>
-                      <td className={`px-4 py-2 text-right ${t.realizedPnlSol >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      <td className={`px-4 py-2 text-right ${t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / 200 >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {fmtSol(t.realizedPnlSol)}
+                        {Math.abs(t.realizedPnlUsd ?? 0) >= 1 && (
+                          <span className="block text-xs opacity-80">{(t.realizedPnlUsd ?? 0) > 0 ? '+' : '−'}${Math.abs(Math.round(t.realizedPnlUsd ?? 0)).toLocaleString('en-US')}</span>
+                        )}
                       </td>
                       <td className="px-4 py-2">{fmtHold(t.holdMinutes)}</td>
                       <td className="px-4 py-2 text-xs">{t.open ? <span className="text-warn">open</span> : <span className="text-dim">closed</span>}</td>
