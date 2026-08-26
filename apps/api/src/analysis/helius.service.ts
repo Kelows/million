@@ -24,6 +24,7 @@ export interface HeliusTx {
 }
 
 const BASE = 'https://api.helius.xyz/v0';
+const RPC = 'https://mainnet.helius-rpc.com';
 
 @Injectable()
 export class HeliusService {
@@ -74,4 +75,34 @@ export class HeliusService {
     }
     return { txs, truncated };
   }
+
+  /** Batch token metadata via DAS getAssetBatch — one call per 1000 mints, same API key. */
+  async fetchTokenSymbols(mints: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (!this.hasKey || mints.length === 0) return out;
+    for (let i = 0; i < mints.length; i += 1000) {
+      const res = await fetch(`${RPC}/?api-key=${this.key()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'asset-batch',
+          method: 'getAssetBatch',
+          params: { ids: mints.slice(i, i + 1000) },
+        }),
+      });
+      if (!res.ok) return out; // metadata is a nice-to-have — never fail the analysis over it
+      const body = (await res.json()) as { result?: (HeliusAssetBatchItem | null)[] };
+      for (const item of body.result ?? []) {
+        const symbol = item?.content?.metadata?.symbol?.trim();
+        if (item && symbol) out.set(item.id, symbol);
+      }
+    }
+    return out;
+  }
+}
+
+export interface HeliusAssetBatchItem {
+  id: string;
+  content?: { metadata?: { symbol?: string; name?: string } };
 }

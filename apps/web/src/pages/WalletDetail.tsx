@@ -4,11 +4,26 @@ import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
 import { fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { SortHeader } from '../components/SortHeader';
+import type { TokenBreakdown } from '@million/shared';
+
+const TOKEN_COLUMNS: SortColumn<TokenBreakdown>[] = [
+  { key: 'symbol', get: (t) => t.symbol },
+  { key: 'trades', get: (t) => t.buys + t.sells },
+  { key: 'solIn', get: (t) => t.solIn },
+  { key: 'solOut', get: (t) => t.solOut },
+  { key: 'realized', get: (t) => t.realizedPnlSol },
+  { key: 'hold', get: (t) => t.holdMinutes },
+  { key: 'state', get: (t) => (t.open ? 1 : 0) },
+];
 
 export function WalletDetail() {
   const { address } = useParams({ from: '/wallets/$address' });
   const { data: wallet, isLoading, error } = useWallet(address);
   const analyze = useAnalyzeWallet();
+  // hook must run on every render path, so it sits above the early returns
+  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (error || !wallet) {
@@ -73,19 +88,24 @@ export function WalletDetail() {
               <table className="w-full text-sm font-mono">
                 <thead>
                   <tr className="text-left text-dim text-xs">
-                    <th className="px-4 py-2 font-normal">token mint</th>
-                    <th className="px-4 py-2 font-normal">buys/sells</th>
-                    <th className="px-4 py-2 font-normal text-right">SOL in</th>
-                    <th className="px-4 py-2 font-normal text-right">SOL out</th>
-                    <th className="px-4 py-2 font-normal text-right">realized</th>
-                    <th className="px-4 py-2 font-normal">hold</th>
-                    <th className="px-4 py-2 font-normal">state</th>
+                    <SortHeader label="token" colKey="symbol" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
+                    <SortHeader label="buys/sells" colKey="trades" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
+                    <SortHeader label="SOL in" colKey="solIn" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
+                    <SortHeader label="SOL out" colKey="solOut" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
+                    <SortHeader label="realized" colKey="realized" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
+                    <SortHeader label="hold" colKey="hold" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
+                    <SortHeader label="state" colKey="state" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
                   </tr>
                 </thead>
                 <tbody>
-                  {m.tokens.map((t) => (
+                  {tokenSort.sorted.map((t) => (
                     <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                      <td className="px-4 py-2"><Addr address={t.mint} kind="token" /></td>
+                      <td className="px-4 py-2">
+                        <span className="inline-flex items-center gap-2">
+                          {t.symbol && <span className="text-bright font-semibold">{t.symbol}</span>}
+                          <Addr address={t.mint} kind="token" />
+                        </span>
+                      </td>
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>

@@ -53,6 +53,8 @@ export class WalletsService {
       const maxPages = Number(this.config.get('ANALYSIS_MAX_PAGES') ?? 5);
       const { txs, truncated } = await this.helius.fetchSwaps(address, maxPages);
       const metrics = computeMetrics(address, txs, truncated);
+      const symbols = await this.helius.fetchTokenSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
+      for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
       const updated = await this.prisma.wallet.update({
         where: { address },
         data: { status: 'done', metrics: JSON.stringify(metrics), lastAnalyzedAt: new Date(), error: null },

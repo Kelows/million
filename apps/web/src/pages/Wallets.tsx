@@ -4,7 +4,23 @@ import { useAnalyzeWallet, useHealth, useImportWallets, useRemoveWallet, useWall
 import { FlagChip } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
-import { fmtHold, fmtPct, fmtSol } from '../lib/format';
+import { fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { SortHeader } from '../components/SortHeader';
+import type { WalletRecord } from '@million/shared';
+
+function openCount(w: WalletRecord): number | null {
+  if (!w.metrics) return null;
+  return w.metrics.tokens.filter((t) => t.open).length;
+}
+
+const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
+  { key: 'label', get: (w) => w.label },
+  { key: 'winRate', get: (w) => w.metrics?.winRate ?? null },
+  { key: 'pnl', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
+  { key: 'open', get: (w) => openCount(w) },
+];
 
 export function Wallets() {
   const { data: wallets = [] } = useWallets();
@@ -17,6 +33,7 @@ export function Wallets() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
+  const [openOnly, setOpenOnly] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -54,6 +71,8 @@ export function Wallets() {
   };
 
   const pending = wallets.filter((w) => !w.metrics && w.status !== 'analyzing');
+  const filtered = openOnly ? wallets.filter((w) => (openCount(w) ?? 0) > 0) : wallets;
+  const { sorted, sortKey, dir, toggle } = useTableSort(filtered, ROSTER_COLUMNS);
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
@@ -106,7 +125,17 @@ export function Wallets() {
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4">
-          <span className="eyebrow">Roster · {wallets.length}</span>
+          <span className="eyebrow">Roster · {openOnly ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
+          <label className="flex items-center gap-2 text-xs text-dim cursor-pointer mr-auto">
+            <input
+              type="checkbox"
+              checked={openOnly}
+              onChange={(e) => setOpenOnly(e.target.checked)}
+              className="w-3.5 h-3.5 p-0!"
+              style={{ accentColor: 'var(--color-neon)' }}
+            />
+            open positions only
+          </label>
           {pending.length > 0 && (
             <button className="btn" disabled={!heliusOk || analyzing.size > 0} onClick={() => runAnalysis(pending.map((w) => w.address))}>
               {analyzing.size > 0 ? `Analyzing ${analyzing.size} left…` : `Analyze all pending (${pending.length})`}
@@ -115,22 +144,25 @@ export function Wallets() {
         </div>
         {wallets.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-dim">Roster is empty — import the JSON above to begin.</p>
+        ) : sorted.length === 0 ? (
+          <p className="px-4 pb-4 text-sm text-dim">No wallets with open positions — analyze more wallets or clear the filter.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-mono">
               <thead>
                 <tr className="text-left text-dim text-xs">
                   <th className="px-4 py-2 font-normal">wallet</th>
-                  <th className="px-4 py-2 font-normal">label</th>
-                  <th className="px-4 py-2 font-normal">win rate</th>
-                  <th className="px-4 py-2 font-normal text-right">realized PnL</th>
-                  <th className="px-4 py-2 font-normal">med. hold</th>
+                  <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right />
+                  <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <th className="px-4 py-2 font-normal">flags</th>
                   <th className="px-4 py-2 font-normal"></th>
                 </tr>
               </thead>
               <tbody>
-                {wallets.map((w) => {
+                {sorted.map((w) => {
                   const busy = analyzing.has(w.address) || w.status === 'analyzing';
                   return (
                     <tr key={w.address} className="border-t border-line hover:bg-deck2">
@@ -141,6 +173,15 @@ export function Wallets() {
                         {w.metrics ? fmtSol(w.metrics.realizedPnlSol) : '—'}
                       </td>
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
+                      <td className="px-4 py-2">
+                        {(() => {
+                          const open = w.metrics?.tokens.filter((t) => t.open);
+                          if (!open) return <span className="text-dim">—</span>;
+                          if (open.length === 0) return <span className="text-dim">0</span>;
+                          const names = open.map((t) => t.symbol ?? truncAddr(t.mint)).join(', ');
+                          return <span className="text-warn" title={names}>{open.length}</span>;
+                        })()}
+                      </td>
                       <td className="px-4 py-2">
                         <span className="flex gap-1 flex-wrap">
                           {w.status === 'error' && <span title={w.error ?? ''} className="text-loss text-[0.6rem] uppercase">error</span>}
