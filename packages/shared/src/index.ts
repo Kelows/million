@@ -123,9 +123,12 @@ export function isStablecoin(mint: string, symbol?: string | null): boolean {
   return s.includes('USD') || s === 'DAI';
 }
 
-/** A wallet's open positions, stablecoins excluded — the roster/dashboard definition of "open". */
-export function openPositions(tokens: TokenBreakdown[]): TokenBreakdown[] {
-  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol));
+/** Positions below this entry cost are dust, not conviction. */
+export const DEFAULT_MIN_OPEN_SOL = 1;
+
+/** A wallet's open positions — stablecoins and dust-sized entries excluded. */
+export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT_MIN_OPEN_SOL): TokenBreakdown[] {
+  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol) && t.solIn >= minSol);
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
@@ -147,7 +150,7 @@ export interface ConsensusToken {
 
 export interface RecommendationsData {
   generatedAt: string;
-  criteria: { minWinRate: number; minClosedTokens: number };
+  criteria: { minWinRate: number; minClosedTokens: number; minOpenSol: number };
   totalAnalyzed: number;
   qualifyingWallets: number;
   consensusTokens: ConsensusToken[];

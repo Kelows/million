@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { loadFailsafes, saveFailsafes, type FailsafeConfig } from '../lib/failsafes';
+import { loadMinOpenSol, saveMinOpenSol } from '../lib/settings';
 
 const PLANNED_CHECKS = [
   { name: 'Sell simulation', why: 'hard honeypot check — can a wallet actually sell?' },
@@ -26,6 +27,7 @@ const FIELDS: ThresholdField[] = [
 
 export function Screener() {
   const [config, setConfig] = useState<FailsafeConfig>(loadFailsafes);
+  const [minOpenSol, setMinOpenSol] = useState<number>(loadMinOpenSol);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,28 @@ export function Screener() {
             />
           </label>
         ))}
+      </div>
+
+      <div className="panel p-4 flex flex-col gap-4">
+        <span className="eyebrow">Analytics</span>
+        <label className="flex items-center justify-between gap-4 text-sm">
+          <span>
+            Min open position size (SOL)
+            <span className="block text-xs text-dim">entries below this are dust, not conviction — affects open counts, filters and recs</span>
+          </span>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={minOpenSol}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setMinOpenSol(n);
+              saveMinOpenSol(n);
+            }}
+            className="w-40 text-right"
+          />
+        </label>
       </div>
 
       <div className="panel p-4">

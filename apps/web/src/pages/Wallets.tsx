@@ -8,6 +8,7 @@ import { fmtAgo, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
+import { loadMinOpenSol } from '../lib/settings';
 import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
@@ -16,7 +17,7 @@ import { openPositions, type WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
-  return openPositions(w.metrics.tokens).length;
+  return openPositions(w.metrics.tokens, loadMinOpenSol()).length;
 }
 
 const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
@@ -206,7 +207,7 @@ export function Wallets() {
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
                       <td className="px-4 py-2">
                         {(() => {
-                          const open = w.metrics ? openPositions(w.metrics.tokens) : null;
+                          const open = w.metrics ? openPositions(w.metrics.tokens, loadMinOpenSol()) : null;
                           if (!open) return <span className="text-dim">—</span>;
                           if (open.length === 0) return <span className="text-dim">0</span>;
                           const names = open.map((t) => t.symbol ?? truncAddr(t.mint)).join(', ');

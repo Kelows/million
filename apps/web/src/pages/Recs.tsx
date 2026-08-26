@@ -32,7 +32,7 @@ export function Recs() {
           {recs && (
             <div className="text-xs text-dim mt-2" title={recs.generatedAt}>
               generated {fmtAgo(recs.generatedAt)} · {recs.qualifyingWallets}/{recs.totalAnalyzed} wallets qualify
-              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed)
+              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed, open ≥ {recs.criteria.minOpenSol} SOL)
             </div>
           )}
         </div>

@@ -75,6 +75,7 @@ export function useTokenReport(mint: string | null, thresholds: TokenCheckThresh
 }
 
 import type { RecommendationsData } from '@million/shared';
+import { loadMinOpenSol } from './lib/settings';
 
 export function useRecommendations() {
   return useQuery({ queryKey: ['recommendations'], queryFn: () => request<RecommendationsData | null>('/recommendations') });
@@ -83,7 +84,7 @@ export function useRecommendations() {
 export function useRunRecommendations() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => request<RecommendationsData>('/recommendations/run', { method: 'POST' }),
+    mutationFn: () => request<RecommendationsData>(`/recommendations/run?minOpenSol=${loadMinOpenSol()}`, { method: 'POST' }),
     onSuccess: (data) => qc.setQueryData(['recommendations'], data),
   });
 }

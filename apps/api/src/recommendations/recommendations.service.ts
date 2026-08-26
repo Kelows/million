@@ -15,11 +15,11 @@ export class RecommendationsService {
     return row ? (JSON.parse(row.data) as RecommendationsData) : null;
   }
 
-  async run(): Promise<RecommendationsData> {
+  async run(minOpenSol: number): Promise<RecommendationsData> {
     if (this.running) throw new ConflictException('a recommendations run is already in progress');
     this.running = true;
     try {
-      const data = await this.compute();
+      const data = await this.compute(minOpenSol);
       await this.prisma.recommendation.create({ data: { data: JSON.stringify(data) } });
       // keep the table small — only the last few runs matter
       const stale = await this.prisma.recommendation.findMany({
@@ -36,7 +36,7 @@ export class RecommendationsService {
     }
   }
 
-  private async compute(): Promise<RecommendationsData> {
+  private async compute(minOpenSol: number): Promise<RecommendationsData> {
     const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } } });
     const wallets = rows.map((w) => ({
       address: w.address,
@@ -49,7 +49,7 @@ export class RecommendationsService {
     // consensus: how many qualifying wallets hold the same token open right now (stables excluded)
     const byMint = new Map<string, ConsensusToken>();
     for (const w of qualifying) {
-      for (const t of openPositions(w.metrics.tokens)) {
+      for (const t of openPositions(w.metrics.tokens, minOpenSol)) {
         let entry = byMint.get(t.mint);
         if (!entry) {
           entry = { mint: t.mint, symbol: t.symbol, count: 0, holders: [] };
@@ -68,7 +68,7 @@ export class RecommendationsService {
 
     return {
       generatedAt: new Date().toISOString(),
-      criteria: WATCH_CRITERIA,
+      criteria: { ...WATCH_CRITERIA, minOpenSol },
       totalAnalyzed: wallets.length,
       qualifyingWallets: qualifying.length,
       consensusTokens,

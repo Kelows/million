@@ -6,6 +6,7 @@ import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
+import { loadMinOpenSol } from '../lib/settings';
 import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import type { WalletRecord } from '@million/shared';
@@ -14,7 +15,7 @@ import { isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shar
 const WATCH_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
   { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => w.metrics?.realizedPnlSol ?? null },
-  { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? []).length },
+  { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length },
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
 
@@ -26,7 +27,7 @@ export function Dashboard() {
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
   const [filters, setFilters] = useStoredFilters('million.filters.watch');
   const watchAll = analyzed
-    .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens).length > 0)
+    .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens, loadMinOpenSol()).length > 0)
     .sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0));
   const top = applyFilters(watchAll, WATCH_FILTERS, filters);
   const pag = usePagination(top, 10);
@@ -59,7 +60,7 @@ export function Dashboard() {
       ) : (
         <div className="panel">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, open positions (excl. stables) · by realized PnL</span>
+            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, open ≥ {loadMinOpenSol()} SOL (excl. stables & dust) · by realized PnL</span>
             <span className="flex items-center gap-3">
               <FilterModal fields={WATCH_FILTERS} state={filters} onChange={setFilters} />
               <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
@@ -97,7 +98,7 @@ export function Dashboard() {
                       <td className={`px-4 py-2 text-right ${(w.metrics?.realizedPnlSol ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {fmtSol(w.metrics?.realizedPnlSol ?? 0)}
                       </td>
-                      <td className="px-4 py-2 text-warn">{openPositions(w.metrics?.tokens ?? []).length}</td>
+                      <td className="px-4 py-2 text-warn">{openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length}</td>
                       <td className="px-4 py-2 text-dim" title={w.metrics?.lastSeen ?? ''}>{fmtAgo(w.metrics?.lastSeen ?? null)}</td>
                     </tr>
                   ))}
