@@ -17,15 +17,15 @@ export function Recs() {
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex-1 min-w-0 max-w-xl">
           <h1 className="text-xl font-bold text-bright tracking-wide">Recommendations</h1>
           <p className="text-sm text-dim mt-1">
             Consensus across your whales, computed from cached analyses — re-run after analyzing new wallets. The
             wallet watch list lives on the overview.
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0 max-w-64">
           <button className="btn" disabled={run.isPending} onClick={() => run.mutate()}>
             {run.isPending ? 'Computing…' : recs ? 'Re-run' : 'Run'}
           </button>
