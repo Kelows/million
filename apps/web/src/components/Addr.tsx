@@ -16,6 +16,7 @@ export function Addr({ address, full = false, kind = 'wallet', symbol }: { addre
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {symbol && <span className="text-bright font-semibold">{symbol}</span>}
       <button
         type="button"
         className="font-mono text-neon hover:underline cursor-pointer"
@@ -26,7 +27,6 @@ export function Addr({ address, full = false, kind = 'wallet', symbol }: { addre
           setTimeout(() => setCopied(false), 1200);
         }}
       >
-        {symbol && <span className="text-bright font-semibold mr-2">{symbol}</span>}
         {full ? address : truncAddr(address)}
         {copied && <span className="text-dim ml-1 text-[0.6rem]">copied</span>}
       </button>
