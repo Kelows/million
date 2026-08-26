@@ -59,6 +59,7 @@ export class HeliusService {
       if (before) url.searchParams.set('before', before);
 
       const res = await fetch(url);
+      if (res.status === 404) break; // no transaction history for this address
       if (res.status === 429) {
         // rate limited — return what we have rather than failing the whole analysis
         truncated = true;
@@ -77,8 +78,8 @@ export class HeliusService {
   }
 
   /** Batch token metadata via DAS getAssetBatch — one call per 1000 mints, same API key. */
-  async fetchTokenSymbols(mints: string[]): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+  async fetchTokenMeta(mints: string[]): Promise<Map<string, TokenMeta>> {
+    const out = new Map<string, TokenMeta>();
     if (!this.hasKey || mints.length === 0) return out;
     for (let i = 0; i < mints.length; i += 1000) {
       const res = await fetch(`${RPC}/?api-key=${this.key()}`, {
@@ -94,12 +95,20 @@ export class HeliusService {
       if (!res.ok) return out; // metadata is a nice-to-have — never fail the analysis over it
       const body = (await res.json()) as { result?: (HeliusAssetBatchItem | null)[] };
       for (const item of body.result ?? []) {
-        const symbol = item?.content?.metadata?.symbol?.trim();
-        if (item && symbol) out.set(item.id, symbol);
+        if (!item) continue;
+        out.set(item.id, {
+          symbol: item.content?.metadata?.symbol?.trim() || null,
+          name: item.content?.metadata?.name?.trim() || null,
+        });
       }
     }
     return out;
   }
+}
+
+export interface TokenMeta {
+  symbol: string | null;
+  name: string | null;
 }
 
 export interface HeliusAssetBatchItem {

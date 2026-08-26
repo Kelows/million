@@ -17,3 +17,10 @@ model Wallet {
   metrics        String? // JSON WalletMetrics
   error          String?
 }
+
+model Token {
+  mint      String   @id
+  symbol    String?
+  name      String?
+  fetchedAt DateTime @default(now())
+}

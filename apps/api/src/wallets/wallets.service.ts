@@ -4,6 +4,7 @@ import type { Wallet } from '@prisma/client';
 import type { WalletImport, WalletMetrics, WalletRecord, WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
+import { TokenMetaService } from '../analysis/token-meta.service';
 import { computeMetrics } from '../analysis/metrics';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class WalletsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly helius: HeliusService,
+    private readonly tokenMeta: TokenMetaService,
     private readonly config: ConfigService,
   ) {}
 
@@ -53,7 +55,7 @@ export class WalletsService {
       const maxPages = Number(this.config.get('ANALYSIS_MAX_PAGES') ?? 5);
       const { txs, truncated } = await this.helius.fetchSwaps(address, maxPages);
       const metrics = computeMetrics(address, txs, truncated);
-      const symbols = await this.helius.fetchTokenSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
+      const symbols = await this.tokenMeta.getSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
       const updated = await this.prisma.wallet.update({
         where: { address },
