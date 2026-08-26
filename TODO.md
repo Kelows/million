@@ -13,6 +13,7 @@
 - [ ] CRITICAL analyzer gap: metrics.ts only prices SOL legs — wallets trading with USDC/USDT as base show zero PnL. Port the quote-aware ledger from tools/wallet-dig.mjs into the analyzer
 - [ ] BOT_INFRA wallet flag: tx velocity (>500/day), buys-without-sells + token deliveries to third parties, huge unique-counterparty count, external fee payer on most txs, constant in-tx skim address, relay round-trip pattern -> exclude from recs/watch
 - [ ] Fee-payer clustering: the orchestrator paying fees is a stronger identity key than the wallet address (whole ops rotate wallets daily but keep the orchestrator)
+- [ ] Exclusion module (design agreed, build when clear): per-wallet infra score from cheap signals (tx/day, buys-without-sells + outbound deliveries, unique counterparty count, external fee-payer share, constant skim address, relay round-trips) -> BOT_INFRA flag + manual "exclude" toggle; excluded wallets drop out of recs/watch/consensus. Later: configurable-hop crawl to find sibling wallets of an excluded one
 - [ ] type=SWAP fetch misses custom-program swaps (43% were UNKNOWN in the case study) — consider all-type fetch + own classification for deep analysis
 
 ## Phase 2 — token legitimacy screener (research needed)
