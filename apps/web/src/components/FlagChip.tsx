@@ -9,6 +9,12 @@ const FLAG_INFO: Record<WalletFlag, { label: string; title: string; warn: boolea
   BOT_INFRA: { label: 'infra', title: 'Automated infrastructure (broker/volume/MEV), not a trader — stats meaningless, excluded from recs', warn: true },
 };
 
+/** All flags as selectable filter options, labels matching the chips. */
+export const FLAG_OPTIONS = (Object.keys(FLAG_INFO) as WalletFlag[]).map((value) => ({
+  value,
+  label: FLAG_INFO[value].label,
+}));
+
 export function FlagChip({ flag }: { flag: WalletFlag }) {
   const info = FLAG_INFO[flag];
   return (

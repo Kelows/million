@@ -20,7 +20,7 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
   }, [open]);
   const activeCount = Object.keys(state).length;
 
-  const setField = (key: string, value: number | boolean | undefined) => {
+  const setField = (key: string, value: number | boolean | string[] | undefined) => {
     const next = { ...state };
     if (value === undefined) delete next[key];
     else next[key] = value;
@@ -50,7 +50,32 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
               </button>
             </div>
             {fields.map((field) =>
-              field.type === 'toggle' ? (
+              field.type === 'multi' ? (
+                <div key={field.key}>
+                  <span className="text-sm">{field.label}</span>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(field.options ?? []).map((option) => {
+                      const selected = Array.isArray(state[field.key]) && (state[field.key] as string[]).includes(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            const current = Array.isArray(state[field.key]) ? (state[field.key] as string[]) : [];
+                            const next = selected ? current.filter((v) => v !== option.value) : [...current, option.value];
+                            setField(field.key, next.length ? next : undefined);
+                          }}
+                          className={`px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider border cursor-pointer ${
+                            selected ? 'border-loss text-loss' : 'border-line text-dim hover:text-ink'
+                          }`}
+                        >
+                          {selected ? '✕ ' : ''}{option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : field.type === 'toggle' ? (
                 <label key={field.key} className="flex items-center gap-3 text-sm cursor-pointer">
                   <input
                     type="checkbox"
