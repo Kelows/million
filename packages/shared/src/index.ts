@@ -129,12 +129,10 @@ export function openPositions(tokens: TokenBreakdown[]): TokenBreakdown[] {
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
-export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3, maxInactiveDays: 7 };
+export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
 
 export function isQualifyingWallet(m: WalletMetrics): boolean {
-  if (m.winRate === null || m.lastSeen === null) return false;
-  const inactiveDays = (Date.now() - new Date(m.lastSeen).getTime()) / 86_400_000;
-  if (inactiveDays > WATCH_CRITERIA.maxInactiveDays) return false;
+  if (m.winRate === null) return false;
   return m.winRate > WATCH_CRITERIA.minWinRate && m.closedTokens >= WATCH_CRITERIA.minClosedTokens;
 }
 
@@ -149,7 +147,7 @@ export interface ConsensusToken {
 
 export interface RecommendationsData {
   generatedAt: string;
-  criteria: { minWinRate: number; minClosedTokens: number; maxInactiveDays: number };
+  criteria: { minWinRate: number; minClosedTokens: number };
   totalAnalyzed: number;
   qualifyingWallets: number;
   consensusTokens: ConsensusToken[];

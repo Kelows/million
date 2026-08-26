@@ -12,7 +12,7 @@ export function classicUrl(kind: AddrKind, address: string): string {
   return kind === 'token' ? `https://dexscreener.com/solana/${address}` : `https://solscan.io/account/${address}`;
 }
 
-export function Addr({ address, full = false, kind = 'wallet' }: { address: string; full?: boolean; kind?: AddrKind }) {
+export function Addr({ address, full = false, kind = 'wallet', symbol }: { address: string; full?: boolean; kind?: AddrKind; symbol?: string | null }) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -26,6 +26,7 @@ export function Addr({ address, full = false, kind = 'wallet' }: { address: stri
           setTimeout(() => setCopied(false), 1200);
         }}
       >
+        {symbol && <span className="text-bright font-semibold mr-2">{symbol}</span>}
         {full ? address : truncAddr(address)}
         {copied && <span className="text-dim ml-1 text-[0.6rem]">copied</span>}
       </button>

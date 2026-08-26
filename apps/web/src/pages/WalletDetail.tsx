@@ -5,6 +5,8 @@ import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
 import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import type { TokenBreakdown } from '@million/shared';
 
@@ -24,6 +26,7 @@ export function WalletDetail() {
   const analyze = useAnalyzeWallet();
   // hook must run on every render path, so it sits above the early returns
   const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
+  const pag = usePagination(tokenSort.sorted, 25);
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (error || !wallet) {
@@ -98,14 +101,9 @@ export function WalletDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tokenSort.sorted.map((t) => (
+                  {pag.rows.map((t) => (
                     <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                      <td className="px-4 py-2">
-                        <span className="inline-flex items-center gap-2">
-                          {t.symbol && <span className="text-bright font-semibold">{t.symbol}</span>}
-                          <Addr address={t.mint} kind="token" />
-                        </span>
-                      </td>
+                      <td className="px-4 py-2"><Addr address={t.mint} kind="token" symbol={t.symbol} /></td>
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>
@@ -119,6 +117,7 @@ export function WalletDetail() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
           </div>
           <p className="text-xs text-dim">
             PnL is average-cost realized PnL on SOL-leg swaps within the fetched window. Token→token swaps and

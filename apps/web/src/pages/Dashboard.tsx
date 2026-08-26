@@ -4,7 +4,19 @@ import { StatTile } from '../components/StatTile';
 import { Addr } from '../components/Addr';
 import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
+import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
+import { usePagination } from '../lib/usePagination';
+import { FilterModal } from '../components/FilterModal';
+import { Pagination } from '../components/Pagination';
+import type { WalletRecord } from '@million/shared';
 import { isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shared';
+
+const WATCH_FILTERS: FilterField<WalletRecord>[] = [
+  { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
+  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? []).length },
+  { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
+];
 
 export function Dashboard() {
   const { data: wallets = [], isLoading } = useWallets();
@@ -12,10 +24,12 @@ export function Dashboard() {
   const totalPnl = analyzed.reduce((s, w) => s + (w.metrics?.realizedPnlSol ?? 0), 0);
   const winRates = analyzed.map((w) => w.metrics?.winRate).filter((r): r is number => r !== null && r !== undefined);
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
-  const top = analyzed
+  const [filters, setFilters] = useStoredFilters('million.filters.watch');
+  const watchAll = analyzed
     .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens).length > 0)
-    .sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0))
-    .slice(0, 10);
+    .sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0));
+  const top = applyFilters(watchAll, WATCH_FILTERS, filters);
+  const pag = usePagination(top, 10);
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -45,8 +59,11 @@ export function Dashboard() {
       ) : (
         <div className="panel">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, active ≤ {WATCH_CRITERIA.maxInactiveDays}d, open positions (excl. stables) · by realized PnL</span>
-            <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
+            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, open positions (excl. stables) · by realized PnL</span>
+            <span className="flex items-center gap-3">
+              <FilterModal fields={WATCH_FILTERS} state={filters} onChange={setFilters} />
+              <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
+            </span>
           </div>
           {top.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-dim">No qualifying wallets with open positions yet — analyze more of the roster.</p>
@@ -64,7 +81,7 @@ export function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {top.map((w) => (
+                  {pag.rows.map((w) => (
                     <tr key={w.address} className="border-t border-line hover:bg-deck2">
                       <td className="pl-4 pr-0 py-2">
                         <Link to="/wallets/$address" params={{ address: w.address }} title="Open wallet detail" className="text-dim hover:text-neon inline-flex">
@@ -86,6 +103,7 @@ export function Dashboard() {
                   ))}
                 </tbody>
               </table>
+              <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
             </div>
           )}
         </div>

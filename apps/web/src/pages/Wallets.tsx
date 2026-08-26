@@ -6,6 +6,10 @@ import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
 import { fmtAgo, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
+import { usePagination } from '../lib/usePagination';
+import { FilterModal } from '../components/FilterModal';
+import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import { EyeIcon } from '../components/icons';
 import { openPositions, type WalletRecord } from '@million/shared';
@@ -14,6 +18,14 @@ function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
   return openPositions(w.metrics.tokens).length;
 }
+
+const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
+  { key: 'openOnly', label: 'open positions only (excl. stables)', type: 'toggle', get: (w) => (openCount(w) ?? 0) > 0 },
+  { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
+  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => w.metrics?.realizedPnlSol ?? null },
+  { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openCount(w) },
+  { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
+];
 
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
@@ -35,7 +47,7 @@ export function Wallets() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
-  const [openOnly, setOpenOnly] = useState(false);
+  const [filters, setFilters] = useStoredFilters('million.filters.roster');
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -73,8 +85,9 @@ export function Wallets() {
   };
 
   const pending = wallets.filter((w) => !w.metrics && w.status !== 'analyzing');
-  const filtered = openOnly ? wallets.filter((w) => (openCount(w) ?? 0) > 0) : wallets;
+  const filtered = applyFilters(wallets, ROSTER_FILTERS, filters);
   const { sorted, sortKey, dir, toggle } = useTableSort(filtered, ROSTER_COLUMNS);
+  const pag = usePagination(sorted, 25);
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
@@ -127,17 +140,8 @@ export function Wallets() {
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4">
-          <span className="eyebrow">Roster · {openOnly ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
-          <label className="flex items-center gap-2 text-xs text-dim cursor-pointer mr-auto">
-            <input
-              type="checkbox"
-              checked={openOnly}
-              onChange={(e) => setOpenOnly(e.target.checked)}
-              className="w-3.5 h-3.5 p-0!"
-              style={{ accentColor: 'var(--color-neon)' }}
-            />
-            open positions only (excl. stables)
-          </label>
+          <span className="eyebrow">Roster · {sorted.length !== wallets.length ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
+          <span className="mr-auto"><FilterModal fields={ROSTER_FILTERS} state={filters} onChange={setFilters} /></span>
           {pending.length > 0 && (
             <button className="btn" disabled={!heliusOk || analyzing.size > 0} onClick={() => runAnalysis(pending.map((w) => w.address))}>
               {analyzing.size > 0 ? `Analyzing ${analyzing.size} left…` : `Analyze all pending (${pending.length})`}
@@ -147,7 +151,7 @@ export function Wallets() {
         {wallets.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-dim">Roster is empty — import the JSON above to begin.</p>
         ) : sorted.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-dim">No wallets with open positions — analyze more wallets or clear the filter.</p>
+          <p className="px-4 pb-4 text-sm text-dim">No wallets match the filters — clear or loosen them.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-mono">
@@ -166,7 +170,7 @@ export function Wallets() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((w) => {
+                {pag.rows.map((w) => {
                   const busy = analyzing.has(w.address) || w.status === 'analyzing';
                   return (
                     <tr key={w.address} className="border-t border-line hover:bg-deck2">
@@ -226,6 +230,7 @@ export function Wallets() {
                 })}
               </tbody>
             </table>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
           </div>
         )}
       </div>

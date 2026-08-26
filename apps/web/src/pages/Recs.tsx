@@ -32,7 +32,7 @@ export function Recs() {
           {recs && (
             <div className="text-xs text-dim mt-2" title={recs.generatedAt}>
               generated {fmtAgo(recs.generatedAt)} · {recs.qualifyingWallets}/{recs.totalAnalyzed} wallets qualify
-              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed, active ≤ {recs.criteria.maxInactiveDays}d)
+              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed)
             </div>
           )}
         </div>
@@ -65,12 +65,7 @@ export function Recs() {
                   <tbody>
                     {recs.consensusTokens.map((t) => (
                       <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                        <td className="px-4 py-2">
-                          <span className="inline-flex items-center gap-2">
-                            {t.symbol && <span className="text-bright font-semibold">{t.symbol}</span>}
-                            <Addr address={t.mint} kind="token" />
-                          </span>
-                        </td>
+                        <td className="px-4 py-2"><Addr address={t.mint} kind="token" symbol={t.symbol} /></td>
                         <td className="px-4 py-2 text-warn">{t.count}</td>
                         <td className="px-4 py-2 text-xs">
                           {t.holders.slice(0, 4).map((h, i) => (
