@@ -68,3 +68,89 @@ export interface WalletRecord {
   metrics: WalletMetrics | null;
   error: string | null;
 }
+
+// ── token legitimacy screening ────────────────────────────────────────────────
+
+/** Thresholds are the user's custom system — new knobs (bundler %, sniper %) slot in here. */
+export const TokenCheckThresholdsSchema = z.object({
+  minLiquidityUsd: z.coerce.number().nonnegative().default(100_000),
+  minMarketCapUsd: z.coerce.number().nonnegative().default(200_000),
+  maxTop10Pct: z.coerce.number().min(0).max(100).default(25),
+  minTokenAgeMinutes: z.coerce.number().nonnegative().default(60),
+});
+export type TokenCheckThresholds = z.infer<typeof TokenCheckThresholdsSchema>;
+
+export type CheckStatus = 'pass' | 'warn' | 'fail' | 'unknown';
+
+export interface TokenCheck {
+  id: string;
+  label: string;
+  status: CheckStatus;
+  value: string | null; // measured value, human readable
+  detail: string; // why it matters / what was compared
+}
+
+export interface TokenReport {
+  mint: string;
+  symbol: string | null;
+  name: string | null;
+  priceUsd: number | null;
+  liquidityUsd: number | null;
+  marketCapUsd: number | null;
+  pairCreatedAt: string | null;
+  dex: string | null;
+  pairUrl: string | null;
+  rugcheckScore: number | null;
+  checks: TokenCheck[];
+  verdict: CheckStatus;
+  fetchedAt: string;
+}
+
+// ── stablecoins ───────────────────────────────────────────────────────────────
+
+export const STABLECOIN_MINTS = new Set([
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+  'USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA', // USDS
+  '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', // PYUSD
+]);
+
+/** Known mints first, then a symbol heuristic — "as much as we can" coverage. */
+export function isStablecoin(mint: string, symbol?: string | null): boolean {
+  if (STABLECOIN_MINTS.has(mint)) return true;
+  if (!symbol) return false;
+  const s = symbol.toUpperCase();
+  return s.includes('USD') || s === 'DAI';
+}
+
+/** A wallet's open positions, stablecoins excluded — the roster/dashboard definition of "open". */
+export function openPositions(tokens: TokenBreakdown[]): TokenBreakdown[] {
+  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol));
+}
+
+// ── recommendations ───────────────────────────────────────────────────────────
+
+export interface ConsensusToken {
+  mint: string;
+  symbol: string | null;
+  count: number; // qualifying wallets currently holding it
+  holders: { address: string; label: string | null }[];
+}
+
+export interface WatchWallet {
+  address: string;
+  label: string | null;
+  winRate: number | null;
+  realizedPnlSol: number;
+  openCount: number;
+  lastSeen: string | null;
+}
+
+export interface RecommendationsData {
+  generatedAt: string;
+  criteria: { minWinRate: number; minClosedTokens: number };
+  totalAnalyzed: number;
+  qualifyingWallets: number;
+  consensusTokens: ConsensusToken[];
+  walletsToWatch: WatchWallet[];
+}

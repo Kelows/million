@@ -3,6 +3,7 @@ import { useWallets } from '../api';
 import { StatTile } from '../components/StatTile';
 import { Addr } from '../components/Addr';
 import { fmtPct, fmtSol } from '../lib/format';
+import { openPositions } from '@million/shared';
 
 export function Dashboard() {
   const { data: wallets = [], isLoading } = useWallets();
@@ -10,7 +11,10 @@ export function Dashboard() {
   const totalPnl = analyzed.reduce((s, w) => s + (w.metrics?.realizedPnlSol ?? 0), 0);
   const winRates = analyzed.map((w) => w.metrics?.winRate).filter((r): r is number => r !== null && r !== undefined);
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
-  const top = [...analyzed].sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0)).slice(0, 8);
+  const top = analyzed
+    .filter((w) => openPositions(w.metrics?.tokens ?? []).length > 0)
+    .sort((a, b) => (b.metrics?.realizedPnlSol ?? 0) - (a.metrics?.realizedPnlSol ?? 0))
+    .slice(0, 8);
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -40,11 +44,11 @@ export function Dashboard() {
       ) : (
         <div className="panel">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-            <span className="eyebrow">Top wallets by realized PnL</span>
+            <span className="eyebrow">Top wallets by realized PnL · with open positions (excl. stables)</span>
             <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
           </div>
           {top.length === 0 ? (
-            <p className="px-4 pb-4 text-sm text-dim">Nothing analyzed yet — run analysis from the Wallets page.</p>
+            <p className="px-4 pb-4 text-sm text-dim">No analyzed wallets with open positions yet — run analysis from the Wallets page.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm font-mono">

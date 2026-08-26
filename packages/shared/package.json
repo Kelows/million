@@ -5,13 +5,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
+    "build": "tsc && tsc -p tsconfig.esm.json",
+    "dev": "tsc --watch & tsc -p tsconfig.esm.json --watch"
   },
   "dependencies": {
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
-  }
+  },
+  "module": "dist/esm/index.js"
 }

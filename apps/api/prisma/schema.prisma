@@ -24,3 +24,9 @@ model Token {
   name      String?
   fetchedAt DateTime @default(now())
 }
+
+model Recommendation {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  data      String // JSON RecommendationsData
+}

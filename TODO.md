@@ -3,6 +3,7 @@
 ## Phase 1 — wallet analyzer (current)
 - [x] Import whale JSON → roster
 - [x] Per-wallet analysis: swaps, win rate, realized PnL (SOL), hold times, flags
+- [ ] Additive multi-column sort on tables (shift-click to add a secondary sort key)
 - [ ] Bulk "analyze all" queue with rate limiting on the API side (frontend loops for now)
 - [ ] Copyability metric: re-simulate each whale entry with +2 blocks latency — does the edge survive?
 - [ ] Wallet clustering: detect same-owner wallet groups (funding source analysis)

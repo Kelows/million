@@ -3,7 +3,7 @@ import { useAnalyzeWallet, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
-import { fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
 import type { TokenBreakdown } from '@million/shared';
@@ -56,7 +56,7 @@ export function WalletDetail() {
           <button className="btn" disabled={wallet.status === 'analyzing' || analyze.isPending} onClick={() => analyze.mutate(wallet.address)}>
             {wallet.status === 'analyzing' || analyze.isPending ? 'Analyzing…' : m ? 'Re-run analysis' : 'Analyze'}
           </button>
-          <div className="text-xs text-dim mt-2">last run {fmtDate(wallet.lastAnalyzedAt)}</div>
+          <div className="text-xs text-dim mt-2" title={wallet.lastAnalyzedAt ?? ""}>last run {fmtAgo(wallet.lastAnalyzedAt)}</div>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export function WalletDetail() {
             />
             <StatTile label="Win rate" value={fmtPct(m.winRate)} sub={`${m.closedTokens} closed tokens`} />
             <StatTile label="Median hold" value={fmtHold(m.medianHoldMinutes)} sub="first buy → last sell" />
-            <StatTile label="Active" value={`${fmtDate(m.firstSeen)}`} sub={`→ ${fmtDate(m.lastSeen)}`} />
+            <StatTile label="Last active" value={fmtAgo(m.lastSeen)} sub={`${fmtDate(m.firstSeen)} → ${fmtDate(m.lastSeen)}`} />
           </div>
 
           <div className="panel">

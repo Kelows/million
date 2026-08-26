@@ -60,3 +60,30 @@ export function useRemoveWallet() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
   });
 }
+
+import type { TokenCheckThresholds, TokenReport } from '@million/shared';
+
+export function useTokenReport(mint: string | null, thresholds: TokenCheckThresholds) {
+  const params = new URLSearchParams(Object.entries(thresholds).map(([k, v]) => [k, String(v)]));
+  return useQuery({
+    queryKey: ['token-report', mint, thresholds],
+    queryFn: () => request<TokenReport>(`/screener/token/${mint}?${params}`),
+    enabled: mint !== null,
+    staleTime: 30_000,
+    retry: 0,
+  });
+}
+
+import type { RecommendationsData } from '@million/shared';
+
+export function useRecommendations() {
+  return useQuery({ queryKey: ['recommendations'], queryFn: () => request<RecommendationsData | null>('/recommendations') });
+}
+
+export function useRunRecommendations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<RecommendationsData>('/recommendations/run', { method: 'POST' }),
+    onSuccess: (data) => qc.setQueryData(['recommendations'], data),
+  });
+}

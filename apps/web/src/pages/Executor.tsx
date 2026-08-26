@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { loadFailsafes } from './Screener';
+import { loadFailsafes } from '../lib/failsafes';
 
 export function Executor() {
   const [token, setToken] = useState('');

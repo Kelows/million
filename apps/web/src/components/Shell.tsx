@@ -7,12 +7,14 @@ const NAV = [
     links: [
       { to: '/', label: 'Overview' },
       { to: '/wallets', label: 'Wallets' },
+      { to: '/recs', label: 'Recs' },
     ],
   },
   {
     section: 'Ops',
     links: [
       { to: '/screener', label: 'Screener' },
+      { to: '/token-check', label: 'Token check' },
       { to: '/executor', label: 'Executor' },
     ],
   },

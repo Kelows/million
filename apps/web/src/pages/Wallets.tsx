@@ -4,15 +4,15 @@ import { useAnalyzeWallet, useHealth, useImportWallets, useRemoveWallet, useWall
 import { FlagChip } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
-import { fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
 import { EyeIcon } from '../components/icons';
-import type { WalletRecord } from '@million/shared';
+import { openPositions, type WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
-  return w.metrics.tokens.filter((t) => t.open).length;
+  return openPositions(w.metrics.tokens).length;
 }
 
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
@@ -21,6 +21,7 @@ const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'pnl', get: (w) => w.metrics?.realizedPnlSol ?? null },
   { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
   { key: 'open', get: (w) => openCount(w) },
+  { key: 'lastSeen', get: (w) => (w.metrics?.lastSeen ? new Date(w.metrics.lastSeen).getTime() : null) },
 ];
 
 export function Wallets() {
@@ -135,7 +136,7 @@ export function Wallets() {
               className="w-3.5 h-3.5 p-0!"
               style={{ accentColor: 'var(--color-neon)' }}
             />
-            open positions only
+            open positions only (excl. stables)
           </label>
           {pending.length > 0 && (
             <button className="btn" disabled={!heliusOk || analyzing.size > 0} onClick={() => runAnalysis(pending.map((w) => w.address))}>
@@ -159,6 +160,7 @@ export function Wallets() {
                   <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right />
                   <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="last active" colKey="lastSeen" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <th className="px-4 py-2 font-normal">flags</th>
                   <th className="px-4 py-2 font-normal"></th>
                 </tr>
@@ -187,12 +189,15 @@ export function Wallets() {
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
                       <td className="px-4 py-2">
                         {(() => {
-                          const open = w.metrics?.tokens.filter((t) => t.open);
+                          const open = w.metrics ? openPositions(w.metrics.tokens) : null;
                           if (!open) return <span className="text-dim">—</span>;
                           if (open.length === 0) return <span className="text-dim">0</span>;
                           const names = open.map((t) => t.symbol ?? truncAddr(t.mint)).join(', ');
                           return <span className="text-warn" title={names}>{open.length}</span>;
                         })()}
+                      </td>
+                      <td className="px-4 py-2 text-dim whitespace-nowrap" title={w.metrics?.lastSeen ?? ''}>
+                        {fmtAgo(w.metrics?.lastSeen ?? null)}
                       </td>
                       <td className="px-4 py-2">
                         <span className="flex gap-1 flex-wrap">

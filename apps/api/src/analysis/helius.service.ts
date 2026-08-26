@@ -77,6 +77,52 @@ export class HeliusService {
     return { txs, truncated };
   }
 
+  private async rpc<T>(method: string, params: unknown): Promise<T> {
+    const res = await fetch(`${RPC}/?api-key=${this.key()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: method, method, params }),
+    });
+    if (!res.ok) throw new ServiceUnavailableException(`Helius RPC ${method} responded ${res.status}`);
+    const body = (await res.json()) as { result?: T; error?: { message?: string } };
+    if (body.error) throw new ServiceUnavailableException(`Helius RPC ${method}: ${body.error.message ?? 'error'}`);
+    return body.result as T;
+  }
+
+  /** Mint-level authorities and metadata flags via DAS getAsset. Null if the asset is unknown. */
+  async getAssetInfo(mint: string): Promise<AssetInfo | null> {
+    type GetAssetResult = {
+      mutable?: boolean;
+      token_info?: { mint_authority?: string | null; freeze_authority?: string | null; token_program?: string };
+    };
+    const result = await this.rpc<GetAssetResult | null>('getAsset', { id: mint }).catch(() => null);
+    if (!result?.token_info) return null;
+    return {
+      mintAuthority: result.token_info.mint_authority ?? null,
+      freezeAuthority: result.token_info.freeze_authority ?? null,
+      mutable: result.mutable ?? null,
+      tokenProgram: result.token_info.token_program ?? null,
+    };
+  }
+
+  /** Top-10 largest token accounts as % of supply (the LP vault is usually among them). */
+  async getTopHolders(mint: string): Promise<TopHolders | null> {
+    type Largest = { value?: { uiAmount: number | null }[] };
+    type Supply = { value?: { uiAmount: number | null } };
+    const [largest, supply] = await Promise.all([
+      this.rpc<Largest>('getTokenLargestAccounts', [mint]).catch(() => null),
+      this.rpc<Supply>('getTokenSupply', [mint]).catch(() => null),
+    ]);
+    const total = supply?.value?.uiAmount;
+    if (!largest?.value?.length || !total) return null;
+    const amounts = largest.value.map((v) => v.uiAmount ?? 0);
+    const top10 = amounts.slice(0, 10).reduce((s, a) => s + a, 0);
+    return {
+      top10Pct: (top10 / total) * 100,
+      largestPct: (amounts[0] / total) * 100,
+    };
+  }
+
   /** Batch token metadata via DAS getAssetBatch — one call per 1000 mints, same API key. */
   async fetchTokenMeta(mints: string[]): Promise<Map<string, TokenMeta>> {
     const out = new Map<string, TokenMeta>();
@@ -104,6 +150,18 @@ export class HeliusService {
     }
     return out;
   }
+}
+
+export interface AssetInfo {
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  mutable: boolean | null;
+  tokenProgram: string | null;
+}
+
+export interface TopHolders {
+  top10Pct: number;
+  largestPct: number;
 }
 
 export interface TokenMeta {
