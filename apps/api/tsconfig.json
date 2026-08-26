@@ -11,8 +11,7 @@
     "strictPropertyInitialization": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "sourceMap": true,
-    "incremental": true
+    "sourceMap": true
   },
   "include": ["src"]
 }
