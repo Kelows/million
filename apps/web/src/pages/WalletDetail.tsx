@@ -2,7 +2,7 @@ import { Link, useParams } from '@tanstack/react-router';
 import { useAnalyzeWallet, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
-import { Addr } from '../components/Addr';
+import { Addr, classicUrl, explorerUrl } from '../components/Addr';
 import { fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 
 export function WalletDetail() {
@@ -31,6 +31,10 @@ export function WalletDetail() {
             {wallet.label ?? truncAddr(wallet.address)}
           </h1>
           <div className="mt-1 text-sm"><Addr address={wallet.address} full /></div>
+          <div className="mt-1 flex gap-3 text-xs">
+            <a href={explorerUrl('wallet', wallet.address)} target="_blank" rel="noopener noreferrer" className="text-dim hover:text-neon">GMGN ↗</a>
+            <a href={classicUrl('wallet', wallet.address)} target="_blank" rel="noopener noreferrer" className="text-dim hover:text-neon">Solscan ↗</a>
+          </div>
           <div className="flex gap-1 mt-2 flex-wrap">{(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} />)}</div>
         </div>
         <div className="text-right">
@@ -81,7 +85,7 @@ export function WalletDetail() {
                 <tbody>
                   {m.tokens.map((t) => (
                     <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                      <td className="px-4 py-2"><Addr address={t.mint} /></td>
+                      <td className="px-4 py-2"><Addr address={t.mint} kind="token" /></td>
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>
