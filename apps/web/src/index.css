@@ -5,11 +5,11 @@
   --color-deck: #0b121d;
   --color-deck2: #111b2b;
   --color-line: #182740;
-  --color-neon: #59f3e3;
+  --color-neon: #f8e71c;
   --color-pulse: #ff3d81;
   --color-profit: #34f5a4;
   --color-loss: #ff5c7a;
-  --color-warn: #ffc24d;
+  --color-warn: #ff9f45;
   --color-ink: #c9d8ea;
   --color-dim: #64809f;
   --color-bright: #f2f8ff;
@@ -25,7 +25,7 @@ body {
   font-family: var(--font-display);
   color: var(--color-ink);
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(89, 243, 227, 0.05), transparent),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(248, 231, 28, 0.04), transparent),
     var(--color-void);
   min-height: 100vh;
 }
