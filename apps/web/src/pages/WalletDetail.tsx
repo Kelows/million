@@ -56,6 +56,9 @@ export function WalletDetail() {
           <div className="flex gap-1 mt-2 flex-wrap">{(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} />)}</div>
         </div>
         <div className="text-right">
+          <Link to="/funding" search={{ address: wallet.address }} className="btn inline-block mr-2">
+            Funding chains
+          </Link>
           <button className="btn" disabled={wallet.status === 'analyzing' || analyze.isPending} onClick={() => analyze.mutate(wallet.address)}>
             {wallet.status === 'analyzing' || analyze.isPending ? 'Analyzing…' : m ? 'Re-run analysis' : 'Analyze'}
           </button>

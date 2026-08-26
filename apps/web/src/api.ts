@@ -87,3 +87,15 @@ export function useRunRecommendations() {
     onSuccess: (data) => qc.setQueryData(['recommendations'], data),
   });
 }
+
+import type { FundingReport } from '@million/shared';
+
+export function useFundingChains(address: string | null, minSol: number) {
+  return useQuery({
+    queryKey: ['funding', address, minSol],
+    queryFn: () => request<FundingReport>(`/funding/${address}?minSol=${minSol}`),
+    enabled: address !== null,
+    staleTime: 60_000,
+    retry: 0,
+  });
+}

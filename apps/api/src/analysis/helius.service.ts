@@ -45,7 +45,16 @@ export class HeliusService {
   }
 
   /** Fetch swap transactions for an address, newest first, up to maxPages * 100 txs. */
-  async fetchSwaps(address: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+  fetchSwaps(address: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+    return this.fetchTxs(address, 'SWAP', maxPages);
+  }
+
+  /** Fetch native transfer transactions for an address, newest first. */
+  fetchTransfers(address: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+    return this.fetchTxs(address, 'TRANSFER', maxPages);
+  }
+
+  private async fetchTxs(address: string, type: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
     const key = this.key();
     const txs: HeliusTx[] = [];
     let before: string | undefined;
@@ -54,7 +63,7 @@ export class HeliusService {
     for (let page = 0; page < maxPages; page++) {
       const url = new URL(`${BASE}/addresses/${address}/transactions`);
       url.searchParams.set('api-key', key);
-      url.searchParams.set('type', 'SWAP');
+      url.searchParams.set('type', type);
       url.searchParams.set('limit', '100');
       if (before) url.searchParams.set('before', before);
 

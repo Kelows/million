@@ -6,6 +6,7 @@ import { WalletDetail } from './pages/WalletDetail';
 import { Screener } from './pages/Screener';
 import { TokenCheck } from './pages/TokenCheck';
 import { Recs } from './pages/Recs';
+import { Funding } from './pages/Funding';
 import { Executor } from './pages/Executor';
 
 const rootRoute = createRootRoute({ component: Shell });
@@ -26,9 +27,16 @@ export const tokenCheckRoute = createRoute({
     typeof search.mint === 'string' ? { mint: search.mint } : {},
 });
 export const recsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/recs', component: Recs });
+export const fundingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/funding',
+  component: Funding,
+  validateSearch: (search: Record<string, unknown>): { address?: string } =>
+    typeof search.address === 'string' ? { address: search.address } : {},
+});
 export const executorRoute = createRoute({ getParentRoute: () => rootRoute, path: '/executor', component: Executor });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, recsRoute, screenerRoute, tokenCheckRoute, executorRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, recsRoute, fundingRoute, screenerRoute, tokenCheckRoute, executorRoute]);
 
 export const router = createRouter({ routeTree });
 

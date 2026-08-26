@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { FilterField, FilterState } from '../lib/useTableFilters';
 
@@ -11,6 +11,13 @@ interface FilterModalProps<T> {
 /** "Filters (n)" button + modal. Generic over the row type; wire it above any table. */
 export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
   const activeCount = Object.keys(state).length;
 
   const setField = (key: string, value: number | boolean | undefined) => {
@@ -29,7 +36,6 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
         <div
           className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
-          onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         >
           <div
             className="panel panel-raised w-96 max-w-full p-5 flex flex-col gap-4"

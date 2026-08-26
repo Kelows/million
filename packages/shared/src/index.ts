@@ -152,3 +152,24 @@ export interface RecommendationsData {
   qualifyingWallets: number;
   consensusTokens: ConsensusToken[];
 }
+
+// ── funding chains ────────────────────────────────────────────────────────────
+
+export interface FundingLink {
+  address: string;
+  direction: 'out' | 'in'; // out = this wallet funded them; in = they funded this wallet
+  totalSol: number;
+  transfers: number;
+  firstAt: string; // ISO
+  lastAt: string; // ISO
+  inRoster: boolean;
+}
+
+export interface FundingReport {
+  address: string;
+  analyzedTxCount: number;
+  truncated: boolean;
+  minSol: number;
+  links: FundingLink[];
+  fetchedAt: string;
+}
