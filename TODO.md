@@ -30,5 +30,6 @@ How to tell if a token is legit — checks to implement, roughly in order of sig
 - [ ] Paper-trade mode: log the trade without executing (validate the system risk-free first)
 
 ## Phase 4 — signal ingestion + auto mode (much later)
+- [ ] Wire the roster 'sub' button (currently a localStorage mock): subscribed wallets feed Helius webhooks -> failsafe pipeline -> alerts/entries
 - [ ] Live whale-entry feed (Helius webhooks on tracked wallets)
 - [ ] Auto mode = whale entry → screener pass → sized entry, ONLY after paper-trade stats prove positive expectancy

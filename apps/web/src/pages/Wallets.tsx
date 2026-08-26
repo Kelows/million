@@ -8,6 +8,7 @@ import { fmtAgo, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
+import { loadSubscriptions, saveSubscriptions } from '../lib/subscriptions';
 import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
@@ -48,6 +49,17 @@ export function Wallets() {
   const [importResult, setImportResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useStoredFilters('million.filters.roster');
+  const [subs, setSubs] = useState<Set<string>>(loadSubscriptions);
+
+  const toggleSub = (address: string) => {
+    setSubs((prev) => {
+      const next = new Set(prev);
+      if (next.has(address)) next.delete(address);
+      else next.add(address);
+      saveSubscriptions(next);
+      return next;
+    });
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -210,6 +222,13 @@ export function Wallets() {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
+                        <button
+                          className={`btn mr-2 py-1! px-2! text-[0.6rem]! ${subs.has(w.address) ? 'bg-neon text-void!' : ''}`}
+                          title="Mock — live subscription through the failsafe pipeline comes later"
+                          onClick={() => toggleSub(w.address)}
+                        >
+                          {subs.has(w.address) ? 'subbed' : 'sub'}
+                        </button>
                         <button
                           className="btn mr-2 py-1! px-2! text-[0.6rem]!"
                           disabled={!heliusOk || busy}
