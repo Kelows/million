@@ -100,3 +100,15 @@ export function useFundingChains(address: string | null, minSol: number) {
     retry: 0,
   });
 }
+
+import type { DiscoveryReport } from '@million/shared';
+
+export function useDiscovery(mint: string | null, minSol: number) {
+  return useQuery({
+    queryKey: ['discovery', mint, minSol],
+    queryFn: () => request<DiscoveryReport>(`/discovery/token/${mint}?minSol=${minSol}`),
+    enabled: mint !== null,
+    staleTime: 60_000,
+    retry: 0,
+  });
+}

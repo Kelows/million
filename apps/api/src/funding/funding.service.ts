@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { FundingLink, FundingPreview, FundingReport, WalletMetrics } from '@million/shared';
+import { summarizeMetrics, type FundingLink, type FundingReport, type WalletMetrics } from '@million/shared';
 import { computeMetrics } from '../analysis/metrics';
 import { HeliusService } from '../analysis/helius.service';
 import { PrismaService } from '../prisma.service';
@@ -78,7 +78,7 @@ export class FundingService {
     for (const l of links) {
       l.inRoster = knownMetrics.has(l.address);
       const stored = knownMetrics.get(l.address);
-      if (stored) l.preview = summarize(JSON.parse(stored) as WalletMetrics);
+      if (stored) l.preview = summarizeMetrics(JSON.parse(stored) as WalletMetrics);
     }
 
     // quick swap analysis on the top unknown counterparties — the "worth adding" signal
@@ -88,7 +88,7 @@ export class FundingService {
         candidates.slice(i, i + PREVIEW_CONCURRENCY).map(async (link) => {
           const swaps = await this.helius.fetchSwaps(link.address, 1).catch(() => null);
           if (!swaps) return;
-          link.preview = summarize(computeMetrics(link.address, swaps.txs, swaps.truncated));
+          link.preview = summarizeMetrics(computeMetrics(link.address, swaps.txs, swaps.truncated));
         }),
       );
     }
@@ -104,12 +104,3 @@ export class FundingService {
   }
 }
 
-function summarize(m: WalletMetrics): FundingPreview {
-  return {
-    totalSwaps: m.totalSwaps,
-    winRate: m.winRate,
-    closedTokens: m.closedTokens,
-    realizedPnlSol: m.realizedPnlSol,
-    lastSeen: m.lastSeen,
-  };
-}

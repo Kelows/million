@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { getRouteApi } from '@tanstack/react-router';
-import { Link } from '@tanstack/react-router';
+import { getRouteApi, Link } from '@tanstack/react-router';
 import type { CheckStatus } from '@million/shared';
 import { useTokenReport } from '../api';
 import { Addr } from '../components/Addr';
@@ -81,7 +80,10 @@ export function TokenCheck() {
                 <span className="ml-3 text-bright font-semibold">{report.symbol ?? '?'}</span>
                 <span className="ml-2 text-sm text-dim">{report.name ?? ''}</span>
               </div>
-              <Addr address={report.mint} kind="token" />
+              <span className="flex items-center gap-3">
+                <Addr address={report.mint} kind="token" />
+                <Link to="/discover" search={{ mint: report.mint }} className="text-xs text-neon hover:underline">find whales →</Link>
+              </span>
             </div>
             <p className="text-sm text-dim mt-2">{VERDICT_COPY[report.verdict]}</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs font-mono text-dim">

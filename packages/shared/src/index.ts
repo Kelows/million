@@ -189,6 +189,17 @@ export interface FundingPreview {
   lastSeen: string | null;
 }
 
+/** Compress full metrics into the quick worth-adding heuristic view. */
+export function summarizeMetrics(m: WalletMetrics): FundingPreview {
+  return {
+    totalSwaps: m.totalSwaps,
+    winRate: m.winRate,
+    closedTokens: m.closedTokens,
+    realizedPnlSol: m.realizedPnlTotalSol ?? m.realizedPnlSol,
+    lastSeen: m.lastSeen,
+  };
+}
+
 export interface FundingLink {
   address: string;
   direction: 'out' | 'in'; // out = this wallet funded them; in = they funded this wallet
@@ -206,5 +217,26 @@ export interface FundingReport {
   truncated: boolean;
   minSol: number;
   links: FundingLink[];
+  fetchedAt: string;
+}
+
+// ── whale discovery ───────────────────────────────────────────────────────────
+
+export interface WhaleCandidate {
+  address: string;
+  boughtSol: number; // quote spent on this token in the scanned window, SOL terms
+  buyTxs: number;
+  lastBuyAt: string; // ISO
+  inRoster: boolean;
+  preview: FundingPreview | null; // null beyond the auto-analysis cap
+  flags: WalletFlag[] | null; // from the preview analysis
+}
+
+export interface DiscoveryReport {
+  mint: string;
+  scannedTxs: number;
+  truncated: boolean;
+  minSol: number;
+  candidates: WhaleCandidate[];
   fetchedAt: string;
 }
