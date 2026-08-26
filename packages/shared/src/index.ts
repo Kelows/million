@@ -150,6 +150,11 @@ export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
 export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
 
+/** Bot-ish wallets: infrastructure, machine-speed traders, or farmed-looking stats. */
+export function isBotWallet(m: WalletMetrics): boolean {
+  return m.flags.some((f) => f === 'BOT_INFRA' || f === 'SNIPER_SPEED' || f === 'HIGH_WINRATE_SUS');
+}
+
 export function isQualifyingWallet(m: WalletMetrics): boolean {
   if (m.flags.includes('BOT_INFRA')) return false; // plumbing, not a trader
   if (m.winRate === null) return false;

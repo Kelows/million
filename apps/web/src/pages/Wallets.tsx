@@ -13,7 +13,7 @@ import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import { EyeIcon } from '../components/icons';
-import { openPositions, type WalletRecord } from '@million/shared';
+import { isBotWallet, openPositions, type WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
@@ -22,6 +22,7 @@ function openCount(w: WalletRecord): number | null {
 
 const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'openOnly', label: 'open positions only (excl. stables)', type: 'toggle', get: (w) => (openCount(w) ?? 0) > 0 },
+  { key: 'noBots', label: 'exclude infra & bot wallets', type: 'toggle', get: (w) => (w.metrics ? !isBotWallet(w.metrics) : true) },
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
   { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openCount(w) },

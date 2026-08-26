@@ -10,9 +10,10 @@ import { loadMinOpenSol } from '../lib/settings';
 import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import type { WalletRecord } from '@million/shared';
-import { isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shared';
+import { isBotWallet, isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shared';
 
 const WATCH_FILTERS: FilterField<WalletRecord>[] = [
+  { key: 'noBots', label: 'exclude infra & bot wallets', type: 'toggle', get: (w) => (w.metrics ? !isBotWallet(w.metrics) : true) },
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
   { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length },
