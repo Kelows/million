@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useAnalyzeWallet, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
@@ -6,6 +7,7 @@ import { Addr, classicUrl, explorerUrl } from '../components/Addr';
 import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { usePagination } from '../lib/usePagination';
+import { loadSubscriptions, saveSubscriptions } from '../lib/subscriptions';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import type { TokenBreakdown } from '@million/shared';
@@ -27,6 +29,17 @@ export function WalletDetail() {
   // hook must run on every render path, so it sits above the early returns
   const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
   const pag = usePagination(tokenSort.sorted, 25);
+  const [subs, setSubs] = useState<Set<string>>(loadSubscriptions);
+
+  const toggleSub = () => {
+    setSubs((prev) => {
+      const next = new Set(prev);
+      if (next.has(address)) next.delete(address);
+      else next.add(address);
+      saveSubscriptions(next);
+      return next;
+    });
+  };
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (error || !wallet) {
@@ -56,6 +69,13 @@ export function WalletDetail() {
           <div className="flex gap-1 mt-2 flex-wrap">{(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} />)}</div>
         </div>
         <div className="text-right">
+          <button
+            className={`btn mr-2 ${subs.has(wallet.address) ? 'bg-neon text-void!' : ''}`}
+            title="Mock — live subscription through the failsafe pipeline comes later"
+            onClick={toggleSub}
+          >
+            {subs.has(wallet.address) ? 'Subbed' : 'Sub'}
+          </button>
           <Link to="/funding" search={{ address: wallet.address }} className="btn inline-block mr-2">
             Funding chains
           </Link>
