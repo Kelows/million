@@ -7,6 +7,7 @@ import { parseWalletsJson } from '../lib/parseWallets';
 import { fmtHold, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
+import { EyeIcon } from '../components/icons';
 import type { WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
@@ -151,6 +152,7 @@ export function Wallets() {
             <table className="w-full text-sm font-mono">
               <thead>
                 <tr className="text-left text-dim text-xs">
+                  <th className="pl-4 pr-0 py-2 w-8"></th>
                   <th className="px-4 py-2 font-normal">wallet</th>
                   <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} />
@@ -166,6 +168,16 @@ export function Wallets() {
                   const busy = analyzing.has(w.address) || w.status === 'analyzing';
                   return (
                     <tr key={w.address} className="border-t border-line hover:bg-deck2">
+                      <td className="pl-4 pr-0 py-2">
+                        <Link
+                          to="/wallets/$address"
+                          params={{ address: w.address }}
+                          title="Open wallet detail"
+                          className="text-dim hover:text-neon inline-flex"
+                        >
+                          <EyeIcon />
+                        </Link>
+                      </td>
                       <td className="px-4 py-2"><Addr address={w.address} /></td>
                       <td className="px-4 py-2 text-ink">{w.label ?? <span className="text-dim">—</span>}</td>
                       <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
@@ -196,9 +208,6 @@ export function Wallets() {
                         >
                           {busy ? '…' : w.metrics ? 're-run' : 'analyze'}
                         </button>
-                        <Link to="/wallets/$address" params={{ address: w.address }} className="text-xs text-neon hover:underline mr-2">
-                          detail
-                        </Link>
                         <button
                           className="text-xs text-dim hover:text-loss"
                           title="Remove from roster"
