@@ -3,7 +3,7 @@ import { getRouteApi, Link } from '@tanstack/react-router';
 import type { FundingLink } from '@million/shared';
 import { useFundingChains, useImportWallets } from '../api';
 import { Addr } from '../components/Addr';
-import { fmtAgo, truncAddr } from '../lib/format';
+import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const DEFAULT_MIN_SOL = 0.5;
@@ -42,8 +42,9 @@ export function Funding() {
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Funding chains</h1>
         <p className="text-sm text-dim mt-1">
-          A known whale funding a wallet is often the same actor on a new address. SOL transfer counterparties only —
-          exchange deposit addresses can appear, so judge before adding.
+          A known whale funding a wallet is often the same actor on a new address. Top counterparties get a quick swap
+          analysis — a heuristic from their last 100 swaps, not a full read. Exchange deposit addresses can appear, so
+          judge before adding.
         </p>
       </div>
 
@@ -107,7 +108,8 @@ export function Funding() {
           />
           <p className="text-xs text-dim">
             {report.analyzedTxCount} transfer txs analyzed{report.truncated ? ' (truncated — most recent only)' : ''} ·
-            min {report.minSol} SOL · fetched {fmtAgo(report.fetchedAt)}
+            min {report.minSol} SOL · swap stats are a heuristic (last 100 swaps, top counterparties only; '—' = beyond
+            the cap) · fetched {fmtAgo(report.fetchedAt)}
           </p>
         </>
       )}
@@ -146,6 +148,10 @@ function FundingTable({
                 <th className="px-4 py-2 font-normal">wallet</th>
                 <th className="px-4 py-2 font-normal text-right">total SOL</th>
                 <th className="px-4 py-2 font-normal">transfers</th>
+                <th className="px-4 py-2 font-normal">swaps</th>
+                <th className="px-4 py-2 font-normal">WR</th>
+                <th className="px-4 py-2 font-normal text-right">PnL</th>
+                <th className="px-4 py-2 font-normal">active</th>
                 <th className="px-4 py-2 font-normal">first</th>
                 <th className="px-4 py-2 font-normal">last</th>
                 <th className="px-4 py-2 font-normal"></th>
@@ -157,6 +163,12 @@ function FundingTable({
                   <td className="px-4 py-2"><Addr address={l.address} /></td>
                   <td className="px-4 py-2 text-right text-bright">{l.totalSol.toLocaleString('en-US')}</td>
                   <td className="px-4 py-2 text-dim">{l.transfers}</td>
+                  <td className="px-4 py-2 text-dim">{l.preview ? l.preview.totalSwaps : '—'}</td>
+                  <td className="px-4 py-2">{l.preview ? fmtPct(l.preview.winRate) : '—'}</td>
+                  <td className={`px-4 py-2 text-right ${l.preview ? (l.preview.realizedPnlSol >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>
+                    {l.preview ? fmtSol(l.preview.realizedPnlSol) : '—'}
+                  </td>
+                  <td className="px-4 py-2 text-dim">{l.preview ? fmtAgo(l.preview.lastSeen) : '—'}</td>
                   <td className="px-4 py-2 text-dim" title={l.firstAt}>{fmtAgo(l.firstAt)}</td>
                   <td className="px-4 py-2 text-dim" title={l.lastAt}>{fmtAgo(l.lastAt)}</td>
                   <td className="px-4 py-2 text-right">

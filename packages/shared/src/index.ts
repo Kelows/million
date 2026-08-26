@@ -155,6 +155,15 @@ export interface RecommendationsData {
 
 // ── funding chains ────────────────────────────────────────────────────────────
 
+/** Quick worth-adding signal, computed from the wallet's most recent swaps. */
+export interface FundingPreview {
+  totalSwaps: number;
+  winRate: number | null;
+  closedTokens: number;
+  realizedPnlSol: number;
+  lastSeen: string | null;
+}
+
 export interface FundingLink {
   address: string;
   direction: 'out' | 'in'; // out = this wallet funded them; in = they funded this wallet
@@ -163,6 +172,7 @@ export interface FundingLink {
   firstAt: string; // ISO
   lastAt: string; // ISO
   inRoster: boolean;
+  preview: FundingPreview | null; // null when beyond the auto-analysis cap or analysis failed
 }
 
 export interface FundingReport {
