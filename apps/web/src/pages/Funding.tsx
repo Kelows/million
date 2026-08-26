@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getRouteApi, Link } from '@tanstack/react-router';
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import type { FundingLink } from '@million/shared';
 import { useFundingChains, useImportWallets } from '../api';
 import { Addr } from '../components/Addr';
@@ -17,6 +17,13 @@ export function Funding() {
   const [inputError, setInputError] = useState<string | null>(null);
   const { data: report, isFetching, error } = useFundingChains(address, minSol);
   const importWallets = useImportWallets();
+  const navigate = useNavigate();
+
+  const chainInto = (a: string) => {
+    setInput(a);
+    setAddress(a);
+    navigate({ to: '/funding', search: { address: a } });
+  };
 
   const submit = () => {
     const candidate = input.trim();
@@ -96,6 +103,7 @@ export function Funding() {
               ) : null
             }
             onAdd={(a) => addToRoster([a])}
+            onChain={chainInto}
             adding={importWallets.isPending}
           />
           <FundingTable
@@ -104,6 +112,7 @@ export function Funding() {
             links={inLinks}
             action={null}
             onAdd={(a) => addToRoster([a])}
+            onChain={chainInto}
             adding={importWallets.isPending}
           />
           <p className="text-xs text-dim">
@@ -123,6 +132,7 @@ function FundingTable({
   links,
   action,
   onAdd,
+  onChain,
   adding,
 }: {
   title: string;
@@ -130,6 +140,7 @@ function FundingTable({
   links: FundingLink[];
   action: React.ReactNode;
   onAdd: (address: string) => void;
+  onChain: (address: string) => void;
   adding: boolean;
 }) {
   return (
@@ -171,7 +182,14 @@ function FundingTable({
                   <td className="px-4 py-2 text-dim">{l.preview ? fmtAgo(l.preview.lastSeen) : '—'}</td>
                   <td className="px-4 py-2 text-dim" title={l.firstAt}>{fmtAgo(l.firstAt)}</td>
                   <td className="px-4 py-2 text-dim" title={l.lastAt}>{fmtAgo(l.lastAt)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                    <button
+                      className="btn mr-2 py-1! px-2! text-[0.6rem]!"
+                      title="Trace this wallet's funding chains"
+                      onClick={() => onChain(l.address)}
+                    >
+                      chain →
+                    </button>
                     {l.inRoster ? (
                       <Link to="/wallets/$address" params={{ address: l.address }} className="text-xs text-dim hover:text-neon">
                         in roster →
