@@ -3,9 +3,9 @@ import { truncAddr } from '../lib/format';
 
 export type AddrKind = 'wallet' | 'token';
 
-/** GMGN is the meme-trading screener (charts, smart money, wallet PnL); Solscan/DexScreener are the classic fallbacks. */
+/** Wallet profiles open in GMGN (PnL/smart-money view); tokens and txs open in Solscan. */
 export function explorerUrl(kind: AddrKind, address: string): string {
-  return kind === 'token' ? `https://gmgn.ai/sol/token/${address}` : `https://gmgn.ai/sol/address/${address}`;
+  return kind === 'token' ? `https://solscan.io/token/${address}` : `https://gmgn.ai/sol/address/${address}`;
 }
 
 export function classicUrl(kind: AddrKind, address: string): string {
@@ -33,7 +33,7 @@ export function Addr({ address, full = false, kind = 'wallet' }: { address: stri
         href={explorerUrl(kind, address)}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Open ${kind} in GMGN`}
+        title={`Open ${kind} in ${kind === 'token' ? 'Solscan' : 'GMGN'}`}
         className="text-dim hover:text-neon text-xs leading-none"
       >
         ↗
