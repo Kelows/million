@@ -45,7 +45,7 @@ export function Dashboard() {
       ) : (
         <div className="panel">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, open positions (excl. stables) · by realized PnL</span>
+            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, active ≤ {WATCH_CRITERIA.maxInactiveDays}d, open positions (excl. stables) · by realized PnL</span>
             <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
           </div>
           {top.length === 0 ? (
