@@ -132,3 +132,44 @@ export function useRunGems() {
     onSuccess: (data) => qc.setQueryData(['gems'], data),
   });
 }
+
+import type { TokenDetailData, TrackedToken } from '@million/shared';
+
+export function useTokens() {
+  return useQuery({ queryKey: ['tokens'], queryFn: () => request<TrackedToken[]>('/tokens') });
+}
+
+export function useTokenDetail(mint: string) {
+  return useQuery({ queryKey: ['tokens', mint], queryFn: () => request<TokenDetailData>(`/tokens/${mint}`) });
+}
+
+export function useImportTokens() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { mints: string[]; source?: string }) =>
+      request<{ imported: number; skipped: number }>('/tokens/import', { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}
+
+export function useCheckToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (mint: string) => {
+      const params = new URLSearchParams(Object.entries(loadFailsafes()).map(([k, v]) => [k, String(v)]));
+      return request<TokenDetailData>(`/tokens/${mint}/check?${params}`, { method: 'POST' });
+    },
+    onSuccess: (data, mint) => {
+      qc.setQueryData(['tokens', mint], data);
+      qc.invalidateQueries({ queryKey: ['tokens'], exact: true });
+    },
+  });
+}
+
+export function useUntrackToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (mint: string) => request<void>(`/tokens/${mint}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}

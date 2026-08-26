@@ -8,6 +8,7 @@ import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { usePagination } from '../lib/usePagination';
 import { loadSubscriptions, saveSubscriptions } from '../lib/subscriptions';
+import { EyeIcon } from '../components/icons';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import type { TokenBreakdown } from '@million/shared';
@@ -155,7 +156,14 @@ export function WalletDetail() {
                 <tbody>
                   {pag.rows.map((t) => (
                     <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                      <td className="px-4 py-2"><Addr address={t.mint} kind="token" symbol={t.symbol} /></td>
+                      <td className="px-4 py-2">
+                        <span className="inline-flex items-center gap-2">
+                          <Link to="/tokens/$mint" params={{ mint: t.mint }} title="Open token detail" className="text-dim hover:text-neon inline-flex">
+                            <EyeIcon />
+                          </Link>
+                          <Addr address={t.mint} kind="token" symbol={t.symbol} />
+                        </span>
+                      </td>
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>

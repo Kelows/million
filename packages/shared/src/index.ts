@@ -266,3 +266,29 @@ export interface GemsRunData {
   candidates: number; // consensus tokens that entered the gauntlet
   gems: GemToken[]; // all candidates with verdicts, ranked
 }
+
+// ── tracked tokens ────────────────────────────────────────────────────────────
+
+export interface TrackedToken {
+  mint: string;
+  symbol: string | null;
+  name: string | null;
+  source: string | null;
+  addedAt: string | null;
+  lastCheckedAt: string | null;
+  verdict: CheckStatus | null;
+  liquidityUsd: number | null;
+  marketCapUsd: number | null;
+}
+
+/** What our own roster knows about a token. */
+export interface TokenRosterIntel {
+  holders: { address: string; label: string | null; entrySol: number | null }[];
+  traders: { address: string; label: string | null; realizedPnlSol: number }[];
+}
+
+export interface TokenDetailData {
+  token: TrackedToken;
+  report: TokenReport | null;
+  intel: TokenRosterIntel;
+}

@@ -105,6 +105,7 @@ function GemRow({ gem }: { gem: GemToken }) {
         {gem.pairUrl && (
           <a href={gem.pairUrl} target="_blank" rel="noopener noreferrer" className="text-neon hover:underline">chart ↗</a>
         )}
+        <Link to="/tokens/$mint" params={{ mint: gem.mint }} className="text-neon hover:underline">details →</Link>
         <Link to="/token-check" search={{ mint: gem.mint }} className="text-neon hover:underline">full check →</Link>
         <Link to="/discover" search={{ mint: gem.mint }} className="text-neon hover:underline">find whales →</Link>
       </div>

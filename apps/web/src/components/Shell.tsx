@@ -7,6 +7,7 @@ const NAV = [
     links: [
       { to: '/', label: 'Overview' },
       { to: '/wallets', label: 'Wallets' },
+      { to: '/tokens', label: 'Tokens' },
       { to: '/recs', label: 'Recs' },
       { to: '/funding', label: 'Funding' },
       { to: '/discover', label: 'Discover' },

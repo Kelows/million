@@ -137,7 +137,8 @@ export function Discover() {
             )}
           </div>
           <p className="text-xs text-dim">
-            {report.scannedTxs} token txs scanned{report.truncated ? ' (truncated — most recent only)' : ''} · stats are the
+            <Link to="/tokens/$mint" params={{ mint: report.mint }} className="text-neon hover:underline">token detail →</Link>{' '}
+            · {report.scannedTxs} token txs scanned{report.truncated ? ' (truncated — most recent only)' : ''} · stats are the
             usual heuristic (last 100 txs per wallet, top {15} unknowns) · "clean" = analyzed, not infra, not farmed.
           </p>
         </>

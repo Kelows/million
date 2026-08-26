@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useRecommendations, useRunRecommendations } from '../api';
 import { Addr } from '../components/Addr';
+import { EyeIcon } from '../components/icons';
 import { fmtAgo, truncAddr } from '../lib/format';
 
 const LATER_IDEAS = [
@@ -65,7 +66,14 @@ export function Recs() {
                   <tbody>
                     {recs.consensusTokens.map((t) => (
                       <tr key={t.mint} className="border-t border-line hover:bg-deck2">
-                        <td className="px-4 py-2"><Addr address={t.mint} kind="token" symbol={t.symbol} /></td>
+                        <td className="px-4 py-2">
+                          <span className="inline-flex items-center gap-2">
+                            <Link to="/tokens/$mint" params={{ mint: t.mint }} title="Open token detail" className="text-dim hover:text-neon inline-flex">
+                              <EyeIcon />
+                            </Link>
+                            <Addr address={t.mint} kind="token" symbol={t.symbol} />
+                          </span>
+                        </td>
                         <td className="px-4 py-2 text-warn">{t.count}</td>
                         <td className="px-4 py-2 text-xs">
                           {t.holders.slice(0, 4).map((h, i) => (

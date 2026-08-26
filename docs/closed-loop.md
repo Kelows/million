@@ -58,6 +58,24 @@ gated out on the other.
   from cached snapshots — gems are hours old. Good enough to validate the loop,
   not to race it.
 
+## The crawler formulation (agreed 2026-08-27)
+
+The loop, restated as a perpetual crawler the user can switch on:
+
+- **Sources** (user selects, minimum one): *wallets* (the roster / subs) and/or
+  *tokens* (the tracked-token roster). Either side can seed an iteration.
+- **One iteration**: token → size buyers that qualify (Discover + analyzer) →
+  their open positions → consensus → gauntlet → gems → each gem's buyers → back
+  into the wallet source. From a wallet source it starts half a turn later at
+  the consensus step. Both directions meet in the middle.
+- **Perpetual, if wanted**: the crawler re-runs on a cadence or on webhook
+  events, forever, absorbing clean wallets and gems as it goes.
+- **Budgets are part of the design, not an afterthought**: per-iteration API
+  budget, hop limits, dedup against already-visited wallets/tokens, and a
+  global pause switch. An unbounded crawl burns the Helius quota in minutes and
+  mostly re-discovers plumbing — the gauntlet and BOT_INFRA filters are what
+  keep a perpetual crawl from filling the roster with junk.
+
 ## V2 vision
 
 Ordered by dependency, not ambition:

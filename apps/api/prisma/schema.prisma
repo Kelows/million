@@ -19,10 +19,15 @@ model Wallet {
 }
 
 model Token {
-  mint      String   @id
-  symbol    String?
-  name      String?
-  fetchedAt DateTime @default(now())
+  mint          String    @id
+  symbol        String?
+  name          String?
+  fetchedAt     DateTime  @default(now())
+  tracked       Boolean   @default(false)
+  source        String?
+  addedAt       DateTime?
+  lastCheckedAt DateTime?
+  lastReport    String? // JSON TokenReport
 }
 
 model Recommendation {
