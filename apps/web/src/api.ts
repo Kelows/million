@@ -112,3 +112,23 @@ export function useDiscovery(mint: string | null, minSol: number) {
     retry: 0,
   });
 }
+
+import type { GemsRunData } from '@million/shared';
+import { loadFailsafes } from './lib/failsafes';
+
+export function useGems() {
+  return useQuery({ queryKey: ['gems'], queryFn: () => request<GemsRunData | null>('/gems') });
+}
+
+export function useRunGems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams(
+        Object.entries({ ...loadFailsafes(), minOpenSol: loadMinOpenSol() }).map(([k, v]) => [k, String(v)]),
+      );
+      return request<GemsRunData>(`/gems/run?${params}`, { method: 'POST' });
+    },
+    onSuccess: (data) => qc.setQueryData(['gems'], data),
+  });
+}

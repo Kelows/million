@@ -5,8 +5,9 @@ import { ScreenerModule } from './screener/screener.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { FundingModule } from './funding/funding.module';
 import { DiscoveryModule } from './discovery/discovery.module';
+import { GemsModule } from './gems/gems.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule],
 })
 export class AppModule {}

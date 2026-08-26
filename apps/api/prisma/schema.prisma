@@ -30,3 +30,9 @@ model Recommendation {
   createdAt DateTime @default(now())
   data      String // JSON RecommendationsData
 }
+
+model GemsRun {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  data      String // JSON GemsRunData
+}

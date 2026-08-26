@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { isQualifyingWallet, openPositions, WATCH_CRITERIA, type ConsensusToken, type RecommendationsData, type WalletMetrics } from '@million/shared';
+import { WATCH_CRITERIA, type RecommendationsData } from '@million/shared';
 import { PrismaService } from '../prisma.service';
+import { ConsensusService } from '../analysis/consensus.service';
 
 const KEEP_RUNS = 5;
 
@@ -8,7 +9,10 @@ const KEEP_RUNS = 5;
 export class RecommendationsService {
   private running = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly consensus: ConsensusService,
+  ) {}
 
   async latest(): Promise<RecommendationsData | null> {
     const row = await this.prisma.recommendation.findFirst({ orderBy: { id: 'desc' } });
@@ -37,40 +41,12 @@ export class RecommendationsService {
   }
 
   private async compute(minOpenSol: number): Promise<RecommendationsData> {
-    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } } });
-    const wallets = rows.map((w) => ({
-      address: w.address,
-      label: w.label,
-      metrics: JSON.parse(w.metrics as string) as WalletMetrics,
-    }));
-
-    const qualifying = wallets.filter((w) => isQualifyingWallet(w.metrics));
-
-    // consensus: how many qualifying wallets hold the same token open right now (stables excluded)
-    const byMint = new Map<string, ConsensusToken>();
-    for (const w of qualifying) {
-      for (const t of openPositions(w.metrics.tokens, minOpenSol)) {
-        let entry = byMint.get(t.mint);
-        if (!entry) {
-          entry = { mint: t.mint, symbol: t.symbol, count: 0, holders: [] };
-          byMint.set(t.mint, entry);
-        }
-        entry.count++;
-        entry.symbol ??= t.symbol;
-        entry.holders.push({ address: w.address, label: w.label });
-      }
-    }
-    const consensusTokens = [...byMint.values()]
-      .filter((t) => t.count >= 2)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
-
-
+    const { totalAnalyzed, qualifyingWallets, consensusTokens } = await this.consensus.compute(minOpenSol);
     return {
       generatedAt: new Date().toISOString(),
       criteria: { ...WATCH_CRITERIA, minOpenSol },
-      totalAnalyzed: wallets.length,
-      qualifyingWallets: qualifying.length,
+      totalAnalyzed,
+      qualifyingWallets,
       consensusTokens,
     };
   }

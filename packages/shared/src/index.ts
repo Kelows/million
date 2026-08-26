@@ -240,3 +240,29 @@ export interface DiscoveryReport {
   candidates: WhaleCandidate[];
   fetchedAt: string;
 }
+
+// ── gems: the closed loop's output ────────────────────────────────────────────
+
+export interface GemToken {
+  mint: string;
+  symbol: string | null;
+  verdict: CheckStatus;
+  whaleCount: number;
+  holders: { address: string; label: string | null }[];
+  liquidityUsd: number | null;
+  marketCapUsd: number | null;
+  pairCreatedAt: string | null;
+  pairUrl: string | null;
+  failures: string[]; // labels of failed checks
+  warnings: string[]; // labels of warned checks
+}
+
+export interface GemsRunData {
+  generatedAt: string;
+  thresholds: TokenCheckThresholds;
+  minOpenSol: number;
+  totalAnalyzed: number;
+  qualifyingWallets: number;
+  candidates: number; // consensus tokens that entered the gauntlet
+  gems: GemToken[]; // all candidates with verdicts, ranked
+}
