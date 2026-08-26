@@ -9,6 +9,12 @@
 - [ ] Wallet clustering: detect same-owner wallet groups (funding source analysis)
 - [ ] Track NEW addresses of known whales (funding graph: old wallet funds fresh wallet)
 
+## Learned from the 2snHH deep dive (2026-08-27)
+- [ ] CRITICAL analyzer gap: metrics.ts only prices SOL legs — wallets trading with USDC/USDT as base show zero PnL. Port the quote-aware ledger from tools/wallet-dig.mjs into the analyzer
+- [ ] BOT_INFRA wallet flag: tx velocity (>500/day), buys-without-sells + token deliveries to third parties, huge unique-counterparty count, external fee payer on most txs, constant in-tx skim address, relay round-trip pattern -> exclude from recs/watch
+- [ ] Fee-payer clustering: the orchestrator paying fees is a stronger identity key than the wallet address (whole ops rotate wallets daily but keep the orchestrator)
+- [ ] type=SWAP fetch misses custom-program swaps (43% were UNKNOWN in the case study) — consider all-type fetch + own classification for deep analysis
+
 ## Phase 2 — token legitimacy screener (research needed)
 How to tell if a token is legit — checks to implement, roughly in order of signal:
 - [ ] Mint authority revoked (can't print more supply) — Helius DAS `getAsset`
