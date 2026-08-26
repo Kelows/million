@@ -5,3 +5,5 @@ dist/
 .env
 .DS_Store
 *.tsbuildinfo
+*.db-wal
+*.db-shm

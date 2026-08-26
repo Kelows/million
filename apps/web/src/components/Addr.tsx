@@ -29,15 +29,17 @@ export function Addr({ address, full = false, kind = 'wallet' }: { address: stri
         {full ? address : truncAddr(address)}
         {copied && <span className="text-dim ml-1 text-[0.6rem]">copied</span>}
       </button>
-      <a
-        href={explorerUrl(kind, address)}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={`Open ${kind} in ${kind === 'token' ? 'Solscan' : 'GMGN'}`}
-        className="text-dim hover:text-neon text-xs leading-none"
-      >
-        ↗
-      </a>
+      {kind === 'wallet' && (
+        <a
+          href={explorerUrl(kind, address)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open wallet in GMGN"
+          className="text-dim hover:text-neon text-xs leading-none"
+        >
+          ↗
+        </a>
+      )}
     </span>
   );
 }
