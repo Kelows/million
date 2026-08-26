@@ -72,9 +72,20 @@ export function Recs() {
                           </span>
                         </td>
                         <td className="px-4 py-2 text-warn">{t.count}</td>
-                        <td className="px-4 py-2 text-xs text-dim">
-                          {t.holders.slice(0, 4).map((h) => h.label ?? truncAddr(h.address)).join(', ')}
-                          {t.holders.length > 4 && ` +${t.holders.length - 4}`}
+                        <td className="px-4 py-2 text-xs">
+                          {t.holders.slice(0, 4).map((h, i) => (
+                            <span key={h.address}>
+                              {i > 0 && <span className="text-dim">, </span>}
+                              <Link
+                                to="/wallets/$address"
+                                params={{ address: h.address }}
+                                className="text-neon hover:underline"
+                              >
+                                {h.label ?? truncAddr(h.address)}
+                              </Link>
+                            </span>
+                          ))}
+                          {t.holders.length > 4 && <span className="text-dim"> +{t.holders.length - 4}</span>}
                         </td>
                         <td className="px-4 py-2 text-right">
                           <Link to="/token-check" search={{ mint: t.mint }} className="text-xs text-neon hover:underline">
