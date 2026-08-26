@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { CheckStatus, TokenCheck, TokenCheckThresholds, TokenReport } from '@million/shared';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 import { RugcheckService } from './rugcheck.service';
 
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -19,12 +20,17 @@ export class TokenCheckService {
   ) {}
 
   async check(mint: string, t: TokenCheckThresholds): Promise<TokenReport> {
-    const [asset, holders, pair, rug] = await Promise.all([
+    const [asset, pair, rug] = await Promise.all([
       this.helius.getAssetInfo(mint).catch(() => null),
-      this.helius.getTopHolders(mint).catch(() => null),
       this.dexscreener.fetchBestPair(mint),
       this.rugcheck.fetchSummary(mint),
     ]);
+    // LP vault exclusion: the pools' token accounts must not count as "holders"
+    const vaultLists = await Promise.all(
+      (pair?.pairAddresses ?? []).map((p) => this.helius.getTokenAccountsByOwner(p, mint).catch(() => [])),
+    );
+    const vaults = new Set(vaultLists.flat());
+    const holders = await this.helius.getTopHolders(mint, vaults).catch(() => null);
 
     const checks: TokenCheck[] = [];
     const push = (id: string, label: string, status: CheckStatus, value: string | null, detail: string) =>
@@ -104,10 +110,29 @@ export class TokenCheckService {
         'top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`,
         holders.top10Pct <= t.maxTop10Pct ? 'pass' : 'warn',
         fmtPct(holders.top10Pct),
-        `Largest single account holds ${fmtPct(holders.largestPct)}. The LP vault is usually among these — a big overshoot means concentrated/insider supply.`,
+        holders.excludedVaults > 0
+          ? `Largest single account holds ${fmtPct(holders.largestPct)}. ${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
+          : `Largest single account holds ${fmtPct(holders.largestPct)}. No LP vault identified to exclude — the pool may be inflating this number.`,
       );
     } else {
       push('top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`, 'unknown', null, 'Could not load holder accounts.');
+    }
+
+    // ── deployer history: serial ruggers launch constantly and leave corpses ──
+    if (rug?.creatorTokens && rug.creatorTokens.length > 1) {
+      const others = rug.creatorTokens.filter((ct) => ct.mint !== mint);
+      const dead = others.filter((ct) => (ct.marketCap ?? 0) < 1000).length;
+      const deadShare = others.length ? dead / others.length : 0;
+      push(
+        'deployer-history', 'Deployer history',
+        others.length >= 5 && deadShare >= 0.8 ? 'fail' : others.length >= 2 && deadShare >= 0.5 ? 'warn' : 'pass',
+        `${others.length} prior launches, ${dead} dead`,
+        `Creator ${rug.creator ? rug.creator.slice(0, 4) + '…' + rug.creator.slice(-4) : 'unknown'} — a graveyard of past launches is the serial-rugger signature. Dead = market cap under $1k.`,
+      );
+    } else if (rug) {
+      push('deployer-history', 'Deployer history', rug.creatorTokens ? 'pass' : 'unknown',
+        rug.creatorTokens ? 'first launch' : null,
+        rug.creatorTokens ? 'No other tokens from this creator in RugCheck data.' : 'RugCheck did not return creator history.');
     }
 
     // ── external: rugcheck ──

@@ -174,10 +174,10 @@ export function Wallets() {
                   <th className="pl-4 pr-0 py-2 w-8"></th>
                   <th className="px-4 py-2 font-normal">wallet</th>
                   <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right />
+                  <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of fully closed tokens that ended profitable. Open positions don't count either way." />
+                  <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Average-cost realized PnL over the analyzed window. SOL and USDC/USDT legs combined, stable legs converted at the SOL price at analysis time. Open positions not included." />
                   <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Positions bought and never sold, excluding stablecoins and entries under the min size set in Screener → Analytics." />
                   <SortHeader label="last active" colKey="lastSeen" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <th className="px-4 py-2 font-normal">flags</th>
                   <th className="px-4 py-2 font-normal"></th>

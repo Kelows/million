@@ -121,9 +121,16 @@ export class HeliusService {
     };
   }
 
-  /** Top-10 largest token accounts as % of supply (the LP vault is usually among them). */
-  async getTopHolders(mint: string): Promise<TopHolders | null> {
-    type Largest = { value?: { uiAmount: number | null }[] };
+  /** Token accounts for a mint owned by `owner` — used to find a pool's LP vault accounts. */
+  async getTokenAccountsByOwner(owner: string, mint: string): Promise<string[]> {
+    type Result = { value?: { pubkey: string }[] };
+    const result = await this.rpc<Result>('getTokenAccountsByOwner', [owner, { mint }, { encoding: 'jsonParsed' }]).catch(() => null);
+    return result?.value?.map((v) => v.pubkey) ?? [];
+  }
+
+  /** Top-10 largest token accounts as % of supply, excluding known LP vault accounts. */
+  async getTopHolders(mint: string, excludeAccounts: Set<string> = new Set()): Promise<TopHolders | null> {
+    type Largest = { value?: { address: string; uiAmount: number | null }[] };
     type Supply = { value?: { uiAmount: number | null } };
     const [largest, supply] = await Promise.all([
       this.rpc<Largest>('getTokenLargestAccounts', [mint]).catch(() => null),
@@ -131,11 +138,13 @@ export class HeliusService {
     ]);
     const total = supply?.value?.uiAmount;
     if (!largest?.value?.length || !total) return null;
-    const amounts = largest.value.map((v) => v.uiAmount ?? 0);
+    const amounts = largest.value.filter((v) => !excludeAccounts.has(v.address)).map((v) => v.uiAmount ?? 0);
+    if (!amounts.length) return null;
     const top10 = amounts.slice(0, 10).reduce((s, a) => s + a, 0);
     return {
       top10Pct: (top10 / total) * 100,
       largestPct: (amounts[0] / total) * 100,
+      excludedVaults: excludeAccounts.size,
     };
   }
 
@@ -178,6 +187,7 @@ export interface AssetInfo {
 export interface TopHolders {
   top10Pct: number;
   largestPct: number;
+  excludedVaults: number;
 }
 
 export interface TokenMeta {

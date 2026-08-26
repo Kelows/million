@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 export interface DexPair {
+  pairAddresses: string[]; // top pools by liquidity — used to exclude LP vaults from holder math
   symbol: string | null;
   name: string | null;
   priceUsd: number | null;
@@ -33,6 +34,7 @@ export class DexScreenerService {
     type Raw = {
       pairs?: {
         chainId: string;
+        pairAddress?: string;
         dexId?: string;
         url?: string;
         priceUsd?: string;
@@ -46,8 +48,10 @@ export class DexScreenerService {
     const body = (await res.json()) as Raw;
     const pairs = (body.pairs ?? []).filter((p) => p.chainId === 'solana' && p.baseToken?.address === mint);
     if (!pairs.length) return null;
-    const best = pairs.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+    const sorted = pairs.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0));
+    const best = sorted[0];
     return {
+      pairAddresses: sorted.slice(0, 3).map((p) => p.pairAddress).filter((a): a is string => Boolean(a)),
       symbol: best.baseToken?.symbol ?? null,
       name: best.baseToken?.name ?? null,
       priceUsd: best.priceUsd ? Number(best.priceUsd) : null,
