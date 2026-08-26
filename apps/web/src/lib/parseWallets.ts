@@ -1,5 +1,6 @@
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const ADDRESS_KEYS = ['address', 'wallet', 'walletAddress', 'pubkey', 'publicKey', 'account', 'owner'];
+const ADDRESS_KEYS = ['address', 'wallet', 'walletAddress', 'trackedWalletAddress', 'pubkey', 'publicKey', 'account', 'owner'];
+const FIELD_NAME_RE = /(address|wallet|pubkey|publickey|account|owner|key|mint)$/i;
 const LABEL_KEYS = ['label', 'name', 'tag', 'alias', 'nickname'];
 
 export interface ParsedWallet {
@@ -41,7 +42,8 @@ function extract(data: unknown): ParsedWallet[] {
     // { label: address } or { address: label } maps
     const out: ParsedWallet[] = [];
     for (const [k, v] of Object.entries(obj)) {
-      if (typeof v === 'string' && SOL_ADDR.test(v)) out.push({ address: v, label: SOL_ADDR.test(k) ? undefined : k });
+      if (typeof v === 'string' && SOL_ADDR.test(v))
+        out.push({ address: v, label: SOL_ADDR.test(k) || FIELD_NAME_RE.test(k) ? undefined : k });
       else if (SOL_ADDR.test(k)) out.push({ address: k, label: typeof v === 'string' ? v : undefined });
       else out.push(...extract(v));
     }
