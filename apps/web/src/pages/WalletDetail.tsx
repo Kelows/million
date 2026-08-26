@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useAnalyzeWallet, useWallet } from '../api';
+import { useAnalyzeWallet, useImportWallets, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
@@ -26,6 +26,20 @@ export function WalletDetail() {
   const { address } = useParams({ from: '/wallets/$address' });
   const { data: wallet, isLoading, error } = useWallet(address);
   const analyze = useAnalyzeWallet();
+  const importWallets = useImportWallets();
+  const [autoRun, setAutoRun] = useState(false);
+  const notInRoster = Boolean(error?.message.includes('not in the roster'));
+
+  // arriving on an unknown wallet (e.g. from a funding trace): import + analyze it
+  useEffect(() => {
+    if (!notInRoster || autoRun) return;
+    setAutoRun(true);
+    importWallets
+      .mutateAsync({ wallets: [address], source: 'auto-visit' })
+      .then(() => analyze.mutateAsync(address))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notInRoster, autoRun, address]);
   // hook must run on every render path, so it sits above the early returns
   const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
   const pag = usePagination(tokenSort.sorted, 25);
@@ -42,6 +56,15 @@ export function WalletDetail() {
   };
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
+  if (notInRoster || (autoRun && !wallet)) {
+    return (
+      <div className="panel p-6 max-w-xl">
+        <p className="text-sm text-ink">New wallet — adding to the roster and analyzing…</p>
+        <p className="text-xs text-dim mt-2 font-mono">{address}</p>
+        {analyze.error && <p className="text-xs text-loss mt-2">{analyze.error.message}</p>}
+      </div>
+    );
+  }
   if (error || !wallet) {
     return (
       <div className="panel p-6 max-w-xl">

@@ -3,6 +3,7 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import type { FundingLink } from '@million/shared';
 import { useFundingChains, useImportWallets } from '../api';
 import { Addr } from '../components/Addr';
+import { EyeIcon } from '../components/icons';
 import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -156,6 +157,7 @@ function FundingTable({
           <table className="w-full text-sm font-mono">
             <thead>
               <tr className="text-left text-dim text-xs">
+                <th className="pl-4 pr-0 py-2 w-8"></th>
                 <th className="px-4 py-2 font-normal">wallet</th>
                 <th className="px-4 py-2 font-normal text-right">total SOL</th>
                 <th className="px-4 py-2 font-normal">transfers</th>
@@ -171,6 +173,16 @@ function FundingTable({
             <tbody>
               {links.map((l) => (
                 <tr key={`${l.direction}:${l.address}`} className="border-t border-line hover:bg-deck2">
+                  <td className="pl-4 pr-0 py-2">
+                    <Link
+                      to="/wallets/$address"
+                      params={{ address: l.address }}
+                      title="Open wallet detail (auto-analyzes if unknown)"
+                      className="text-dim hover:text-neon inline-flex"
+                    >
+                      <EyeIcon />
+                    </Link>
+                  </td>
                   <td className="px-4 py-2"><Addr address={l.address} /></td>
                   <td className="px-4 py-2 text-right text-bright">{l.totalSol.toLocaleString('en-US')}</td>
                   <td className="px-4 py-2 text-dim">{l.transfers}</td>
