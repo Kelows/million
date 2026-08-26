@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Wallet {
+  address        String    @id
+  label          String?
+  source         String?
+  createdAt      DateTime  @default(now())
+  lastAnalyzedAt DateTime?
+  status         String    @default("idle")
+  metrics        String? // JSON WalletMetrics
+  error          String?
+}

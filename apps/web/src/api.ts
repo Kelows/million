@@ -1,0 +1,62 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { WalletImport, WalletRecord } from '@million/shared';
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const message = body?.message
+      ? Array.isArray(body.message) ? body.message.join('; ') : body.message
+      : `${res.status} ${res.statusText}`;
+    throw new Error(message);
+  }
+  return res.json() as Promise<T>;
+}
+
+export interface Health {
+  ok: boolean;
+  heliusConfigured: boolean;
+}
+
+export function useHealth() {
+  return useQuery({ queryKey: ['health'], queryFn: () => request<Health>('/health'), refetchInterval: 30_000 });
+}
+
+export function useWallets() {
+  return useQuery({ queryKey: ['wallets'], queryFn: () => request<WalletRecord[]>('/wallets') });
+}
+
+export function useWallet(address: string) {
+  return useQuery({ queryKey: ['wallets', address], queryFn: () => request<WalletRecord>(`/wallets/${address}`) });
+}
+
+export function useImportWallets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: WalletImport) =>
+      request<{ imported: number; skipped: number }>('/wallets/import', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}
+
+export function useAnalyzeWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (address: string) => request<WalletRecord>(`/wallets/${address}/analyze`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}
+
+export function useRemoveWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (address: string) => request<void>(`/wallets/${address}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}

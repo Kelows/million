@@ -1,0 +1,7 @@
+procs:
+  api:
+    cwd: apps/api
+    shell: npm run dev
+  web:
+    cwd: apps/web
+    shell: npm run dev
