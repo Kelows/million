@@ -128,6 +128,14 @@ export function openPositions(tokens: TokenBreakdown[]): TokenBreakdown[] {
   return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol));
 }
 
+/** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
+export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
+
+export function isQualifyingWallet(m: WalletMetrics): boolean {
+  if (m.winRate === null) return false;
+  return m.winRate > WATCH_CRITERIA.minWinRate && m.closedTokens >= WATCH_CRITERIA.minClosedTokens;
+}
+
 // ── recommendations ───────────────────────────────────────────────────────────
 
 export interface ConsensusToken {
@@ -137,20 +145,10 @@ export interface ConsensusToken {
   holders: { address: string; label: string | null }[];
 }
 
-export interface WatchWallet {
-  address: string;
-  label: string | null;
-  winRate: number | null;
-  realizedPnlSol: number;
-  openCount: number;
-  lastSeen: string | null;
-}
-
 export interface RecommendationsData {
   generatedAt: string;
   criteria: { minWinRate: number; minClosedTokens: number };
   totalAnalyzed: number;
   qualifyingWallets: number;
   consensusTokens: ConsensusToken[];
-  walletsToWatch: WatchWallet[];
 }

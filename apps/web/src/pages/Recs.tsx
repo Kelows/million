@@ -1,8 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useRecommendations, useRunRecommendations } from '../api';
 import { Addr } from '../components/Addr';
-import { EyeIcon } from '../components/icons';
-import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { fmtAgo, truncAddr } from '../lib/format';
 
 const LATER_IDEAS = [
   { name: 'Copyability score', why: 'replay each whale entry with +2 blocks latency — does the edge survive you?' },
@@ -22,7 +21,8 @@ export function Recs() {
         <div>
           <h1 className="text-xl font-bold text-bright tracking-wide">Recommendations</h1>
           <p className="text-sm text-dim mt-1">
-            Computed from cached analyses only — re-run after analyzing new wallets.
+            Consensus across your whales, computed from cached analyses — re-run after analyzing new wallets. The
+            wallet watch list lives on the overview.
           </p>
         </div>
         <div className="text-right">
@@ -89,45 +89,6 @@ export function Recs() {
             )}
           </div>
 
-          <div className="panel">
-            <div className="px-4 pt-4 pb-2 eyebrow">Wallets to watch · qualifying, with open positions, by realized PnL</div>
-            {recs.walletsToWatch.length === 0 ? (
-              <p className="px-4 pb-4 text-sm text-dim">No qualifying wallets with open positions yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm font-mono">
-                  <thead>
-                    <tr className="text-left text-dim text-xs">
-                      <th className="pl-4 pr-0 py-2 w-8"></th>
-                      <th className="px-4 py-2 font-normal">wallet</th>
-                      <th className="px-4 py-2 font-normal">win rate</th>
-                      <th className="px-4 py-2 font-normal text-right">realized PnL</th>
-                      <th className="px-4 py-2 font-normal">open</th>
-                      <th className="px-4 py-2 font-normal">last active</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recs.walletsToWatch.map((w) => (
-                      <tr key={w.address} className="border-t border-line hover:bg-deck2">
-                        <td className="pl-4 pr-0 py-2">
-                          <Link to="/wallets/$address" params={{ address: w.address }} title="Open wallet detail" className="text-dim hover:text-neon inline-flex">
-                            <EyeIcon />
-                          </Link>
-                        </td>
-                        <td className="px-4 py-2">
-                          {w.label ? <span className="text-ink">{w.label}</span> : <Addr address={w.address} />}
-                        </td>
-                        <td className="px-4 py-2">{fmtPct(w.winRate)}</td>
-                        <td className={`px-4 py-2 text-right ${w.realizedPnlSol >= 0 ? 'text-profit' : 'text-loss'}`}>{fmtSol(w.realizedPnlSol)}</td>
-                        <td className="px-4 py-2 text-warn">{w.openCount}</td>
-                        <td className="px-4 py-2 text-dim">{fmtAgo(w.lastSeen)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </>
       ) : null}
 

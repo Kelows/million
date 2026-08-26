@@ -1,9 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { openPositions, type ConsensusToken, type RecommendationsData, type WalletMetrics, type WatchWallet } from '@million/shared';
+import { isQualifyingWallet, openPositions, WATCH_CRITERIA, type ConsensusToken, type RecommendationsData, type WalletMetrics } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 
-const MIN_WIN_RATE = 0.5;
-const MIN_CLOSED_TOKENS = 3;
 const KEEP_RUNS = 5;
 
 @Injectable()
@@ -46,9 +44,7 @@ export class RecommendationsService {
       metrics: JSON.parse(w.metrics as string) as WalletMetrics,
     }));
 
-    const qualifying = wallets.filter(
-      (w) => w.metrics.winRate !== null && w.metrics.winRate > MIN_WIN_RATE && w.metrics.closedTokens >= MIN_CLOSED_TOKENS,
-    );
+    const qualifying = wallets.filter((w) => isQualifyingWallet(w.metrics));
 
     // consensus: how many qualifying wallets hold the same token open right now (stables excluded)
     const byMint = new Map<string, ConsensusToken>();
@@ -69,26 +65,13 @@ export class RecommendationsService {
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
 
-    const walletsToWatch: WatchWallet[] = qualifying
-      .filter((w) => openPositions(w.metrics.tokens).length > 0)
-      .sort((a, b) => b.metrics.realizedPnlSol - a.metrics.realizedPnlSol)
-      .slice(0, 10)
-      .map((w) => ({
-        address: w.address,
-        label: w.label,
-        winRate: w.metrics.winRate,
-        realizedPnlSol: w.metrics.realizedPnlSol,
-        openCount: openPositions(w.metrics.tokens).length,
-        lastSeen: w.metrics.lastSeen,
-      }));
 
     return {
       generatedAt: new Date().toISOString(),
-      criteria: { minWinRate: MIN_WIN_RATE, minClosedTokens: MIN_CLOSED_TOKENS },
+      criteria: WATCH_CRITERIA,
       totalAnalyzed: wallets.length,
       qualifyingWallets: qualifying.length,
       consensusTokens,
-      walletsToWatch,
     };
   }
 }
