@@ -1,5 +1,14 @@
 # The Closed Loop
 
+> **Clarified 2026-08-27 (v2 realignment):** the crawler's purpose is to find
+> WALLETS — tokens are the medium, not the product. Co-entry consensus (>=2) is
+> demoted to a report (Recs, out of nav); the crawler mines ANY token a
+> qualifying wallet entered, gauntlets it for safety, and absorbs its buyers by
+> whale-score threshold. The actionable token surface is OPPORTUNITIES (replaces
+> Gems in nav): a subbed wallet enters a pair NEW for it, sized, and the token
+> passes the gauntlet (PASS/WARN per config) -> real-time signal from the live
+> websocket feed. The auto-trader consumes opportunities — paper first, always.
+
 Where every module converges. Written 2026-08-27, after the whale autopsy and the
 first discovery/funding/screener iterations. This is the system thesis: each tool
 is a stage of one pipeline, and the Gems feed is where the pipeline pays out.
