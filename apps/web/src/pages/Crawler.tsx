@@ -11,15 +11,45 @@ interface NumberFieldDef {
   step: number;
 }
 
-const FIELDS: NumberFieldDef[] = [
-  { key: 'intervalMinutes', label: 'Interval (minutes)', hint: '24/7 means this cadence, forever — budget × interval is your API burn rate', step: 5 },
-  { key: 'creditsPerIteration', label: 'Credit budget / iteration', hint: '~1 credit per page fetch or check; iteration stops when spent', step: 10 },
-  { key: 'maxWalletsReanalyzed', label: 'Stalest re-analyses / iteration', hint: 'wallet source: keeps consensus fresh', step: 1 },
-  { key: 'maxWalletsAbsorbed', label: 'Max wallets absorbed / iteration', hint: 'token source: clean size buyers of passing gems', step: 1 },
-  { key: 'discoveryMinSol', label: 'Discovery min buy (SOL)', hint: 'size floor when scanning gem buyers', step: 1 },
-  { key: 'minOpenSol', label: 'Min entry (SOL)', hint: 'consensus dust threshold', step: 0.5 },
-  { key: 'minWhaleScore', label: 'Min whale score to absorb', hint: 'every clean buyer at or above this joins the roster — quality is absolute, not relative', step: 10 },
-  { key: 'deepScanBuckets', label: 'Deep-scan buckets', hint: 'time checkpoints when mining a new gem\u2019s whole life (~3 credits each)', step: 12 },
+interface FieldSection {
+  title: string;
+  fields: NumberFieldDef[];
+}
+
+const SECTIONS: FieldSection[] = [
+  {
+    title: 'Budget — every iteration, run-once or auto',
+    fields: [
+      { key: 'creditsPerIteration', label: 'Credit budget per iteration', hint: '~1 credit per page fetch or check; the iteration stops mid-work when spent', step: 50 },
+    ],
+  },
+  {
+    title: 'Auto mode — armed by Start',
+    fields: [
+      { key: 'intervalMinutes', label: 'Run an iteration every (minutes)', hint: 'this IS your iteration count: 1440 / interval = iterations per day', step: 5 },
+    ],
+  },
+  {
+    title: 'Finding tokens (from your wallets)',
+    fields: [
+      { key: 'minOpenSol', label: 'Min entry size (SOL)', hint: 'a wallet\u2019s token entry below this is dust and ignored', step: 0.5 },
+    ],
+  },
+  {
+    title: 'Finding wallets (from those tokens)',
+    fields: [
+      { key: 'discoveryMinSol', label: 'Min buy to count as a buyer (SOL)', hint: 'size floor when scanning a token\u2019s buyers', step: 1 },
+      { key: 'minWhaleScore', label: 'Min whale score to absorb', hint: 'every clean buyer at or above this joins the roster — quality is absolute, not relative', step: 10 },
+      { key: 'maxWalletsAbsorbed', label: 'Absorption cap per iteration', hint: 'a safety cap, not a target', step: 5 },
+      { key: 'deepScanBuckets', label: 'Deep-scan buckets (new tokens)', hint: 'time checkpoints when mining a new token\u2019s whole life (~3 credits each)', step: 12 },
+    ],
+  },
+  {
+    title: 'Keeping data fresh',
+    fields: [
+      { key: 'maxWalletsReanalyzed', label: 'Stalest re-analyses per iteration', hint: 'rotates through the roster so cached stats never go stale', step: 5 },
+    ],
+  },
 ];
 
 export function Crawler() {
@@ -109,24 +139,36 @@ export function Crawler() {
         </div>
         {sourceError && <p className="text-xs text-loss">At least one source must stay enabled.</p>}
 
-        <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
-          {FIELDS.map((f) => (
-            <label key={f.key} className="flex items-center justify-between gap-4 text-sm">
-              <span>
-                {f.label}
-                <span className="block text-xs text-dim">{f.hint}</span>
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={f.step}
-                value={config[f.key]}
-                onChange={(e) => set({ [f.key]: Number(e.target.value) } as Partial<CrawlerConfig>)}
-                className="w-28 text-right"
-              />
-            </label>
-          ))}
-        </div>
+        {SECTIONS.map((section) => (
+          <div key={section.title} className="border-t border-line pt-3">
+            <span className="eyebrow">{section.title}</span>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 mt-2">
+              {section.fields.map((f) => (
+                <label key={f.key} className="flex items-center justify-between gap-4 text-sm">
+                  <span>
+                    {f.label}
+                    <span className="block text-xs text-dim">{f.hint}</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={f.step}
+                    value={config[f.key]}
+                    onChange={(e) => set({ [f.key]: Number(e.target.value) } as Partial<CrawlerConfig>)}
+                    className="w-28 text-right"
+                  />
+                </label>
+              ))}
+            </div>
+            {section.title.startsWith('Auto mode') && (
+              <p className="text-xs font-mono text-dim mt-2">
+                armed = ~{Math.round(1440 / config.intervalMinutes)} iterations/day × {config.creditsPerIteration} credits
+                ≈ {Math.round((1440 / config.intervalMinutes) * config.creditsPerIteration).toLocaleString('en-US')}/day
+                ≈ {Math.round(((1440 / config.intervalMinutes) * config.creditsPerIteration * 30) / 10_000)}% of the 1M/mo free tier
+              </p>
+            )}
+          </div>
+        ))}
 
         <div className="flex items-center gap-3">
           <button className="btn" disabled={save.isPending || !dirty || sourceError} onClick={() => save.mutate(config)}>
