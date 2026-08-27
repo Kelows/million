@@ -84,6 +84,9 @@ export interface WalletRecord {
   metrics: WalletMetrics | null;
   error: string | null;
   subscribed: boolean;
+  ownerId: number | null;
+  /** other roster addresses assigned to the same owner (detail endpoint only) */
+  ownerSiblings?: { address: string; label: string | null }[];
 }
 
 // ── token legitimacy screening ────────────────────────────────────────────────

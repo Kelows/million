@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { TokenMetaService } from '../analysis/token-meta.service';
+import { OwnersService } from '../analysis/owners.service';
 import { computeMetrics } from '../analysis/metrics';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class WalletsService {
     private readonly helius: HeliusService,
     private readonly tokenMeta: TokenMetaService,
     private readonly dexscreener: DexScreenerService,
+    private readonly owners: OwnersService,
     private readonly config: ConfigService,
   ) {}
 
@@ -44,7 +46,9 @@ export class WalletsService {
   async get(address: string): Promise<WalletRecord> {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
-    return this.toRecord(wallet);
+    const record = this.toRecord(wallet);
+    record.ownerSiblings = await this.owners.siblings(address);
+    return record;
   }
 
   async analyze(address: string): Promise<WalletRecord> {
@@ -62,6 +66,8 @@ export class WalletsService {
       const metrics = computeMetrics(address, txs, truncated, solPrice);
       const symbols = await this.tokenMeta.getSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
+      // owner evidence rides along for free — same txs we just fetched
+      await this.owners.extractEdges(address, txs, metrics).catch(() => undefined);
       const updated = await this.prisma.wallet.update({
         where: { address },
         data: { status: 'done', metrics: JSON.stringify(metrics), lastAnalyzedAt: new Date(), error: null },
@@ -113,6 +119,7 @@ export class WalletsService {
       metrics: w.metrics ? (JSON.parse(w.metrics) as WalletMetrics) : null,
       error: w.error,
       subscribed: w.subscribed,
+      ownerId: w.ownerId,
     };
   }
 }

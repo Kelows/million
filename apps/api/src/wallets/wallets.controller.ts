@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { z } from 'zod';
 import { LiveFeedService } from '../live/live-feed.service';
+import { OwnersService } from '../analysis/owners.service';
 import { WalletImportSchema, type WalletImport } from '@million/shared';
 import { ZodPipe } from '../zod.pipe';
 import { WalletsService } from './wallets.service';
@@ -10,6 +11,7 @@ export class WalletsController {
   constructor(
     private readonly wallets: WalletsService,
     private readonly live: LiveFeedService,
+    private readonly owners: OwnersService,
   ) {}
 
   @Get('health')
@@ -46,6 +48,12 @@ export class WalletsController {
     const record = await this.wallets.setSubscribed(address, body.subscribed);
     void this.live.resync();
     return record;
+  }
+
+  @Post('owners/rebuild')
+  @HttpCode(200)
+  rebuildOwners() {
+    return this.owners.rebuild();
   }
 
   @Post('wallets/purge-junk')

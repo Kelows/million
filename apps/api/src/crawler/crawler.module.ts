@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConsensusService } from '../analysis/consensus.service';
+import { OwnersService } from '../analysis/owners.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { HeliusService } from '../analysis/helius.service';
 import { TokenMetaService } from '../analysis/token-meta.service';
@@ -20,6 +21,7 @@ import { CrawlerService } from './crawler.service';
     DiscoveryService,
     WalletsService,
     ConsensusService,
+    OwnersService,
     TokenCheckService,
     TokenMetaService,
     DexScreenerService,

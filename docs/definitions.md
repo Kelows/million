@@ -42,8 +42,13 @@ pretends address = actor, and every count that matters quietly inherits that lie
   - consensus counts owners, not addresses (the correctness fix)
   - Sub follows an owner: rotation to a fresh address doesn't drop the feed
   - purge/blacklist applies to the owner — a rugger can't shed the label by rotating
-- **Status**: v2 (roadmap items 4b + 5 are this concept's two halves). Until
-  built, read every wallet count with the address≈owner caveat.
+- **Status**: v1 SHIPPED 2026-08-27. Edges: funding (>=1 SOL total, from the
+  analysis history — zero extra API cost), fee-payer (share >= 15%), co-entry
+  (>= 2 shared entries, jaccard >= 0.25, DB-only). Union-find with hub exclusion
+  (degree > 20 = exchange/infra, never clustered through). Consensus counts
+  owners, not addresses. Wallet detail shows same-owner siblings. Rebuilt at
+  each crawler iteration and via POST /owners/rebuild. v1 caveats: ownerId not
+  stable across rebuilds; block-0 evidence still missing; Sub is per-address.
 
 ## Token verdicts
 

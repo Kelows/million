@@ -85,6 +85,20 @@ export function WalletDetail() {
               orchestrator: <Addr address={m.topFeePayer.address} /> pays fees on {Math.round(m.topFeePayer.share * 100)}% of txs
             </div>
           )}
+          {(wallet.ownerSiblings?.length ?? 0) > 0 && (
+            <div className="text-xs mt-2">
+              <span className="text-warn font-semibold uppercase tracking-wider text-[0.6rem]">same owner</span>{' '}
+              <span className="text-dim">·</span>{' '}
+              {wallet.ownerSiblings!.map((s, i) => (
+                <span key={s.address}>
+                  {i > 0 && <span className="text-dim">, </span>}
+                  <Link to="/wallets/$address" params={{ address: s.address }} className="text-neon hover:underline">
+                    {s.label ?? truncAddr(s.address)}
+                  </Link>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <button

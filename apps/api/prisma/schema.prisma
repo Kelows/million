@@ -18,6 +18,7 @@ model Wallet {
   error          String?
   purgedAt       DateTime? // soft-deleted junk: hidden everywhere, knowledge retained
   subscribed     Boolean   @default(false) // live feed follows this wallet
+  ownerId        Int? // cluster assignment from the owner graph (rebuilt, not stable across rebuilds)
 }
 
 model Token {
@@ -88,4 +89,15 @@ model Opportunity {
 model OpportunityConfig {
   id   Int    @id @default(1)
   data String // JSON OpportunityConfig
+}
+
+model WalletEdge {
+  id        Int      @id @default(autoincrement())
+  a         String // address (a < b, normalized)
+  b         String
+  type      String // funding | feepayer | coentry
+  weight    Float
+  createdAt DateTime @default(now())
+
+  @@unique([a, b, type])
 }

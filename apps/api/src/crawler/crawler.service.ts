@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma.service';
 import { GemsService } from '../gems/gems.service';
 import { DiscoveryService } from '../discovery/discovery.service';
 import { WalletsService } from '../wallets/wallets.service';
+import { OwnersService } from '../analysis/owners.service';
 
 const KEEP_RUNS = 20;
 
@@ -34,6 +35,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     private readonly discovery: DiscoveryService,
     private readonly wallets: WalletsService,
     private readonly env: ConfigService,
+    private readonly owners: OwnersService,
   ) {}
 
   async onModuleInit() {
@@ -192,6 +194,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
+      const clusters = await this.owners.rebuild().catch(() => null);
+      if (clusters) say(`owner graph: ${clusters.owners} multi-wallet owners, ${clusters.clustered} wallets clustered`);
       stats.creditsUsed = config.creditsPerIteration - credits;
       say(`done · ${stats.creditsUsed} credits used`);
     } catch (err) {
