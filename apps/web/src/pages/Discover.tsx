@@ -193,7 +193,19 @@ export function Discover() {
                           {c.inRoster ? (
                             <Link to="/wallets/$address" params={{ address: c.address }} className="text-xs text-dim hover:text-neon">in roster →</Link>
                           ) : (
-                            <button className="btn py-1! px-2! text-[0.6rem]!" disabled={importWallets.isPending} onClick={() => addToRoster([c.address])}>add</button>
+                            <button
+                              className="btn py-1! px-2! text-[0.6rem]!"
+                              disabled={importWallets.isPending}
+                              onClick={() => {
+                                const bad = (c.flags ?? []).filter((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
+                                if (bad.length && !window.confirm(`This wallet is flagged ${bad.join(' + ')} — likely plumbing or a farmed account, its stats are untrustworthy. Add to the roster anyway?`)) {
+                                  return;
+                                }
+                                addToRoster([c.address]);
+                              }}
+                            >
+                              add
+                            </button>
                           )}
                         </td>
                       </tr>
