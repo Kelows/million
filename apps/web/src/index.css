@@ -30,14 +30,23 @@ body {
   min-height: 100vh;
 }
 
-/* chamfered panel — the deck's signature surface */
+/* chamfered panel — the deck's signature surface.
+   The chamfer lives on a pseudo-element so children (tooltips, dropdowns)
+   can overflow the panel without being clipped. */
 .panel {
+  position: relative;
+  isolation: isolate;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--color-deck);
   border: 1px solid var(--color-line);
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
 }
-
-.panel-raised {
+.panel-raised::before {
   background: var(--color-deck2);
 }
 
