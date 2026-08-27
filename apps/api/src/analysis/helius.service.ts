@@ -61,6 +61,65 @@ export class HeliusService {
     return this.fetchTxs(address, '', maxPages);
   }
 
+  /** One page of enhanced txs strictly before a signature checkpoint. */
+  async fetchPageBefore(address: string, before: string): Promise<HeliusTx[]> {
+    const url = new URL(`${BASE}/addresses/${address}/transactions`);
+    url.searchParams.set('api-key', this.key());
+    url.searchParams.set('limit', '100');
+    url.searchParams.set('before', before);
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    return (await res.json()) as HeliusTx[];
+  }
+
+  /** Current slot height. */
+  getSlot(): Promise<number> {
+    return this.rpc<number>('getSlot', []);
+  }
+
+  /** Any signature from a block near the given slot (skipped slots probed forward). */
+  async signatureAtSlot(slot: number): Promise<string | null> {
+    type Block = { signatures?: string[] };
+    for (let probe = 0; probe < 5; probe++) {
+      const block = await this.rpc<Block>('getBlock', [
+        slot + probe * 2,
+        { transactionDetails: 'signatures', rewards: false, maxSupportedTransactionVersion: 0 },
+      ]).catch(() => null);
+      if (block?.signatures?.length) return block.signatures[block.signatures.length - 1];
+    }
+    return null;
+  }
+
+  /** The address's signatures immediately BEFORE a global cursor signature (time-travel read). */
+  async signaturesBefore(address: string, before: string, limit = 50): Promise<{ sig: string; t: number }[]> {
+    type SigRow = { signature: string; blockTime?: number | null };
+    const page = await this.rpc<SigRow[]>('getSignaturesForAddress', [address, { limit, before }]).catch(() => null);
+    return (page ?? []).map((r) => ({ sig: r.signature, t: (r.blockTime ?? 0) * 1000 }));
+  }
+
+  /**
+   * Walk the cheap signature index (1000 sigs/call) back in time until sinceMs
+   * or maxCalls — the time skeleton that lets deep scans sample a token's whole life.
+   */
+  async signatureIndex(address: string, sinceMs: number, maxCalls = 40): Promise<{ sig: string; t: number }[]> {
+    type SigRow = { signature: string; blockTime?: number | null };
+    const all: { sig: string; t: number }[] = [];
+    let before: string | undefined;
+    for (let i = 0; i < maxCalls; i++) {
+      const page = await this.rpc<SigRow[]>('getSignaturesForAddress', [
+        address,
+        before ? { limit: 1000, before } : { limit: 1000 },
+      ]).catch(() => null);
+      if (!page?.length) break;
+      for (const row of page) all.push({ sig: row.signature, t: (row.blockTime ?? 0) * 1000 });
+      before = page[page.length - 1].signature;
+      const oldest = page[page.length - 1].blockTime;
+      if (oldest && oldest * 1000 < sinceMs) break;
+      if (page.length < 1000) break;
+    }
+    return all;
+  }
+
   private async fetchTxs(address: string, type: string, maxPages: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
     const key = this.key();
     const txs: HeliusTx[] = [];

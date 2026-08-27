@@ -241,6 +241,7 @@ export interface WhaleCandidate {
   address: string;
   boughtSol: number; // quote spent on this token in the scanned window, SOL terms
   buyTxs: number;
+  firstBuyAt: string; // ISO — deep scans surface launch-era entries
   lastBuyAt: string; // ISO
   inRoster: boolean;
   preview: FundingPreview | null; // null beyond the auto-analysis cap
@@ -249,9 +250,12 @@ export interface WhaleCandidate {
 
 export interface DiscoveryReport {
   mint: string;
+  mode: 'recent' | 'deep';
   scannedTxs: number;
   truncated: boolean;
   minSol: number;
+  spanFrom: string | null; // ISO — oldest sampled tx (deep: reaches toward launch)
+  spanTo: string | null;
   candidates: WhaleCandidate[];
   fetchedAt: string;
 }

@@ -10,8 +10,11 @@ const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const LAMPORTS = 1e9;
 const MAX_CANDIDATES = 30;
+const DEEP_MAX_CANDIDATES = 60;
 const PREVIEW_CAP = 15;
+const DEEP_PREVIEW_CAP = 25;
 const PREVIEW_CONCURRENCY = 3;
+const DEEP_BUCKETS = 24; // time checkpoints sampled across the token's life
 
 @Injectable()
 export class DiscoveryService {
@@ -27,32 +30,38 @@ export class DiscoveryService {
    * Attribution by balance change sidesteps router/aggregator noise. Recent-window
    * bias applies: this finds current buyers, not early winners.
    */
-  async find(mint: string, minSol: number, pages: number): Promise<DiscoveryReport> {
-    const [{ txs, truncated }, solPrice] = await Promise.all([
-      this.helius.fetchHistory(mint, pages),
-      this.dexscreener.fetchSolPriceUsd(),
-    ]);
+  async find(
+    mint: string,
+    minSol: number,
+    pages: number,
+    mode: 'recent' | 'deep' = 'recent',
+    sinceDays = 30,
+  ): Promise<DiscoveryReport> {
+    const solPrice = await this.dexscreener.fetchSolPriceUsd();
+    const { txs, truncated } = mode === 'deep' ? await this.deepSample(mint, sinceDays) : await this.helius.fetchHistory(mint, pages);
 
-    const agg = new Map<string, { boughtSol: number; buyTxs: number; lastTs: number }>();
+    const agg = new Map<string, { boughtSol: number; buyTxs: number; lastTs: number; firstTs: number }>();
     for (const tx of txs) {
       const spend = this.buyersOf(tx, mint, solPrice);
       for (const [buyer, spentSol] of spend) {
         if (spentSol < minSol) continue;
-        const entry = agg.get(buyer) ?? { boughtSol: 0, buyTxs: 0, lastTs: 0 };
+        const entry = agg.get(buyer) ?? { boughtSol: 0, buyTxs: 0, lastTs: 0, firstTs: Number.MAX_SAFE_INTEGER };
         entry.boughtSol += spentSol;
         entry.buyTxs++;
         entry.lastTs = Math.max(entry.lastTs, tx.timestamp);
+        entry.firstTs = Math.min(entry.firstTs, tx.timestamp);
         agg.set(buyer, entry);
       }
     }
 
     const candidates: WhaleCandidate[] = [...agg.entries()]
       .sort((a, b) => b[1].boughtSol - a[1].boughtSol)
-      .slice(0, MAX_CANDIDATES)
+      .slice(0, mode === 'deep' ? DEEP_MAX_CANDIDATES : MAX_CANDIDATES)
       .map(([address, e]) => ({
         address,
         boughtSol: Math.round(e.boughtSol * 100) / 100,
         buyTxs: e.buyTxs,
+        firstBuyAt: new Date(e.firstTs * 1000).toISOString(),
         lastBuyAt: new Date(e.lastTs * 1000).toISOString(),
         inRoster: false,
         preview: null,
@@ -75,7 +84,7 @@ export class DiscoveryService {
     }
 
     // quick analysis of the top unknowns — is this buyer a trader worth tracking, or plumbing?
-    const toPreview = candidates.filter((c) => !c.inRoster).slice(0, PREVIEW_CAP);
+    const toPreview = candidates.filter((c) => !c.inRoster).slice(0, mode === 'deep' ? DEEP_PREVIEW_CAP : PREVIEW_CAP);
     for (let i = 0; i < toPreview.length; i += PREVIEW_CONCURRENCY) {
       await Promise.all(
         toPreview.slice(i, i + PREVIEW_CONCURRENCY).map(async (candidate) => {
@@ -88,14 +97,59 @@ export class DiscoveryService {
       );
     }
 
+    const times = txs.map((t) => t.timestamp).filter(Boolean);
     return {
       mint,
+      mode,
       scannedTxs: txs.length,
       truncated,
       minSol,
+      spanFrom: times.length ? new Date(Math.min(...times) * 1000).toISOString() : null,
+      spanTo: times.length ? new Date(Math.max(...times) * 1000).toISOString() : null,
       candidates,
       fetchedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Deep sampling: walk the token's signature index back toward launch (or sinceDays),
+   * drop evenly-spaced TIME checkpoints, and fetch one page of full txs at each.
+   * Coverage across the token's life instead of the last few seconds of a hot chart.
+   */
+  private async deepSample(mint: string, sinceDays: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+    const SLOT_SECONDS = 0.4;
+    const nowMs = Date.now();
+    const sinceMs = nowMs - sinceDays * 86_400_000;
+    const currentSlot = await this.helius.getSlot().catch(() => null);
+    if (!currentSlot) return this.helius.fetchHistory(mint, 5); // degraded fallback
+
+    const seen = new Map<string, HeliusTx>();
+    let missedBuckets = 0;
+
+    for (let i = 0; i < DEEP_BUCKETS; i++) {
+      const targetMs = sinceMs + ((nowMs - sinceMs) * i) / Math.max(DEEP_BUCKETS - 1, 1);
+      if (nowMs - targetMs < 60_000) {
+        // newest bucket: plain recent page needs no cursor
+        const recent = await this.helius.fetchHistory(mint, 1).catch(() => null);
+        for (const tx of recent?.txs ?? []) seen.set(tx.signature, tx);
+        continue;
+      }
+      const slot = currentSlot - Math.floor((nowMs - targetMs) / 1000 / SLOT_SECONDS);
+      const cursor = slot > 0 ? await this.helius.signatureAtSlot(slot) : null;
+      let checkpoint: string | null = null;
+      if (cursor) {
+        const sigs = await this.helius.signaturesBefore(mint, cursor, 5);
+        checkpoint = sigs[0]?.sig ?? null;
+      }
+      if (!checkpoint) {
+        missedBuckets++;
+        continue; // token may not exist yet at this time, or slot was unreadable
+      }
+      const page = await this.helius.fetchPageBefore(mint, checkpoint).catch(() => []);
+      for (const tx of page) seen.set(tx.signature, tx);
+    }
+
+    return { txs: [...seen.values()], truncated: missedBuckets > DEEP_BUCKETS / 2 };
   }
 
   /** Per tx: accounts that received the mint -> how much of their own quote they paid. */

@@ -14,8 +14,10 @@ export function Discover() {
   const [input, setInput] = useState(initial ?? '');
   const [mint, setMint] = useState<string | null>(initial);
   const [minSol, setMinSol] = useState(5);
+  const [mode, setMode] = useState<'recent' | 'deep'>('recent');
+  const [sinceDays, setSinceDays] = useState(30);
   const [inputError, setInputError] = useState<string | null>(null);
-  const { data: report, isFetching, error } = useDiscovery(mint, minSol);
+  const { data: report, isFetching, error } = useDiscovery(mint, minSol, mode, sinceDays);
   const importWallets = useImportWallets();
 
   const submit = () => {
@@ -60,6 +62,26 @@ export function Discover() {
             min buy (SOL)
             <input type="number" min={0} step={1} value={minSol} onChange={(e) => setMinSol(Number(e.target.value))} className="w-20 text-right" />
           </label>
+          <span className="flex items-center gap-1">
+            {(['recent', 'deep'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                title={m === 'deep' ? 'Time-sampled across the token\u2019s life — finds early buyers, costs more credits' : 'Last few hundred transactions only'}
+                className={`px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-widest border cursor-pointer ${
+                  mode === m ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </span>
+          {mode === 'deep' && (
+            <label className="flex items-center gap-2 text-xs text-dim">
+              days
+              <input type="number" min={1} max={365} value={sinceDays} onChange={(e) => setSinceDays(Number(e.target.value))} className="w-16 text-right" />
+            </label>
+          )}
           <button className="btn" disabled={!input.trim() || isFetching} onClick={submit}>
             {isFetching ? 'Scanning…' : 'Scan'}
           </button>
@@ -96,6 +118,7 @@ export function Discover() {
                       <th className="px-4 py-2 font-normal">wallet</th>
                       <th className="px-4 py-2 font-normal text-right">bought</th>
                       <th className="px-4 py-2 font-normal">buys</th>
+                      <th className="px-4 py-2 font-normal">first buy</th>
                       <th className="px-4 py-2 font-normal">last buy</th>
                       <th className="px-4 py-2 font-normal">WR</th>
                       <th className="px-4 py-2 font-normal text-right">PnL</th>
@@ -114,6 +137,7 @@ export function Discover() {
                         <td className="px-4 py-2"><Addr address={c.address} /></td>
                         <td className="px-4 py-2 text-right text-bright">{c.boughtSol.toLocaleString('en-US')} ◎</td>
                         <td className="px-4 py-2 text-dim">{c.buyTxs}</td>
+                        <td className="px-4 py-2 text-dim" title={c.firstBuyAt}>{fmtAgo(c.firstBuyAt)}</td>
                         <td className="px-4 py-2 text-dim" title={c.lastBuyAt}>{fmtAgo(c.lastBuyAt)}</td>
                         <td className="px-4 py-2">{c.preview ? fmtPct(c.preview.winRate) : '—'}</td>
                         <td className={`px-4 py-2 text-right ${c.preview ? (c.preview.realizedPnlSol >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>

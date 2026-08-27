@@ -103,10 +103,10 @@ export function useFundingChains(address: string | null, minSol: number) {
 
 import type { DiscoveryReport } from '@million/shared';
 
-export function useDiscovery(mint: string | null, minSol: number) {
+export function useDiscovery(mint: string | null, minSol: number, mode: 'recent' | 'deep', sinceDays: number) {
   return useQuery({
-    queryKey: ['discovery', mint, minSol],
-    queryFn: () => request<DiscoveryReport>(`/discovery/token/${mint}?minSol=${minSol}`),
+    queryKey: ['discovery', mint, minSol, mode, sinceDays],
+    queryFn: () => request<DiscoveryReport>(`/discovery/token/${mint}?minSol=${minSol}&mode=${mode}&sinceDays=${sinceDays}`),
     enabled: mint !== null,
     staleTime: 60_000,
     retry: 0,

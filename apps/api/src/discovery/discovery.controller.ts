@@ -6,7 +6,9 @@ import { DiscoveryService } from './discovery.service';
 
 const QuerySchema = z.object({
   minSol: z.coerce.number().nonnegative().default(5),
-  pages: z.coerce.number().int().min(1).max(5).default(3),
+  pages: z.coerce.number().int().min(1).max(50).default(3),
+  mode: z.enum(['recent', 'deep']).default('recent'),
+  sinceDays: z.coerce.number().min(1).max(365).default(30),
 });
 
 @Controller('discovery')
@@ -16,8 +18,8 @@ export class DiscoveryController {
   @Get('token/:mint')
   find(
     @Param('mint', new ZodPipe(SolAddressSchema)) mint: string,
-    @Query(new ZodPipe(QuerySchema)) query: { minSol: number; pages: number },
+    @Query(new ZodPipe(QuerySchema)) query: { minSol: number; pages: number; mode: 'recent' | 'deep'; sinceDays: number },
   ) {
-    return this.discovery.find(mint, query.minSol, query.pages);
+    return this.discovery.find(mint, query.minSol, query.pages, query.mode, query.sinceDays);
   }
 }
