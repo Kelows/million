@@ -30,6 +30,7 @@ model Token {
   lastCheckedAt DateTime?
   lastReport    String? // JSON TokenReport
   purgedAt      DateTime? // soft-deleted junk: hidden from lists, knowledge retained
+  deepScannedAt DateTime? // crawler already mined this token's whole-life buyers
 }
 
 model Recommendation {

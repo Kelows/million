@@ -142,14 +142,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         if (config.sources.tokens && expandable.length && config.maxWalletsAbsorbed > 0) {
           for (const gem of expandable) {
             if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed) break;
-            const report = await this.discovery.find(gem.mint, config.discoveryMinSol, 1).catch(() => null);
+            // first sighting of a gem: mine its WHOLE LIFE of buyers, not the last minutes
+            const tokenRow = await this.prisma.token.findUnique({ where: { mint: gem.mint }, select: { deepScannedAt: true } });
+            const useDeep = config.deepScanNewGems && !tokenRow?.deepScannedAt;
+            const scanCost = useDeep ? config.deepScanBuckets * 3 + 25 : 16;
+            if (credits < scanCost) continue;
+            const report = await this.discovery
+              .find(gem.mint, config.discoveryMinSol, 1, useDeep ? 'deep' : 'recent', 30, config.deepScanBuckets)
+              .catch(() => null);
             if (!report) continue;
+            if (useDeep) {
+              await this.prisma.token.upsert({
+                where: { mint: gem.mint },
+                create: { mint: gem.mint, symbol: gem.symbol, deepScannedAt: new Date() },
+                update: { deepScannedAt: new Date() },
+              }).catch(() => undefined);
+            }
             stats.tokensScanned++;
-            credits -= 1 + Math.min(report.candidates.length, 15);
-            const clean = report.candidates.filter(
-              (c) => !c.inRoster && c.preview && !(c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS'),
-            );
-            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${report.candidates.length} size buyers, ${clean.length} clean`);
+            credits -= scanCost;
+            const clean = report.candidates
+              .filter((c) => !c.inRoster && c.preview && !(c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS'))
+              .sort((a, b) => {
+                // absorb by buyer quality, not buy size — the whale-score insight
+                const score = (x: typeof a) => (x.preview!.winRate ?? 0) * 100 + Math.max(-50, Math.min(200, x.preview!.realizedPnlSol)) / 2;
+                return score(b) - score(a);
+              });
+            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} clean`);
             if (!config.autoAbsorb) continue;
             for (const c of clean) {
               if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages) break;

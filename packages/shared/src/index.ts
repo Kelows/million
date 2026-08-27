@@ -329,6 +329,8 @@ export const CrawlerConfigSchema = z.object({
   maxWalletsReanalyzed: z.coerce.number().min(0).max(200).default(40),
   discoveryMinSol: z.coerce.number().nonnegative().default(5),
   autoAbsorb: z.boolean().default(true), // false = crawler only reports, never touches the roster
+  deepScanNewGems: z.boolean().default(true), // first sighting of a safety-clean gem = whole-life buyer scan
+  deepScanBuckets: z.coerce.number().min(12).max(96).default(48),
   minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
   thresholds: TokenCheckThresholdsSchema.default(TokenCheckThresholdsSchema.parse({})),
 });
