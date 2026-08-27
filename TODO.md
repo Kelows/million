@@ -16,6 +16,13 @@
 - [ ] Exclusion module (design agreed, build when clear): per-wallet infra score from cheap signals (tx/day, buys-without-sells + outbound deliveries, unique counterparty count, external fee-payer share, constant skim address, relay round-trips) -> BOT_INFRA flag + manual "exclude" toggle; excluded wallets drop out of recs/watch/consensus. Later: configurable-hop crawl to find sibling wallets of an excluded one
 - [ ] type=SWAP fetch misses custom-program swaps (43% were UNKNOWN in the case study) — consider all-type fetch + own classification for deep analysis
 
+## From memecoinbible.dev notes (docs/memecoinbible-notes.md, 2026-08-27)
+- [ ] Wallet roles (trader/sniper/rugger/insider/infra) — labels with role-aware Sub semantics
+- [ ] Rugger avoid-list: a subbed rugger touching a token auto-FAILs it in the gauntlet
+- [ ] Deployer profitability scoring: per-launch first-candle->ATH trajectory over last 10 launches (>=3 at +100% = predictable operator), not just dead-count
+- [ ] Overlap-graph heuristics: block-0 double signature, identical-amount same-block bundles, big-candle wallet extraction
+- [ ] Paper trader risk defaults: 5%/trade, stop after 5 consecutive losses, -35% weekly halt
+
 ## Phase 2 — token legitimacy screener (research needed)
 How to tell if a token is legit — checks to implement, roughly in order of signal:
 - [ ] Mint authority revoked (can't print more supply) — Helius DAS `getAsset`
