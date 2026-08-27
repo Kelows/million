@@ -85,6 +85,13 @@ export class WalletsService {
     return { purged: junk.length };
   }
 
+  async setSubscribed(address: string, subscribed: boolean): Promise<WalletRecord> {
+    const updated = await this.prisma.wallet.update({ where: { address }, data: { subscribed } }).catch(() => {
+      throw new NotFoundException(`wallet ${address} is not in the roster`);
+    });
+    return this.toRecord(updated);
+  }
+
   async remove(address: string): Promise<void> {
     await this.prisma.wallet.delete({ where: { address } }).catch(() => {
       throw new NotFoundException(`wallet ${address} is not in the roster`);
@@ -105,6 +112,7 @@ export class WalletsService {
       status: w.status as WalletStatus,
       metrics: w.metrics ? (JSON.parse(w.metrics) as WalletMetrics) : null,
       error: w.error,
+      subscribed: w.subscribed,
     };
   }
 }

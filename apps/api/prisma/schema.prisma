@@ -17,6 +17,7 @@ model Wallet {
   metrics        String? // JSON WalletMetrics
   error          String?
   purgedAt       DateTime? // soft-deleted junk: hidden everywhere, knowledge retained
+  subscribed     Boolean   @default(false) // live feed follows this wallet
 }
 
 model Token {
@@ -55,4 +56,18 @@ model CrawlerRun {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   data       String // JSON { stats, log }
+}
+
+model LiveEvent {
+  id        Int      @id @default(autoincrement())
+  wallet    String
+  signature String   @unique
+  ts        DateTime
+  kind      String // buy | sell | other
+  mint      String?
+  sol       Float
+  usd       Float
+  createdAt DateTime @default(now())
+
+  @@index([ts])
 }

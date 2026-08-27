@@ -1,11 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { z } from 'zod';
+import { LiveFeedService } from '../live/live-feed.service';
 import { WalletImportSchema, type WalletImport } from '@million/shared';
 import { ZodPipe } from '../zod.pipe';
 import { WalletsService } from './wallets.service';
 
 @Controller()
 export class WalletsController {
-  constructor(private readonly wallets: WalletsService) {}
+  constructor(
+    private readonly wallets: WalletsService,
+    private readonly live: LiveFeedService,
+  ) {}
 
   @Get('health')
   health() {
@@ -31,6 +36,16 @@ export class WalletsController {
   @HttpCode(200)
   analyze(@Param('address') address: string) {
     return this.wallets.analyze(address);
+  }
+
+  @Put('wallets/:address/subscribe')
+  async subscribe(
+    @Param('address') address: string,
+    @Body(new ZodPipe(z.object({ subscribed: z.boolean() }))) body: { subscribed: boolean },
+  ) {
+    const record = await this.wallets.setSubscribed(address, body.subscribed);
+    void this.live.resync();
+    return record;
   }
 
   @Post('wallets/purge-junk')

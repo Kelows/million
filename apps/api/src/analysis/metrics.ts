@@ -5,6 +5,12 @@ const WSOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const LAMPORTS = 1e9;
+
+export interface TxDeltas {
+  sol: number;
+  usd: number;
+  tokens: Map<string, number>;
+}
 // classification noise floors: below these a quote delta is fees/rent, not a trade leg
 const SOL_EPS = 0.005;
 const USD_EPS = 0.5;
@@ -57,28 +63,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       feePayers.set(tx.feePayer, (feePayers.get(tx.feePayer) ?? 0) + 1);
     }
 
-    // quote deltas: prefer accountData (exact, covers wrapped routes), fall back to native transfers
-    let sol = 0;
-    let usd = 0;
-    const ad = tx.accountData?.find((a) => a.account === wallet);
-    if (ad) {
-      sol += ad.nativeBalanceChange / LAMPORTS;
-    } else {
-      for (const t of tx.nativeTransfers ?? []) {
-        if (t.toUserAccount === wallet) sol += t.amount / LAMPORTS;
-        if (t.fromUserAccount === wallet) sol -= t.amount / LAMPORTS;
-      }
-    }
-    const tokenDeltas = new Map<string, number>();
-    for (const t of tx.tokenTransfers ?? []) {
-      const other = t.fromUserAccount === wallet ? t.toUserAccount : t.toUserAccount === wallet ? t.fromUserAccount : null;
-      if (other && other !== wallet && counterparties.size < 5000) counterparties.add(other);
-      const delta = (t.toUserAccount === wallet ? t.tokenAmount : 0) - (t.fromUserAccount === wallet ? t.tokenAmount : 0);
-      if (delta === 0) continue;
-      if (t.mint === WSOL) sol += delta;
-      else if (t.mint === USDC || t.mint === USDT) usd += delta;
-      else tokenDeltas.set(t.mint, (tokenDeltas.get(t.mint) ?? 0) + delta);
-    }
+    const { sol, usd, tokens: tokenDeltas } = txDeltas(wallet, tx, counterparties);
 
     if (tokenDeltas.size === 0) {
       if (usd > USD_EPS || sol > 0.01) sweepIns++;
@@ -221,6 +206,34 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
         ? { address: topFeePayerEntry[0], share: round(topFeePayerEntry[1] / ordered.length) }
         : null,
   };
+}
+
+/** A wallet's quote and token deltas in one tx — shared by the ledger and the live feed. */
+export function txDeltas(wallet: string, tx: HeliusTx, counterparties?: Set<string>): TxDeltas {
+  let sol = 0;
+  let usd = 0;
+  const ad = tx.accountData?.find((a) => a.account === wallet);
+  if (ad) {
+    sol += ad.nativeBalanceChange / LAMPORTS;
+  } else {
+    for (const t of tx.nativeTransfers ?? []) {
+      if (t.toUserAccount === wallet) sol += t.amount / LAMPORTS;
+      if (t.fromUserAccount === wallet) sol -= t.amount / LAMPORTS;
+    }
+  }
+  const tokens = new Map<string, number>();
+  for (const t of tx.tokenTransfers ?? []) {
+    if (counterparties) {
+      const other = t.fromUserAccount === wallet ? t.toUserAccount : t.toUserAccount === wallet ? t.fromUserAccount : null;
+      if (other && other !== wallet && counterparties.size < 5000) counterparties.add(other);
+    }
+    const delta = (t.toUserAccount === wallet ? t.tokenAmount : 0) - (t.fromUserAccount === wallet ? t.tokenAmount : 0);
+    if (delta === 0) continue;
+    if (t.mint === WSOL) sol += delta;
+    else if (t.mint === USDC || t.mint === USDT) usd += delta;
+    else tokens.set(t.mint, (tokens.get(t.mint) ?? 0) + delta);
+  }
+  return { sol, usd, tokens };
 }
 
 function round(n: number): number {

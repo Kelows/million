@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useAnalyzeWallet, useImportWallets, useWallet } from '../api';
+import { useAnalyzeWallet, useImportWallets, useSetSubscribed, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
 import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { usePagination } from '../lib/usePagination';
-import { loadSubscriptions, saveSubscriptions } from '../lib/subscriptions';
 import { EyeIcon } from '../components/icons';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
@@ -44,17 +43,7 @@ export function WalletDetail() {
   // hook must run on every render path, so it sits above the early returns
   const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
   const pag = usePagination(tokenSort.sorted, 25);
-  const [subs, setSubs] = useState<Set<string>>(loadSubscriptions);
-
-  const toggleSub = () => {
-    setSubs((prev) => {
-      const next = new Set(prev);
-      if (next.has(address)) next.delete(address);
-      else next.add(address);
-      saveSubscriptions(next);
-      return next;
-    });
-  };
+  const setSubscribed = useSetSubscribed();
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (notInRoster || (autoRun && !wallet)) {
@@ -99,11 +88,12 @@ export function WalletDetail() {
         </div>
         <div className="text-right">
           <button
-            className={`btn mr-2 ${subs.has(wallet.address) ? 'bg-neon text-void!' : ''}`}
-            title="Mock — live subscription through the failsafe pipeline comes later"
-            onClick={toggleSub}
+            className={`btn mr-2 ${wallet.subscribed ? 'bg-neon text-void!' : ''}`}
+            title={wallet.subscribed ? 'Streaming to the Live feed — click to unsubscribe' : 'Stream this wallet\u2019s swaps to the Live feed in real time'}
+            disabled={setSubscribed.isPending}
+            onClick={() => setSubscribed.mutate({ address: wallet.address, subscribed: !wallet.subscribed })}
           >
-            {subs.has(wallet.address) ? 'Subbed' : 'Sub'}
+            {wallet.subscribed ? 'Subbed ●' : 'Sub'}
           </button>
           <Link to="/funding" search={{ address: wallet.address }} className="btn inline-block mr-2">
             Funding chains

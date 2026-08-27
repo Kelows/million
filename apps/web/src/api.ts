@@ -228,3 +228,29 @@ export function usePurgeJunkTokens() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
   });
 }
+
+import type { LiveEventRow, LiveStatus } from '@million/shared';
+
+export function useLiveStatus() {
+  return useQuery({ queryKey: ['live-status'], queryFn: () => request<LiveStatus>('/live/status'), refetchInterval: 10_000 });
+}
+
+export function useLiveEvents(limit = 100) {
+  return useQuery({
+    queryKey: ['live-events', limit],
+    queryFn: () => request<LiveEventRow[]>(`/live/events?limit=${limit}`),
+    refetchInterval: 5_000,
+  });
+}
+
+export function useSetSubscribed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ address, subscribed }: { address: string; subscribed: boolean }) =>
+      request<WalletRecord>(`/wallets/${address}/subscribe`, { method: 'PUT', body: JSON.stringify({ subscribed }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallets'] });
+      qc.invalidateQueries({ queryKey: ['live-status'] });
+    },
+  });
+}

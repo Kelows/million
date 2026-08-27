@@ -80,10 +80,13 @@ The loop, restated as a perpetual crawler the user can switch on:
 
 Ordered by dependency, not ambition:
 
-1. **Live ingestion** — Helius webhooks on subscribed wallets (the roster "Sub"
-   button becomes real). Every swap by a tracked whale lands in the DB within
-   seconds; analyses become incremental updates instead of full refetches.
-   Consensus becomes an event ("3rd qualifying whale entered X"), not a snapshot.
+1. **Live ingestion** — ✅ SHIPPED 2026-08-27, via websockets rather than
+   webhooks (dial-out works from localhost; no public endpoint or tunnel).
+   One Helius WS, logsSubscribe per subscribed wallet (cap 25), every
+   mentioning tx parsed by the shared delta engine and stored as a LiveEvent
+   within seconds. Sub button is real; Live page streams the feed.
+   Still open from this item: incremental analysis updates from events, and
+   consensus-as-event — that's the bridge to item 2.
 2. **Gems becomes a feed, not a report** — new consensus events run the gauntlet
    automatically; passing tokens appear in real time with an alert hook
    (Telegram/Discord webhook out). This is the moment the loop is actually closed:

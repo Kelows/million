@@ -83,6 +83,7 @@ export interface WalletRecord {
   status: WalletStatus;
   metrics: WalletMetrics | null;
   error: string | null;
+  subscribed: boolean;
 }
 
 // ── token legitimacy screening ────────────────────────────────────────────────
@@ -364,4 +365,28 @@ export interface CrawlerStatus {
   running: boolean;
   nextRunAt: string | null;
   lastRuns: CrawlerRunSummary[];
+}
+
+// ── live feed ─────────────────────────────────────────────────────────────────
+
+export interface LiveEventRow {
+  id: number;
+  wallet: string;
+  walletLabel: string | null;
+  signature: string;
+  ts: string; // ISO
+  kind: 'buy' | 'sell' | 'other';
+  mint: string | null;
+  symbol: string | null;
+  sol: number;
+  usd: number;
+}
+
+export interface LiveStatus {
+  connected: boolean;
+  subscribedWallets: number;
+  activeSubscriptions: number;
+  maxSubscriptions: number;
+  eventsToday: number;
+  lastEventAt: string | null;
 }
