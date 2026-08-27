@@ -79,8 +79,7 @@ export function FilterModal<T>({ fields, state, onChange }: FilterModalProps<T>)
                 <label key={field.key} className="flex items-center gap-3 text-sm cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-3.5 h-3.5 p-0!"
-                    style={{ accentColor: 'var(--color-neon)' }}
+                    className="checkbox"
                     checked={state[field.key] === true}
                     onChange={(e) => setField(field.key, e.target.checked ? true : undefined)}
                   />

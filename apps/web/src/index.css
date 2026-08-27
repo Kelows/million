@@ -121,3 +121,37 @@ input:focus, textarea:focus {
   outline: none;
   border-color: var(--color-neon);
 }
+
+/* proper checkboxes — app-wide */
+input[type='checkbox'].checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--color-line);
+  background: var(--color-void);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: border-color 120ms, background 120ms;
+}
+input[type='checkbox'].checkbox:hover:not(:disabled) {
+  border-color: var(--color-neon);
+}
+input[type='checkbox'].checkbox:checked {
+  background: var(--color-neon);
+  border-color: var(--color-neon);
+}
+input[type='checkbox'].checkbox:checked::before {
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--color-void);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+input[type='checkbox'].checkbox:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

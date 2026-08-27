@@ -141,8 +141,7 @@ export function Discover() {
               <label className="flex items-center gap-2 text-xs text-dim cursor-pointer mr-auto">
                 <input
                   type="checkbox"
-                  className="w-3.5 h-3.5 p-0!"
-                  style={{ accentColor: 'var(--color-neon)' }}
+                  className="checkbox"
                   checked={showInfra}
                   onChange={(e) => setShowInfra(e.target.checked)}
                 />

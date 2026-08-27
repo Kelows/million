@@ -280,11 +280,18 @@ export function useSetOpportunityConfig() {
 
 import type { MoverToken } from '@million/shared';
 
-export function useMovers(enabled: boolean, minPump: number, minMcap: number, maxMcap: number) {
+export interface MoversParams {
+  minPump: number;
+  minMcap: number;
+  maxMcap: number;
+}
+
+/** Fires only when params are set by an explicit Search click. */
+export function useMovers(params: MoversParams | null) {
   return useQuery({
-    queryKey: ['movers', minPump, minMcap, maxMcap],
-    queryFn: () => request<MoverToken[]>(`/tokens/movers?minPump=${minPump}&minMcap=${minMcap}&maxMcap=${maxMcap}`),
-    enabled,
+    queryKey: ['movers', params],
+    queryFn: () => request<MoverToken[]>(`/tokens/movers?minPump=${params!.minPump}&minMcap=${params!.minMcap}&maxMcap=${params!.maxMcap}`),
+    enabled: params !== null,
     staleTime: 5 * 60_000,
     retry: 0,
   });

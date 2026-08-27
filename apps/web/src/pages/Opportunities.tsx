@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { OpportunityConfig } from '@million/shared';
 import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig } from '../api';
+import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
@@ -52,7 +53,7 @@ export function Opportunities() {
                 <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
                 <span className="inline-flex items-center gap-2">
                   <Link to="/tokens/$mint" params={{ mint: o.mint }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
-                  {o.symbol && <span className="text-bright font-semibold">{o.symbol}</span>}
+                  {o.symbol && <TokenName mint={o.mint} symbol={o.symbol} />}
                   <Addr address={o.mint} kind="token" />
                 </span>
                 <span className="text-xs text-dim">
@@ -78,7 +79,7 @@ export function Opportunities() {
               <input type="number" min={0} step={0.5} value={config.minBuySol} onChange={(e) => setConfig({ ...config, minBuySol: Number(e.target.value) })} className="w-28 text-right" />
             </label>
             <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input type="checkbox" className="w-3.5 h-3.5 p-0!" style={{ accentColor: 'var(--color-neon)' }} checked={config.allowWarn} onChange={(e) => setConfig({ ...config, allowWarn: e.target.checked })} />
+              <input type="checkbox" className="checkbox" style={{ accentColor: 'var(--color-neon)' }} checked={config.allowWarn} onChange={(e) => setConfig({ ...config, allowWarn: e.target.checked })} />
               WARN verdicts count too (PASS-only if off)
             </label>
           </div>
@@ -100,7 +101,7 @@ export function Opportunities() {
               </label>
             </div>
             <label className="flex items-center gap-3 text-sm mt-3 opacity-60 cursor-not-allowed" title="Locked until the paper-trade engine proves positive expectancy — see docs/closed-loop.md">
-              <input type="checkbox" disabled checked={false} className="w-3.5 h-3.5 p-0!" />
+              <input type="checkbox" disabled checked={false} className="checkbox" />
               auto-trade new opportunities <span className="text-pulse text-xs font-bold tracking-widest ml-1">LOCKED</span>
             </label>
           </div>

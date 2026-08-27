@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { CheckStatus, GemToken } from '@million/shared';
 import { useGems, useRunGems } from '../api';
+import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { fmtAgo, truncAddr } from '../lib/format';
 
@@ -92,7 +93,7 @@ function GemRow({ gem }: { gem: GemToken }) {
     <div className={`panel p-4 border-l-4 ${style.border}`}>
       <div className="flex items-baseline gap-4 flex-wrap">
         <span className={`font-mono text-sm font-bold ${style.text}`}>{style.label}</span>
-        <span className="text-bright font-semibold text-lg">{gem.symbol ?? '?'}</span>
+        <span className="text-lg"><TokenName mint={gem.mint} symbol={gem.symbol ?? '?'} /></span>
         <Addr address={gem.mint} kind="token" />
         <span className="text-warn font-mono text-sm ml-auto" title={gem.holders.map((h) => h.label ?? truncAddr(h.address)).join(', ')}>
           {gem.whaleCount} whales

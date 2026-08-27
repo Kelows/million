@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { truncAddr } from '../lib/format';
+import { TokenName } from './TokenName';
 
 export type AddrKind = 'wallet' | 'token';
 
@@ -16,7 +17,7 @@ export function Addr({ address, full = false, kind = 'wallet', symbol }: { addre
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      {symbol && <span className="text-bright font-semibold">{symbol}</span>}
+      {symbol && <TokenName mint={address} symbol={symbol} />}
       <button
         type="button"
         className="font-mono text-neon hover:underline cursor-pointer"

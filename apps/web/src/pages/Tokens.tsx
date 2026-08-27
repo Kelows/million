@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useCheckToken, useImportTokens, usePurgeJunkTokens, useTokens, useUntrackToken } from '../api';
+import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
@@ -90,8 +91,7 @@ export function Tokens() {
           <label className="flex items-center gap-2 text-xs text-dim cursor-pointer">
             <input
               type="checkbox"
-              className="w-3.5 h-3.5 p-0!"
-              style={{ accentColor: 'var(--color-neon)' }}
+              className="checkbox"
               checked={trackedOnly}
               onChange={(e) => setTrackedOnly(e.target.checked)}
             />
@@ -139,7 +139,7 @@ export function Tokens() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2">
-                        {t.symbol && <span className="text-bright font-semibold">{t.symbol}</span>}
+                        {t.symbol && <TokenName mint={t.mint} symbol={t.symbol} />}
                         <Addr address={t.mint} kind="token" />
                       </span>
                     </td>

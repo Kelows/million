@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { useLiveEvents, useLiveStatus } from '../api';
+import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { fmtAgo, truncAddr } from '../lib/format';
@@ -74,7 +75,7 @@ export function Live() {
                           <Link to="/tokens/$mint" params={{ mint: e.mint }} className="text-dim hover:text-neon inline-flex">
                             <EyeIcon />
                           </Link>
-                          {e.symbol && <span className="text-bright font-semibold">{e.symbol}</span>}
+                          {e.symbol && e.mint && <TokenName mint={e.mint} symbol={e.symbol} />}
                           <Addr address={e.mint} kind="token" />
                         </span>
                       ) : (

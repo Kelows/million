@@ -81,8 +81,7 @@ export function Crawler() {
             <label key={source} className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
-                className="w-3.5 h-3.5 p-0!"
-                style={{ accentColor: 'var(--color-neon)' }}
+                className="checkbox"
                 checked={config.sources[source]}
                 onChange={(e) => set({ sources: { ...config.sources, [source]: e.target.checked } })}
               />
@@ -92,8 +91,7 @@ export function Crawler() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              className="w-3.5 h-3.5 p-0!"
-              style={{ accentColor: 'var(--color-neon)' }}
+              className="checkbox"
               checked={config.autoAbsorb}
               onChange={(e) => set({ autoAbsorb: e.target.checked })}
             />
@@ -102,8 +100,7 @@ export function Crawler() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              className="w-3.5 h-3.5 p-0!"
-              style={{ accentColor: 'var(--color-neon)' }}
+              className="checkbox"
               checked={config.deepScanNewGems}
               onChange={(e) => set({ deepScanNewGems: e.target.checked })}
             />
