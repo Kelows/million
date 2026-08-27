@@ -103,11 +103,23 @@ export function useFundingChains(address: string | null, minSol: number) {
 
 import type { DiscoveryReport } from '@million/shared';
 
-export function useDiscovery(mint: string | null, minSol: number, mode: 'recent' | 'deep', sinceDays: number, buckets: number) {
+export interface DiscoveryParams {
+  mint: string;
+  minSol: number;
+  mode: 'recent' | 'deep';
+  sinceDays: number;
+  buckets: number;
+}
+
+/** Runs only when params are set by an explicit Scan — knob changes never auto-fire a scan. */
+export function useDiscovery(params: DiscoveryParams | null) {
   return useQuery({
-    queryKey: ['discovery', mint, minSol, mode, sinceDays, buckets],
-    queryFn: () => request<DiscoveryReport>(`/discovery/token/${mint}?minSol=${minSol}&mode=${mode}&sinceDays=${sinceDays}&buckets=${buckets}`),
-    enabled: mint !== null,
+    queryKey: ['discovery', params],
+    queryFn: () =>
+      request<DiscoveryReport>(
+        `/discovery/token/${params!.mint}?minSol=${params!.minSol}&mode=${params!.mode}&sinceDays=${params!.sinceDays}&buckets=${params!.buckets}`,
+      ),
+    enabled: params !== null,
     staleTime: 60_000,
     retry: 0,
   });

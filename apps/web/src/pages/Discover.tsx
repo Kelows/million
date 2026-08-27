@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getRouteApi, Link } from '@tanstack/react-router';
-import { useDiscovery, useImportWallets } from '../api';
+import { useDiscovery, useImportWallets, type DiscoveryParams } from '../api';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { FlagChip } from '../components/FlagChip';
@@ -35,15 +35,19 @@ export function Discover() {
   const { mint: mintParam } = getRouteApi('/discover').useSearch();
   const initial = mintParam && SOL_ADDR.test(mintParam) ? mintParam : null;
   const [input, setInput] = useState(initial ?? '');
-  const [mint, setMint] = useState<string | null>(initial);
   const [minSol, setMinSol] = useState(5);
   const [mode, setMode] = useState<'recent' | 'deep'>('recent');
   const [sinceDays, setSinceDays] = useState(30);
   const [buckets, setBuckets] = useState(24);
   const [inputError, setInputError] = useState<string | null>(null);
-  const { data: report, isFetching, error } = useDiscovery(mint, minSol, mode, sinceDays, buckets);
+  // scans fire only on explicit submit — knob changes just stage the next scan
+  const [params, setParams] = useState<DiscoveryParams | null>(
+    initial ? { mint: initial, minSol: 5, mode: 'recent', sinceDays: 30, buckets: 24 } : null,
+  );
+  const { data: report, isFetching, error } = useDiscovery(params);
   const sort = useTableSort(report?.candidates ?? [], DISCOVER_COLUMNS, 'score');
   const importWallets = useImportWallets();
+  const mint = params?.mint ?? null;
 
   const submit = () => {
     const candidate = input.trim();
@@ -52,7 +56,7 @@ export function Discover() {
       return;
     }
     setInputError(null);
-    setMint(candidate);
+    setParams({ mint: candidate, minSol, mode, sinceDays, buckets });
   };
 
   const addToRoster = (addresses: string[]) => {
