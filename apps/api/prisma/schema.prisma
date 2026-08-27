@@ -16,6 +16,7 @@ model Wallet {
   status         String    @default("idle")
   metrics        String? // JSON WalletMetrics
   error          String?
+  purgedAt       DateTime? // soft-deleted junk: hidden everywhere, knowledge retained
 }
 
 model Token {
@@ -28,6 +29,7 @@ model Token {
   addedAt       DateTime?
   lastCheckedAt DateTime?
   lastReport    String? // JSON TokenReport
+  purgedAt      DateTime? // soft-deleted junk: hidden from lists, knowledge retained
 }
 
 model Recommendation {

@@ -107,7 +107,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // ── wallet source: keep consensus fresh by re-analyzing the stalest wallets ──
       if (config.sources.wallets && config.maxWalletsReanalyzed > 0) {
         const staleCandidates = await this.prisma.wallet.findMany({
-          where: { status: 'done' },
+          where: { status: 'done', purgedAt: null },
           orderBy: { lastAnalyzedAt: 'asc' },
           take: config.maxWalletsReanalyzed * 3, // overshoot, then drop junk — no credits wasted re-analyzing plumbing
         });

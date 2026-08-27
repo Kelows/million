@@ -37,7 +37,7 @@ export class WalletsService {
   }
 
   async list(): Promise<WalletRecord[]> {
-    const wallets = await this.prisma.wallet.findMany({ orderBy: { createdAt: 'asc' } });
+    const wallets = await this.prisma.wallet.findMany({ where: { purgedAt: null }, orderBy: { createdAt: 'asc' } });
     return wallets.map((w) => this.toRecord(w));
   }
 
@@ -74,11 +74,14 @@ export class WalletsService {
     }
   }
 
-  /** Delete every wallet whose analysis marks it as junk (infra / farmed). */
+  /** Soft-delete every junk wallet (infra / farmed): hidden everywhere, knowledge kept so re-discovery is free. */
   async purgeJunk(): Promise<{ purged: number }> {
-    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } }, select: { address: true, metrics: true } });
+    const rows = await this.prisma.wallet.findMany({
+      where: { metrics: { not: null }, purgedAt: null },
+      select: { address: true, metrics: true },
+    });
     const junk = rows.filter((w) => isJunkWallet(JSON.parse(w.metrics as string) as WalletMetrics)).map((w) => w.address);
-    if (junk.length) await this.prisma.wallet.deleteMany({ where: { address: { in: junk } } });
+    if (junk.length) await this.prisma.wallet.updateMany({ where: { address: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
   }
 

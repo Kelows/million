@@ -37,7 +37,7 @@ export class TokensService {
 
   /** Every token we know: tracked ones first, then everything seen in wallet analyses. */
   async list(): Promise<TrackedToken[]> {
-    const rows = await this.prisma.token.findMany({ orderBy: [{ tracked: 'desc' }, { fetchedAt: 'desc' }] });
+    const rows = await this.prisma.token.findMany({ where: { purgedAt: null }, orderBy: [{ tracked: 'desc' }, { fetchedAt: 'desc' }] });
     return rows.map((r) => this.toTracked(r));
   }
 
@@ -74,6 +74,7 @@ export class TokensService {
         tracked: true,
         lastCheckedAt: new Date(),
         lastReport: JSON.stringify(report),
+        purgedAt: null, // an explicit re-check un-purges — verdicts can change
       },
     });
     return this.detail(mint);
@@ -81,14 +82,17 @@ export class TokensService {
 
   /** Delete checked tokens that are junk: FAIL verdict or dead liquidity. Unchecked tokens are untouched. */
   async purgeJunk(): Promise<{ purged: number }> {
-    const rows = await this.prisma.token.findMany({ where: { lastReport: { not: null } }, select: { mint: true, lastReport: true } });
+    const rows = await this.prisma.token.findMany({
+      where: { lastReport: { not: null }, purgedAt: null },
+      select: { mint: true, lastReport: true },
+    });
     const junk = rows
       .filter((r) => {
         const report = JSON.parse(r.lastReport as string) as TokenReport;
         return report.verdict === 'fail' || (report.liquidityUsd ?? 0) <= 0;
       })
       .map((r) => r.mint);
-    if (junk.length) await this.prisma.token.deleteMany({ where: { mint: { in: junk } } });
+    if (junk.length) await this.prisma.token.updateMany({ where: { mint: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
   }
 
@@ -100,7 +104,7 @@ export class TokensService {
 
   /** Which roster wallets hold or traded this token, from their cached analyses. */
   private async intel(mint: string): Promise<TokenRosterIntel> {
-    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } }, select: { address: true, label: true, metrics: true } });
+    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null }, select: { address: true, label: true, metrics: true } });
     const holders: TokenRosterIntel['holders'] = [];
     const traders: TokenRosterIntel['traders'] = [];
     for (const w of rows) {

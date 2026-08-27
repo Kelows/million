@@ -14,7 +14,7 @@ export class ConsensusService {
   constructor(private readonly prisma: PrismaService) {}
 
   async compute(minOpenSol: number): Promise<ConsensusResult> {
-    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } } });
+    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null } });
     const wallets = rows.map((w) => ({
       address: w.address,
       label: w.label,
