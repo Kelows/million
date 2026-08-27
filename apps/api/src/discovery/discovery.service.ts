@@ -14,7 +14,7 @@ const DEEP_MAX_CANDIDATES = 60;
 const PREVIEW_CAP = 15;
 const DEEP_PREVIEW_CAP = 25;
 const PREVIEW_CONCURRENCY = 3;
-const DEEP_BUCKETS = 24; // time checkpoints sampled across the token's life
+const DEFAULT_DEEP_BUCKETS = 24; // time checkpoints sampled across the token's life
 
 @Injectable()
 export class DiscoveryService {
@@ -36,9 +36,10 @@ export class DiscoveryService {
     pages: number,
     mode: 'recent' | 'deep' = 'recent',
     sinceDays = 30,
+    buckets = DEFAULT_DEEP_BUCKETS,
   ): Promise<DiscoveryReport> {
     const solPrice = await this.dexscreener.fetchSolPriceUsd();
-    const { txs, truncated } = mode === 'deep' ? await this.deepSample(mint, sinceDays) : await this.helius.fetchHistory(mint, pages);
+    const { txs, truncated } = mode === 'deep' ? await this.deepSample(mint, sinceDays, buckets) : await this.helius.fetchHistory(mint, pages);
 
     const agg = new Map<string, { boughtSol: number; buyTxs: number; lastTs: number; firstTs: number }>();
     for (const tx of txs) {
@@ -84,7 +85,9 @@ export class DiscoveryService {
     }
 
     // quick analysis of the top unknowns — is this buyer a trader worth tracking, or plumbing?
-    const toPreview = candidates.filter((c) => !c.inRoster).slice(0, mode === 'deep' ? DEEP_PREVIEW_CAP : PREVIEW_CAP);
+    // denser scans earn more previews — the whole point is judging more candidates
+    const previewCap = mode === 'deep' ? Math.min(40, Math.max(DEEP_PREVIEW_CAP, buckets)) : PREVIEW_CAP;
+    const toPreview = candidates.filter((c) => !c.inRoster).slice(0, previewCap);
     for (let i = 0; i < toPreview.length; i += PREVIEW_CONCURRENCY) {
       await Promise.all(
         toPreview.slice(i, i + PREVIEW_CONCURRENCY).map(async (candidate) => {
@@ -116,7 +119,7 @@ export class DiscoveryService {
    * drop evenly-spaced TIME checkpoints, and fetch one page of full txs at each.
    * Coverage across the token's life instead of the last few seconds of a hot chart.
    */
-  private async deepSample(mint: string, sinceDays: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
+  private async deepSample(mint: string, sinceDays: number, buckets: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
     const SLOT_SECONDS = 0.4;
     const nowMs = Date.now();
     const sinceMs = nowMs - sinceDays * 86_400_000;
@@ -126,8 +129,8 @@ export class DiscoveryService {
     const seen = new Map<string, HeliusTx>();
     let missedBuckets = 0;
 
-    for (let i = 0; i < DEEP_BUCKETS; i++) {
-      const targetMs = sinceMs + ((nowMs - sinceMs) * i) / Math.max(DEEP_BUCKETS - 1, 1);
+    for (let i = 0; i < buckets; i++) {
+      const targetMs = sinceMs + ((nowMs - sinceMs) * i) / Math.max(buckets - 1, 1);
       if (nowMs - targetMs < 60_000) {
         // newest bucket: plain recent page needs no cursor
         const recent = await this.helius.fetchHistory(mint, 1).catch(() => null);
@@ -149,7 +152,7 @@ export class DiscoveryService {
       for (const tx of page) seen.set(tx.signature, tx);
     }
 
-    return { txs: [...seen.values()], truncated: missedBuckets > DEEP_BUCKETS / 2 };
+    return { txs: [...seen.values()], truncated: missedBuckets > buckets / 2 };
   }
 
   /** Per tx: accounts that received the mint -> how much of their own quote they paid. */

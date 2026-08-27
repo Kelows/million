@@ -16,8 +16,9 @@ export function Discover() {
   const [minSol, setMinSol] = useState(5);
   const [mode, setMode] = useState<'recent' | 'deep'>('recent');
   const [sinceDays, setSinceDays] = useState(30);
+  const [buckets, setBuckets] = useState(24);
   const [inputError, setInputError] = useState<string | null>(null);
-  const { data: report, isFetching, error } = useDiscovery(mint, minSol, mode, sinceDays);
+  const { data: report, isFetching, error } = useDiscovery(mint, minSol, mode, sinceDays, buckets);
   const importWallets = useImportWallets();
 
   const submit = () => {
@@ -77,10 +78,16 @@ export function Discover() {
             ))}
           </span>
           {mode === 'deep' && (
-            <label className="flex items-center gap-2 text-xs text-dim">
-              days
-              <input type="number" min={1} max={365} value={sinceDays} onChange={(e) => setSinceDays(Number(e.target.value))} className="w-16 text-right" />
-            </label>
+            <>
+              <label className="flex items-center gap-2 text-xs text-dim">
+                days
+                <input type="number" min={1} max={365} value={sinceDays} onChange={(e) => setSinceDays(Number(e.target.value))} className="w-16 text-right" />
+              </label>
+              <label className="flex items-center gap-2 text-xs text-dim" title="Time checkpoints sampled across the window — denser = better coverage, ~4 credits each">
+                buckets
+                <input type="number" min={6} max={96} value={buckets} onChange={(e) => setBuckets(Number(e.target.value))} className="w-16 text-right" />
+              </label>
+            </>
           )}
           <button className="btn" disabled={!input.trim() || isFetching} onClick={submit}>
             {isFetching ? 'Scanning…' : 'Scan'}
