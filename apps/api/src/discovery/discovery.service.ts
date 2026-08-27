@@ -84,10 +84,20 @@ export class DiscoveryService {
       }
     }
 
-    // quick analysis of the top unknowns — is this buyer a trader worth tracking, or plumbing?
+    // quick analysis of the unknowns — is this buyer a trader worth tracking, or plumbing?
     // denser scans earn more previews — the whole point is judging more candidates
     const previewCap = mode === 'deep' ? Math.min(40, Math.max(DEEP_PREVIEW_CAP, buckets)) : PREVIEW_CAP;
-    const toPreview = candidates.filter((c) => !c.inRoster).slice(0, previewCap);
+    // 70% to the biggest buyers, 30% randomly sampled from the tail — size-top is
+    // bot-heavy, and candidates never previewed can never be judged or absorbed
+    const unknowns = candidates.filter((c) => !c.inRoster);
+    const topShare = Math.ceil(previewCap * 0.7);
+    const top = unknowns.slice(0, topShare);
+    const tail = unknowns.slice(topShare);
+    const sampled: typeof tail = [];
+    while (sampled.length < previewCap - top.length && tail.length) {
+      sampled.push(tail.splice(Math.floor(Math.random() * tail.length), 1)[0]);
+    }
+    const toPreview = [...top, ...sampled];
     for (let i = 0; i < toPreview.length; i += PREVIEW_CONCURRENCY) {
       await Promise.all(
         toPreview.slice(i, i + PREVIEW_CONCURRENCY).map(async (candidate) => {

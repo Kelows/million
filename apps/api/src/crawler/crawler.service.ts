@@ -140,11 +140,21 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
         // ── token source: expand from safety-clean gems into new clean wallets ──
         if (config.sources.tokens && expandable.length && config.maxWalletsAbsorbed > 0) {
+          // novelty rotation: never-mined gems first, then least-recently mined —
+          // with small caps a ranked walk would service the same top forever
+          const scanTimes = new Map(
+            (
+              await this.prisma.token.findMany({
+                where: { mint: { in: expandable.map((g) => g.mint) } },
+                select: { mint: true, deepScannedAt: true },
+              })
+            ).map((t) => [t.mint, t.deepScannedAt?.getTime() ?? 0]),
+          );
+          expandable.sort((a, b) => (scanTimes.get(a.mint) ?? 0) - (scanTimes.get(b.mint) ?? 0));
           for (const gem of expandable) {
             if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed) break;
             // first sighting of a gem: mine its WHOLE LIFE of buyers, not the last minutes
-            const tokenRow = await this.prisma.token.findUnique({ where: { mint: gem.mint }, select: { deepScannedAt: true } });
-            const useDeep = config.deepScanNewGems && !tokenRow?.deepScannedAt;
+            const useDeep = config.deepScanNewGems && !(scanTimes.get(gem.mint) ?? 0);
             const scanCost = useDeep ? config.deepScanBuckets * 3 + 25 : 16;
             if (credits < scanCost) continue;
             const report = await this.discovery
