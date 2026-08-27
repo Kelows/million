@@ -5,6 +5,8 @@ import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
 import { fmtAgo } from '../lib/format';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 const SOL_ADDR_G = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
 const fmtUsd = (n: number | null) => (n === null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`);
@@ -18,6 +20,8 @@ export function Tokens() {
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [trackedOnly, setTrackedOnly] = useState(false);
 
   const doImport = () => {
     setParseError(null);
@@ -29,6 +33,14 @@ export function Tokens() {
     importTokens.mutate({ mints, source: source || undefined }, { onSuccess: () => setRaw('') });
   };
 
+  const query = search.trim().toLowerCase();
+  const filtered = tokens.filter(
+    (t) =>
+      (!trackedOnly || t.tracked) &&
+      (!query || t.mint.toLowerCase().includes(query) || t.symbol?.toLowerCase().includes(query) || t.name?.toLowerCase().includes(query)),
+  );
+  const pag = usePagination(filtered, 25);
+
   const runCheck = async (mint: string) => {
     setChecking(mint);
     await checkToken.mutateAsync(mint).catch(() => undefined);
@@ -39,7 +51,9 @@ export function Tokens() {
     <div className="flex flex-col gap-6 max-w-6xl">
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Tokens</h1>
-        <p className="text-sm text-dim mt-1">Tracked tokens — anything checked, imported, or worth keeping an eye on.</p>
+        <p className="text-sm text-dim mt-1">
+          Every token the system knows: imported, checked, or seen in any wallet's analysis.
+        </p>
       </div>
 
       <div className="panel p-4 flex flex-col gap-3">
@@ -66,9 +80,22 @@ export function Tokens() {
       </div>
 
       <div className="panel">
-        <div className="px-4 pt-4 pb-2 eyebrow">Tracked · {tokens.length}</div>
-        {tokens.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-dim">Nothing tracked yet — import above, or run a check anywhere (gems, token check) and it lands here.</p>
+        <div className="px-4 pt-4 pb-2 flex items-center gap-4 flex-wrap">
+          <span className="eyebrow">Tokens · {filtered.length !== tokens.length ? `${filtered.length} / ${tokens.length}` : tokens.length}</span>
+          <input placeholder="search symbol / mint" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56 py-1! text-xs" />
+          <label className="flex items-center gap-2 text-xs text-dim cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-3.5 h-3.5 p-0!"
+              style={{ accentColor: 'var(--color-neon)' }}
+              checked={trackedOnly}
+              onChange={(e) => setTrackedOnly(e.target.checked)}
+            />
+            tracked only
+          </label>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="px-4 pb-4 text-sm text-dim">Nothing here yet — import above, run checks, or analyze wallets (their tokens land here automatically).</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-mono">
@@ -85,7 +112,7 @@ export function Tokens() {
                 </tr>
               </thead>
               <tbody>
-                {tokens.map((t) => (
+                {pag.rows.map((t) => (
                   <tr key={t.mint} className="border-t border-line hover:bg-deck2">
                     <td className="pl-4 pr-0 py-2">
                       <Link to="/tokens/$mint" params={{ mint: t.mint }} title="Open token detail" className="text-dim hover:text-neon inline-flex">
@@ -108,17 +135,20 @@ export function Tokens() {
                     <td className="px-4 py-2 text-right text-dim">{fmtUsd(t.liquidityUsd)}</td>
                     <td className="px-4 py-2 text-right text-dim">{fmtUsd(t.marketCapUsd)}</td>
                     <td className="px-4 py-2 text-dim" title={t.lastCheckedAt ?? ''}>{fmtAgo(t.lastCheckedAt)}</td>
-                    <td className="px-4 py-2 text-dim text-xs">{t.source ?? '—'}</td>
+                    <td className="px-4 py-2 text-dim text-xs">{t.tracked ? (t.source ?? 'tracked') : 'seen in analyses'}</td>
                     <td className="px-4 py-2 text-right whitespace-nowrap">
                       <button className="btn mr-2 py-1! px-2! text-[0.6rem]!" disabled={checking === t.mint} onClick={() => runCheck(t.mint)}>
                         {checking === t.mint ? '…' : t.verdict ? 're-check' : 'check'}
                       </button>
-                      <button className="text-xs text-dim hover:text-loss" title="Stop tracking" onClick={() => untrack.mutate(t.mint)}>✕</button>
+                      {t.tracked && (
+                        <button className="text-xs text-dim hover:text-loss" title="Stop tracking" onClick={() => untrack.mutate(t.mint)}>✕</button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
           </div>
         )}
       </div>

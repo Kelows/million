@@ -17,6 +17,7 @@ const NAV = [
     section: 'Ops',
     links: [
       { to: '/gems', label: 'Gems' },
+      { to: '/crawler', label: 'Crawler' },
       { to: '/screener', label: 'Screener' },
       { to: '/token-check', label: 'Token check' },
       { to: '/executor', label: 'Executor' },

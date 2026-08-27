@@ -173,3 +173,30 @@ export function useUntrackToken() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
   });
 }
+
+import type { CrawlerConfig, CrawlerStatus } from '@million/shared';
+
+export function useCrawler() {
+  return useQuery({
+    queryKey: ['crawler'],
+    queryFn: () => request<CrawlerStatus>('/crawler'),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useSetCrawlerConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: CrawlerConfig) =>
+      request<CrawlerConfig>('/crawler/config', { method: 'PUT', body: JSON.stringify(config) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crawler'] }),
+  });
+}
+
+export function useRunCrawlerOnce() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ started: boolean }>('/crawler/run-once', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crawler'] }),
+  });
+}

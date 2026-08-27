@@ -7,8 +7,9 @@ import { FundingModule } from './funding/funding.module';
 import { DiscoveryModule } from './discovery/discovery.module';
 import { GemsModule } from './gems/gems.module';
 import { TokensModule } from './tokens/tokens.module';
+import { CrawlerModule } from './crawler/crawler.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule],
 })
 export class AppModule {}

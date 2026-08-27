@@ -273,6 +273,7 @@ export interface TrackedToken {
   mint: string;
   symbol: string | null;
   name: string | null;
+  tracked: boolean; // explicitly followed vs merely seen in wallet analyses
   source: string | null;
   addedAt: string | null;
   lastCheckedAt: string | null;
@@ -291,4 +292,48 @@ export interface TokenDetailData {
   token: TrackedToken;
   report: TokenReport | null;
   intel: TokenRosterIntel;
+}
+
+// ── the crawler: the loop, automated ──────────────────────────────────────────
+
+export const CrawlerConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  sources: z
+    .object({ wallets: z.boolean().default(true), tokens: z.boolean().default(true) })
+    .refine((s) => s.wallets || s.tokens, 'at least one source must be enabled')
+    .default({ wallets: true, tokens: true }),
+  intervalMinutes: z.coerce.number().min(5).max(1440).default(30),
+  creditsPerIteration: z.coerce.number().min(10).max(500).default(60), // ~1 credit per fetched page/check
+  maxTokensChecked: z.coerce.number().min(1).max(20).default(8),
+  maxWalletsAbsorbed: z.coerce.number().min(0).max(20).default(5),
+  maxWalletsReanalyzed: z.coerce.number().min(0).max(20).default(4),
+  discoveryMinSol: z.coerce.number().nonnegative().default(5),
+  autoAbsorb: z.boolean().default(true), // false = crawler only reports, never touches the roster
+  minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
+  thresholds: TokenCheckThresholdsSchema.default(TokenCheckThresholdsSchema.parse({})),
+});
+export type CrawlerConfig = z.infer<typeof CrawlerConfigSchema>;
+
+export interface CrawlerRunStats {
+  creditsUsed: number;
+  walletsReanalyzed: number;
+  candidates: number;
+  gemsPass: number;
+  tokensScanned: number;
+  walletsAbsorbed: number;
+}
+
+export interface CrawlerRunSummary {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  stats: CrawlerRunStats | null;
+  log: string[];
+}
+
+export interface CrawlerStatus {
+  config: CrawlerConfig;
+  running: boolean;
+  nextRunAt: string | null;
+  lastRuns: CrawlerRunSummary[];
 }

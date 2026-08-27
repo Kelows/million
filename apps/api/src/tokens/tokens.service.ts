@@ -35,8 +35,9 @@ export class TokensService {
     return { imported, skipped: unique.length - imported };
   }
 
+  /** Every token we know: tracked ones first, then everything seen in wallet analyses. */
   async list(): Promise<TrackedToken[]> {
-    const rows = await this.prisma.token.findMany({ where: { tracked: true }, orderBy: { addedAt: 'desc' } });
+    const rows = await this.prisma.token.findMany({ orderBy: [{ tracked: 'desc' }, { fetchedAt: 'desc' }] });
     return rows.map((r) => this.toTracked(r));
   }
 
@@ -46,7 +47,7 @@ export class TokensService {
     return {
       token: row
         ? this.toTracked(row)
-        : { mint, symbol: null, name: null, source: null, addedAt: null, lastCheckedAt: null, verdict: null, liquidityUsd: null, marketCapUsd: null },
+        : { mint, symbol: null, name: null, tracked: false, source: null, addedAt: null, lastCheckedAt: null, verdict: null, liquidityUsd: null, marketCapUsd: null },
       report,
       intel: await this.intel(mint),
     };
@@ -107,6 +108,7 @@ export class TokensService {
       mint: r.mint,
       symbol: r.symbol,
       name: r.name,
+      tracked: r.tracked,
       source: r.source,
       addedAt: r.addedAt?.toISOString() ?? null,
       lastCheckedAt: r.lastCheckedAt?.toISOString() ?? null,

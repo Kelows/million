@@ -41,3 +41,15 @@ model GemsRun {
   createdAt DateTime @default(now())
   data      String // JSON GemsRunData
 }
+
+model CrawlerConfig {
+  id   Int    @id @default(1)
+  data String // JSON CrawlerConfig
+}
+
+model CrawlerRun {
+  id         Int       @id @default(autoincrement())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  data       String // JSON { stats, log }
+}
