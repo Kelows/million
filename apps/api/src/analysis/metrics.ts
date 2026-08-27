@@ -143,12 +143,14 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       usdOut: round(p.usdOut),
       realizedPnlSol: round(p.realSol),
       realizedPnlUsd: round(p.realUsd),
-      entrySol: round(p.solIn + p.usdIn / solPriceUsd),
+      // remaining cost basis in SOL terms — the live exposure, not the total ever bought
+      entrySol: round(p.costSol + p.costUsd / solPriceUsd),
       holdMinutes:
         p.firstBuyTs !== null && p.lastSellTs !== null && p.lastSellTs >= p.firstBuyTs
           ? Math.round((p.lastSellTs - p.firstBuyTs) / 60)
           : null,
-      open: p.qty > 1e-9 && p.sells === 0,
+      // open = still holding a meaningful position; partial exits stay open (whales sell half and ride)
+      open: p.qty > 1e-9 && p.costSol + p.costUsd / solPriceUsd > 0.02,
     }))
     .sort((a, b) => b.realizedPnlSol + (b.realizedPnlUsd ?? 0) / solPriceUsd - (a.realizedPnlSol + (a.realizedPnlUsd ?? 0) / solPriceUsd));
 
@@ -167,6 +169,9 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
 
   const spanDays = firstSeen !== null && lastSeen !== null ? Math.max((lastSeen - firstSeen) / 86400, 1 / 24) : 1 / 24;
   const txPerDay = ordered.length / spanDays;
+  // velocity is only meaningful over a real observation span — a truncated window
+  // of one active afternoon extrapolates to absurd tx/day and flags humans as bots
+  const velocityReliable = spanDays >= 0.25;
   const externalFeePayerShare = ordered.length ? externalFeeCount / ordered.length : 0;
   const totalBuys = tokens.reduce((s, t) => s + t.buys, 0);
   const totalSells = tokens.reduce((s, t) => s + t.sells, 0);
@@ -174,7 +179,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   const flags: WalletFlag[] = [];
   const isInfra =
     ordered.length >= 50 &&
-    (txPerDay > 500 ||
+    ((velocityReliable && txPerDay > 500) ||
       externalFeePayerShare > 0.3 ||
       (deliveries >= 20 && totalSells < totalBuys * 0.2) ||
       counterparties.size > 500 ||
