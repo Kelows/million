@@ -18,6 +18,7 @@
 
 ## From memecoinbible.dev notes (docs/memecoinbible-notes.md, 2026-08-27)
 - [ ] Wallet roles (trader/sniper/rugger/insider/infra) — labels with role-aware Sub semantics
+- [ ] OWNER entity (v2, unifies clustering work): one owner ↔ many addresses; evidence = funding + fee-payer + co-entry + block-0 sigs; stats/subs/purges aggregate at owner level — see docs/definitions.md
 - [ ] Rugger avoid-list: a subbed rugger touching a token auto-FAILs it in the gauntlet
 - [ ] Deployer profitability scoring: per-launch first-candle->ATH trajectory over last 10 launches (>=3 at +100% = predictable operator), not just dead-count
 - [ ] Overlap-graph heuristics: block-0 double signature, identical-amount same-block bundles, big-candle wallet extraction

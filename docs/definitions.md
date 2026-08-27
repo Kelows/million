@@ -26,6 +26,25 @@ them is a decision rather than an accident. Every one of these is provisional.
 - Cluster identity: N addresses can be one actor. Until the overlap graph
   exists, "wallet" quietly means "address", and counts lie accordingly.
 
+## Owner (the v2 entity — named 2026-08-27)
+
+The actor above the address. One owner ↔ many addresses; today the system
+pretends address = actor, and every count that matters quietly inherits that lie.
+
+- **Evidence that two addresses share an owner** (all already sketched in the
+  roadmap, now unified under this concept):
+  - funding chains — one address bankrolls the other (Funding page finds these today, manually)
+  - fee payer — the same orchestrator pays gas for both (topFeePayer surfaces this today)
+  - co-entry timing — same tokens, same blocks, repeatedly (overlap graph)
+  - block-0 double signatures / identical-amount bundles (memecoinbible heuristics)
+- **What changes when Owner exists**:
+  - stats, whale score, qualifying, roles — all aggregate at owner level
+  - consensus counts owners, not addresses (the correctness fix)
+  - Sub follows an owner: rotation to a fresh address doesn't drop the feed
+  - purge/blacklist applies to the owner — a rugger can't shed the label by rotating
+- **Status**: v2 (roadmap items 4b + 5 are this concept's two halves). Until
+  built, read every wallet count with the address≈owner caveat.
+
 ## Token verdicts
 
 | verdict | meaning |
