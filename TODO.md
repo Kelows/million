@@ -37,6 +37,12 @@ How to tell if a token is legit — checks to implement, roughly in order of sig
 - [ ] Paper-trade mode: log the trade without executing (validate the system risk-free first)
 
 ## Phase 4 — signal ingestion + auto mode (much later)
+- [ ] PROD ingestion: switch live feed from websocket to Helius webhooks when we deploy
+      (a public URL makes webhooks strictly better: server-side push with retries, no
+      connection babysitting, no ~25-subscription cap — one webhook carries up to 100k
+      addresses). The ingest/parse path (txDeltas -> LiveEvent) is already transport-
+      agnostic; the cleanup is swapping LiveFeedService's WS plumbing for a webhook
+      controller + shared ingest, and deleting the reconnect/resync machinery.
 - [ ] Wire the roster 'sub' button (currently a localStorage mock): subscribed wallets feed Helius webhooks -> failsafe pipeline -> alerts/entries
 - [ ] Live whale-entry feed (Helius webhooks on tracked wallets)
 - [ ] Auto mode = whale entry → screener pass → sized entry, ONLY after paper-trade stats prove positive expectancy
