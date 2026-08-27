@@ -280,10 +280,10 @@ export function useSetOpportunityConfig() {
 
 import type { MoverToken } from '@million/shared';
 
-export function useMovers(enabled: boolean, minPump: number) {
+export function useMovers(enabled: boolean, minPump: number, minMcap: number, maxMcap: number) {
   return useQuery({
-    queryKey: ['movers', minPump],
-    queryFn: () => request<MoverToken[]>(`/tokens/movers?minPump=${minPump}`),
+    queryKey: ['movers', minPump, minMcap, maxMcap],
+    queryFn: () => request<MoverToken[]>(`/tokens/movers?minPump=${minPump}&minMcap=${minMcap}&maxMcap=${maxMcap}`),
     enabled,
     staleTime: 5 * 60_000,
     retry: 0,

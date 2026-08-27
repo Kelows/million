@@ -20,7 +20,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class MoversService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async find(minPumpPct: number, max: number): Promise<MoverToken[]> {
+  async find(minPumpPct: number, max: number, minMcap = 100_000, maxMcap = 50_000_000): Promise<MoverToken[]> {
     const mints = new Set<string>();
     for (const path of [
       '/networks/solana/trending_pools?duration=24h&page=1',
@@ -62,7 +62,7 @@ export class MoversService {
       const mcap = best.marketCap ?? best.fdv ?? 0;
       const pump = Number(best.priceChange?.h24 ?? 0);
       if (liq < 25_000 || liq > 3_000_000) continue;
-      if (mcap < 100_000 || mcap > 50_000_000) continue;
+      if (mcap < minMcap || mcap > maxMcap) continue;
       if (pump < minPumpPct) continue;
       movers.push({
         mint,

@@ -8,6 +8,8 @@ import { MoversService } from '../analysis/movers.service';
 const MoversQuerySchema = z.object({
   minPump: z.coerce.number().min(0).default(50),
   limit: z.coerce.number().int().min(1).max(30).default(15),
+  minMcap: z.coerce.number().min(0).default(100_000),
+  maxMcap: z.coerce.number().min(0).default(50_000_000),
 });
 
 const ImportSchema = z.object({
@@ -33,8 +35,8 @@ export class TokensController {
   }
 
   @Get('movers')
-  findMovers(@Query(new ZodPipe(MoversQuerySchema)) query: { minPump: number; limit: number }) {
-    return this.movers.find(query.minPump, query.limit);
+  findMovers(@Query(new ZodPipe(MoversQuerySchema)) query: { minPump: number; limit: number; minMcap: number; maxMcap: number }) {
+    return this.movers.find(query.minPump, query.limit, query.minMcap, query.maxMcap);
   }
 
   @Post('purge-junk')

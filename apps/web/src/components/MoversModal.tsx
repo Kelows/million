@@ -9,8 +9,10 @@ const fmtUsd = (n: number) => `$${n.toLocaleString('en-US')}`;
 export function MoversModal() {
   const [open, setOpen] = useState(false);
   const [minPump, setMinPump] = useState(50);
+  const [minMcap, setMinMcap] = useState(100_000);
+  const [maxMcap, setMaxMcap] = useState(50_000_000);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const { data: movers = [], isFetching, error } = useMovers(open, minPump);
+  const { data: movers = [], isFetching, error } = useMovers(open, minPump, minMcap, maxMcap);
   const importTokens = useImportTokens();
 
   const selectable = movers.filter((m) => !m.alreadyTracked);
@@ -52,7 +54,13 @@ export function MoversModal() {
                   min pump %
                   <input type="number" min={0} step={25} value={minPump} onChange={(e) => setMinPump(Number(e.target.value))} className="w-20 text-right" />
                 </label>
-                <span>meme-sized only (liq $25k–$3M, mcap $100k–$50M) · sources: trending + boosts, ranked by 24h change</span>
+                <label className="flex items-center gap-2">
+                  mcap $
+                  <input type="number" min={0} step={50_000} value={minMcap} onChange={(e) => setMinMcap(Number(e.target.value))} className="w-28 text-right" />
+                  –
+                  <input type="number" min={0} step={1_000_000} value={maxMcap} onChange={(e) => setMaxMcap(Number(e.target.value))} className="w-32 text-right" />
+                </label>
+                <span>liq banded $25k–$3M · trending + boosts, ranked by 24h change</span>
               </div>
 
               {isFetching ? (
