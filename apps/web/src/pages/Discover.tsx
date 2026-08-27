@@ -45,7 +45,11 @@ export function Discover() {
     initial ? { mint: initial, minSol: 5, mode: 'recent', sinceDays: 30, buckets: 24 } : null,
   );
   const { data: report, isFetching, error } = useDiscovery(params);
-  const sort = useTableSort(report?.candidates ?? [], DISCOVER_COLUMNS, 'score');
+  const [showInfra, setShowInfra] = useState(false);
+  const isFlagged = (c: WhaleCandidate) => (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
+  const visible = (report?.candidates ?? []).filter((c) => showInfra || !isFlagged(c));
+  const hiddenCount = (report?.candidates.length ?? 0) - visible.length;
+  const sort = useTableSort(visible, DISCOVER_COLUMNS, 'score');
   const importWallets = useImportWallets();
   const mint = params?.mint ?? null;
 
@@ -135,15 +139,29 @@ export function Discover() {
         <>
           <div className="panel">
             <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4">
-              <span className="eyebrow">Size buyers · {report.candidates.length} above {report.minSol} SOL</span>
+              <span className="eyebrow">Size buyers · {visible.length}{hiddenCount > 0 ? ` (+${hiddenCount} infra hidden)` : ''} above {report.minSol} SOL</span>
+              <label className="flex items-center gap-2 text-xs text-dim cursor-pointer mr-auto">
+                <input
+                  type="checkbox"
+                  className="w-3.5 h-3.5 p-0!"
+                  style={{ accentColor: 'var(--color-neon)' }}
+                  checked={showInfra}
+                  onChange={(e) => setShowInfra(e.target.checked)}
+                />
+                show infra & farmed
+              </label>
               {clean.length > 1 && (
                 <button className="btn py-1! px-2! text-[0.6rem]!" disabled={importWallets.isPending} onClick={() => addToRoster(clean.map((c) => c.address))}>
                   add all clean ({clean.length})
                 </button>
               )}
             </div>
-            {report.candidates.length === 0 ? (
-              <p className="px-4 pb-4 text-sm text-dim">No buyers above the threshold in the scanned window — lower min SOL or try a busier token.</p>
+            {visible.length === 0 ? (
+              <p className="px-4 pb-4 text-sm text-dim">
+                {report.candidates.length > 0
+                  ? 'Only infra/farmed buyers found — tick "show infra & farmed" to see them.'
+                  : 'No buyers above the threshold in the scanned window — lower min SOL or try a busier token.'}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm font-mono">
