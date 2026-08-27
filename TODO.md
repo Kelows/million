@@ -6,7 +6,7 @@
 - [ ] Additive multi-column sort on tables (shift-click to add a secondary sort key)
 - [ ] Bulk "analyze all" queue with rate limiting on the API side (frontend loops for now)
 - [ ] Copyability metric: re-simulate each whale entry with +2 blocks latency — does the edge survive?
-- [ ] Wallet clustering: detect same-owner wallet groups (funding source analysis)
+- [ ] Wallet overlap graph / clustering (PROMOTED — consensus correctness): co-entry edges + funding + fee-payer -> clusters; consensus counts clusters, not wallets. See docs/closed-loop.md v2 item 4b
 - [ ] Track NEW addresses of known whales (funding graph: old wallet funds fresh wallet)
 
 ## Learned from the 2snHH deep dive (2026-08-27)

@@ -100,6 +100,15 @@ Ordered by dependency, not ambition:
 4. **Copyability score** — replay each whale's entries with +2 blocks of latency
    against real price paths; a whale whose edge dies in two blocks is decoration,
    not signal. Feeds wallet ranking and gem ranking both.
+4b. **Wallet overlap graph** (promoted 2026-08-27 — this is a consensus
+   correctness fix, not a visualization): wallets that repeatedly co-enter the
+   same tokens in tight time windows are one actor or one signal source. Until
+   clustered, a cluster of N wallets co-entering counts as N independent
+   confirmations in consensus — inflating the exact number the loop keys on.
+   Design: edge weight = co-entries within a time window / total entries;
+   cluster via connected components above a threshold; consensus then counts
+   CLUSTERS, not wallets. Bonus: a cluster's aggregate stats beat any single
+   member's, and funding chains + fee-payer data merge into the same graph.
 5. **Identity layer** — fee-payer clustering + funding-graph clustering: track
    the actor, not the address (the autopsy lesson). Rotated wallets inherit their
    operator's history; the roster stops decaying.
