@@ -343,6 +343,7 @@ export const CrawlerConfigSchema = z.object({
   deepScanNewGems: z.boolean().default(true), // first sighting of a safety-clean gem = whole-life buyer scan
   deepScanBuckets: z.coerce.number().min(12).max(96).default(48),
   minWhaleScore: z.coerce.number().min(-100).max(200).default(40), // absorb every clean buyer at or above this, not just the best
+  deepRunCredits: z.coerce.number().min(100).max(50_000).default(3_000), // a deep run chains iterations until this total is spent
   minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
   thresholds: TokenCheckThresholdsSchema.default(TokenCheckThresholdsSchema.parse({})),
 });
@@ -368,6 +369,7 @@ export interface CrawlerRunSummary {
 export interface CrawlerStatus {
   config: CrawlerConfig;
   running: boolean;
+  deepRunning: boolean;
   nextRunAt: string | null;
   lastRuns: CrawlerRunSummary[];
 }

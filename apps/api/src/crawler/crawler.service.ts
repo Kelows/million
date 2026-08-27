@@ -28,6 +28,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private nextRunAt: Date | null = null;
   private running = false;
+  private deepRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -71,6 +72,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     return {
       config: await this.getConfig(),
       running: this.running,
+      deepRunning: this.deepRunning,
       nextRunAt: this.nextRunAt?.toISOString() ?? null,
       lastRuns: runs.map((r) => {
         const data = JSON.parse(r.data) as { stats: CrawlerRunStats | null; log: string[] };
@@ -81,8 +83,31 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
   /** Fire one iteration outside the schedule (does not enable the crawler). */
   runOnce(): { started: boolean } {
-    if (this.running) return { started: false };
+    if (this.running || this.deepRunning) return { started: false };
     void this.iterate();
+    return { started: true };
+  }
+
+  /** The long run: chain iterations back-to-back until deepRunCredits are spent
+   * or a pass produces nothing — then stop. Never loops forever. */
+  runDeep(): { started: boolean } {
+    if (this.running || this.deepRunning) return { started: false };
+    this.deepRunning = true;
+    void (async () => {
+      try {
+        const config = await this.getConfig();
+        let spent = 0;
+        for (let pass = 0; pass < 20; pass++) {
+          const stats = await this.iterate();
+          if (!stats) break;
+          spent += stats.creditsUsed;
+          const productive = stats.walletsAbsorbed + stats.tokensScanned + stats.candidates > 0;
+          if (spent >= config.deepRunCredits || !productive) break;
+        }
+      } finally {
+        this.deepRunning = false;
+      }
+    })();
     return { started: true };
   }
 
@@ -92,8 +117,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.timer = setTimeout(() => void this.iterate(), delayMs);
   }
 
-  private async iterate() {
-    if (this.running) return;
+  private async iterate(): Promise<CrawlerRunStats | null> {
+    if (this.running) return null;
     this.running = true;
     this.nextRunAt = null;
     const config = await this.getConfig();
@@ -211,5 +236,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       const latest = await this.getConfig();
       if (latest.enabled) this.schedule(latest.intervalMinutes * 60_000);
     }
+    return stats;
   }
 }

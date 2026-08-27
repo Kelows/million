@@ -22,4 +22,10 @@ export class CrawlerController {
   runOnce() {
     return this.crawler.runOnce();
   }
+
+  @Post('run-deep')
+  @HttpCode(200)
+  runDeep() {
+    return this.crawler.runDeep();
+  }
 }

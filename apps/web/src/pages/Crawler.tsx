@@ -21,6 +21,7 @@ const SECTIONS: FieldSection[] = [
     title: 'Budget — every iteration, run-once or auto',
     fields: [
       { key: 'creditsPerIteration', label: 'Credit budget per iteration', hint: '~1 credit per page fetch or check; the iteration stops mid-work when spent', step: 50 },
+      { key: 'deepRunCredits', label: 'Deep-run total budget', hint: 'a deep run chains passes back-to-back until this total is spent or nothing productive remains', step: 500 },
     ],
   },
   {
@@ -79,8 +80,8 @@ export function Crawler() {
           </p>
         </div>
         <div className="text-right shrink-0">
-          <div className={`font-mono text-sm font-bold ${status?.running ? 'text-warn' : status?.config.enabled ? 'text-profit' : 'text-dim'}`}>
-            {status?.running ? '● RUNNING' : status?.config.enabled ? '● ARMED' : '○ PAUSED'}
+          <div className={`font-mono text-sm font-bold ${status?.deepRunning || status?.running ? 'text-warn' : status?.config.enabled ? 'text-profit' : 'text-dim'}`}>
+            {status?.deepRunning ? '● DEEP RUN' : status?.running ? '● RUNNING' : status?.config.enabled ? '● ARMED' : '○ PAUSED'}
           </div>
           {status?.nextRunAt && <div className="text-xs text-dim mt-1" title={status.nextRunAt}>next run {fmtAgo(status.nextRunAt).replace(' ago', '')} from now</div>}
         </div>
@@ -90,8 +91,21 @@ export function Crawler() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <span className="eyebrow">Configuration</span>
           <div className="flex gap-2">
-            <button className="btn py-1! px-2! text-[0.6rem]!" disabled={runOnce.isPending || status?.running} onClick={() => runOnce.mutate()}>
-              {status?.running ? 'running…' : 'run once now'}
+            <button
+              className="btn py-1! px-2! text-[0.6rem]!"
+              disabled={runOnce.isPending || status?.running || status?.deepRunning}
+              title="One pass through the loop, capped by the per-iteration budget"
+              onClick={() => runOnce.mutate('once')}
+            >
+              {status?.running && !status?.deepRunning ? 'running…' : 'quick run'}
+            </button>
+            <button
+              className="btn py-1! px-2! text-[0.6rem]!"
+              disabled={runOnce.isPending || status?.running || status?.deepRunning}
+              title="Chains passes back-to-back until the deep-run budget is spent or nothing productive remains"
+              onClick={() => runOnce.mutate('deep')}
+            >
+              {status?.deepRunning ? 'deep running…' : `deep run (~${config.deepRunCredits.toLocaleString('en-US')} cr)`}
             </button>
             {config.enabled ? (
               <button className="btn btn-danger py-1! px-2! text-[0.6rem]!" disabled={save.isPending} onClick={() => save.mutate({ ...config, enabled: false })}>
