@@ -159,8 +159,9 @@ export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
 export const WATCH_CRITERIA = { minWinRate: 0.4, minClosedTokens: 2 }; // calibrated for deep (300-tx) windows
 
-/** Unambiguous junk: plumbing and farmed wallets. Snipers stay — uncopyable but watchable. */
-export const JUNK_FLAGS: WalletFlag[] = ['BOT_INFRA', 'HIGH_WINRATE_SUS'];
+/** Unambiguous junk: structural evidence only. HIGH_WINRATE_SUS is suspicion, not proof —
+ * it stays a warning (and blocks auto-absorption) but never justifies deletion. */
+export const JUNK_FLAGS: WalletFlag[] = ['BOT_INFRA'];
 
 export function isJunkWallet(m: WalletMetrics): boolean {
   return m.flags.some((f) => JUNK_FLAGS.includes(f));
