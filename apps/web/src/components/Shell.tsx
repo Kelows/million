@@ -3,24 +3,29 @@ import { useHealth, useWallets } from '../api';
 
 const NAV = [
   {
-    section: 'Recon',
+    section: 'Intel',
     links: [
       { to: '/', label: 'Overview' },
       { to: '/wallets', label: 'Wallets' },
       { to: '/tokens', label: 'Tokens' },
+      { to: '/gems', label: 'Gems' },
       { to: '/recs', label: 'Recs' },
-      { to: '/funding', label: 'Funding' },
+    ],
+  },
+  {
+    section: 'Scout',
+    links: [
       { to: '/discover', label: 'Discover' },
+      { to: '/funding', label: 'Funding' },
+      { to: '/token-check', label: 'Token check' },
     ],
   },
   {
     section: 'Ops',
     links: [
-      { to: '/gems', label: 'Gems' },
       { to: '/crawler', label: 'Crawler' },
-      { to: '/screener', label: 'Screener' },
-      { to: '/token-check', label: 'Token check' },
       { to: '/executor', label: 'Executor' },
+      { to: '/screener', label: 'Screener' },
     ],
   },
 ];
