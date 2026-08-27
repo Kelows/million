@@ -416,3 +416,14 @@ export interface OpportunityRow {
   buySol: number;
   ts: string; // ISO — when the triggering buy landed
 }
+
+/** A token that pumped recently — the blank-state seeding material. */
+export interface MoverToken {
+  mint: string;
+  symbol: string | null;
+  pumpH24Pct: number;
+  liquidityUsd: number;
+  marketCapUsd: number;
+  volumeH24Usd: number;
+  alreadyTracked: boolean;
+}

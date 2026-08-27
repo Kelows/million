@@ -277,3 +277,15 @@ export function useSetOpportunityConfig() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['opportunity-config'] }),
   });
 }
+
+import type { MoverToken } from '@million/shared';
+
+export function useMovers(enabled: boolean, minPump: number) {
+  return useQuery({
+    queryKey: ['movers', minPump],
+    queryFn: () => request<MoverToken[]>(`/tokens/movers?minPump=${minPump}`),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: 0,
+  });
+}

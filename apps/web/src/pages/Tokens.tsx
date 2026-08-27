@@ -4,6 +4,7 @@ import { useCheckToken, useImportTokens, usePurgeJunkTokens, useTokens, useUntra
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
+import { MoversModal } from '../components/MoversModal';
 import { fmtAgo } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { Pagination } from '../components/Pagination';
@@ -84,6 +85,7 @@ export function Tokens() {
       <div className="panel">
         <div className="px-4 pt-4 pb-2 flex items-center gap-4 flex-wrap">
           <span className="eyebrow">Tokens · {filtered.length !== tokens.length ? `${filtered.length} / ${tokens.length}` : tokens.length}</span>
+          <MoversModal />
           <input placeholder="search symbol / mint" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56 py-1! text-xs" />
           <label className="flex items-center gap-2 text-xs text-dim cursor-pointer">
             <input

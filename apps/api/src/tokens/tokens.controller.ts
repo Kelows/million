@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { SolAddressSchema, TokenCheckThresholdsSchema } from '@million/shared';
 import { ZodPipe } from '../zod.pipe';
 import { TokensService } from './tokens.service';
+import { MoversService } from '../analysis/movers.service';
+
+const MoversQuerySchema = z.object({
+  minPump: z.coerce.number().min(0).default(50),
+  limit: z.coerce.number().int().min(1).max(30).default(15),
+});
 
 const ImportSchema = z.object({
   mints: z.array(SolAddressSchema).min(1).max(500),
@@ -11,7 +17,10 @@ const ImportSchema = z.object({
 
 @Controller('tokens')
 export class TokensController {
-  constructor(private readonly tokens: TokensService) {}
+  constructor(
+    private readonly tokens: TokensService,
+    private readonly movers: MoversService,
+  ) {}
 
   @Post('import')
   import(@Body(new ZodPipe(ImportSchema)) body: { mints: string[]; source?: string }) {
@@ -21,6 +30,11 @@ export class TokensController {
   @Get()
   list() {
     return this.tokens.list();
+  }
+
+  @Get('movers')
+  findMovers(@Query(new ZodPipe(MoversQuerySchema)) query: { minPump: number; limit: number }) {
+    return this.movers.find(query.minPump, query.limit);
   }
 
   @Post('purge-junk')

@@ -6,9 +6,10 @@ import { TokenCheckService } from '../screener/token-check.service';
 import { PrismaService } from '../prisma.service';
 import { TokensController } from './tokens.controller';
 import { TokensService } from './tokens.service';
+import { MoversService } from '../analysis/movers.service';
 
 @Module({
   controllers: [TokensController],
-  providers: [TokensService, TokenCheckService, DexScreenerService, RugcheckService, HeliusService, PrismaService],
+  providers: [TokensService, MoversService, TokenCheckService, DexScreenerService, RugcheckService, HeliusService, PrismaService],
 })
 export class TokensModule {}
