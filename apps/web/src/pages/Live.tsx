@@ -52,6 +52,7 @@ export function Live() {
                   <th className="px-4 py-2 font-normal">token</th>
                   <th className="px-4 py-2 font-normal text-right">SOL</th>
                   <th className="px-4 py-2 font-normal text-right">USD</th>
+                  <th className="px-4 py-2 font-normal">tx</th>
                 </tr>
               </thead>
               <tbody>
@@ -85,6 +86,17 @@ export function Live() {
                     </td>
                     <td className={`px-4 py-2 text-right ${e.usd > 0 ? 'text-profit' : e.usd < 0 ? 'text-loss' : 'text-dim'}`}>
                       {e.usd !== 0 ? `$${Math.abs(e.usd).toLocaleString('en-US')}` : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <a
+                        href={`https://solscan.io/tx/${e.signature}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={e.signature}
+                        className="text-dim hover:text-neon text-xs"
+                      >
+                        {e.signature.slice(0, 4)}…{e.signature.slice(-4)} ↗
+                      </a>
                     </td>
                   </tr>
                 ))}
