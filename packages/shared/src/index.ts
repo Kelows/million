@@ -303,10 +303,10 @@ export const CrawlerConfigSchema = z.object({
     .refine((s) => s.wallets || s.tokens, 'at least one source must be enabled')
     .default({ wallets: true, tokens: true }),
   intervalMinutes: z.coerce.number().min(5).max(1440).default(30),
-  creditsPerIteration: z.coerce.number().min(10).max(500).default(60), // ~1 credit per fetched page/check
-  maxTokensChecked: z.coerce.number().min(1).max(20).default(8),
-  maxWalletsAbsorbed: z.coerce.number().min(0).max(20).default(5),
-  maxWalletsReanalyzed: z.coerce.number().min(0).max(20).default(4),
+  creditsPerIteration: z.coerce.number().min(10).max(5000).default(600), // ~1 credit per fetched page/check
+  maxTokensChecked: z.coerce.number().min(1).max(200).default(80),
+  maxWalletsAbsorbed: z.coerce.number().min(0).max(200).default(50),
+  maxWalletsReanalyzed: z.coerce.number().min(0).max(200).default(40),
   discoveryMinSol: z.coerce.number().nonnegative().default(5),
   autoAbsorb: z.boolean().default(true), // false = crawler only reports, never touches the roster
   minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
