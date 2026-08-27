@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma.service';
 
 const KEEP_RUNS = 5;
 const VERDICT_RANK: Record<CheckStatus, number> = { pass: 0, warn: 1, unknown: 2, fail: 3 };
+// size/maturity gates protect trading; these ids are the SAFETY gates that also disqualify wallet discovery
+const SAFETY_CHECK_IDS = new Set(['mint-authority', 'freeze-authority', 'rugcheck', 'deployer-history']);
 
 /**
  * The closed loop's output: consensus tokens pushed through the full token
@@ -59,6 +61,7 @@ export class GemsService {
         pairUrl: report?.pairUrl ?? null,
         failures: report?.checks.filter((c) => c.status === 'fail').map((c) => c.label) ?? [],
         warnings: report?.checks.filter((c) => c.status === 'warn').map((c) => c.label) ?? [],
+        safetyFail: report ? report.checks.some((c) => SAFETY_CHECK_IDS.has(c.id) && c.status === 'fail') : true,
       });
     }
 

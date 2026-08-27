@@ -134,11 +134,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         stats.creditsUsed = config.creditsPerIteration - credits;
         const passing = gemsRun.gems.filter((g) => g.verdict === 'pass');
         stats.gemsPass = passing.length;
-        say(`gauntlet: ${gemsRun.candidates} candidates -> ${passing.length} pass`);
+        // wallet discovery only needs SAFETY-clean tokens — size failsafes gate trading, not curiosity
+        const expandable = gemsRun.gems.filter((g) => !g.safetyFail);
+        say(`gauntlet: ${gemsRun.candidates} candidates -> ${passing.length} pass, ${expandable.length} safety-clean (expansion pool)`);
 
-        // ── token source: expand from passing gems into new clean wallets ──
-        if (config.sources.tokens && passing.length && config.maxWalletsAbsorbed > 0) {
-          for (const gem of passing) {
+        // ── token source: expand from safety-clean gems into new clean wallets ──
+        if (config.sources.tokens && expandable.length && config.maxWalletsAbsorbed > 0) {
+          for (const gem of expandable) {
             if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed) break;
             const report = await this.discovery.find(gem.mint, config.discoveryMinSol, 1).catch(() => null);
             if (!report) continue;

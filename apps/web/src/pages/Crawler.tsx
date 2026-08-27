@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CrawlerConfig, CrawlerRunSummary } from '@million/shared';
 import { useCrawler, useRunCrawlerOnce, useSetCrawlerConfig } from '../api';
 import { fmtAgo } from '../lib/format';
+import { ThresholdFields } from '../components/ThresholdFields';
 
 interface NumberFieldDef {
   key: keyof Pick<CrawlerConfig, 'intervalMinutes' | 'creditsPerIteration' | 'maxTokensChecked' | 'maxWalletsAbsorbed' | 'maxWalletsReanalyzed' | 'discoveryMinSol' | 'minOpenSol'>;
@@ -125,11 +126,12 @@ export function Crawler() {
           {save.error && <span className="text-xs text-loss">{save.error.message}</span>}
           {dirty && !save.isPending && <span className="text-xs text-warn">unsaved changes</span>}
         </div>
-        <p className="text-xs text-dim">
-          Gauntlet thresholds come from the saved config (currently: liq ≥ ${config.thresholds.minLiquidityUsd.toLocaleString('en-US')},
-          mcap ≥ ${config.thresholds.minMarketCapUsd.toLocaleString('en-US')}, top-10 ≤ {config.thresholds.maxTop10Pct}%,
-          age ≥ {config.thresholds.minTokenAgeMinutes}m).
-        </p>
+        <div className="border-t border-line pt-4 flex flex-col gap-3">
+          <span className="eyebrow">Gauntlet thresholds <span className="normal-case tracking-normal">· size gates trading; safety-clean tokens still feed wallet discovery</span></span>
+          <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
+            <ThresholdFields value={config.thresholds} onChange={(thresholds) => set({ thresholds })} />
+          </div>
+        </div>
       </div>
 
       <div className="panel">

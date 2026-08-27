@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { loadFailsafes, saveFailsafes, type FailsafeConfig } from '../lib/failsafes';
 import { loadMinOpenSol, saveMinOpenSol } from '../lib/settings';
+import { ThresholdFields } from '../components/ThresholdFields';
 
 const PLANNED_CHECKS = [
   { name: 'Sell simulation', why: 'hard honeypot check — can a wallet actually sell?' },
@@ -11,19 +12,6 @@ const PLANNED_CHECKS = [
   { name: 'LP vault exclusion in holder math', why: 'clean top-10 % without the pool' },
 ];
 
-interface ThresholdField {
-  key: keyof FailsafeConfig;
-  label: string;
-  hint: string;
-  step: number;
-}
-
-const FIELDS: ThresholdField[] = [
-  { key: 'minLiquidityUsd', label: 'Minimum liquidity (USD)', hint: 'thin pools = you are the exit liquidity', step: 10_000 },
-  { key: 'minMarketCapUsd', label: 'Minimum market cap (USD)', hint: 'filters the sub-graduation churn (98%+ die)', step: 50_000 },
-  { key: 'maxTop10Pct', label: 'Max top-10 holders (%)', hint: 'consensus red line is 25–30% (LP vault included for now)', step: 5 },
-  { key: 'minTokenAgeMinutes', label: 'Minimum pair age (minutes)', hint: 'most rugs happen in the first hour', step: 15 },
-];
 
 export function Screener() {
   const [config, setConfig] = useState<FailsafeConfig>(loadFailsafes);
@@ -49,22 +37,7 @@ export function Screener() {
 
       <div className="panel p-4 flex flex-col gap-4">
         <span className="eyebrow">Failsafes {saved && <span className="text-profit normal-case tracking-normal">· saved</span>}</span>
-        {FIELDS.map((field) => (
-          <label key={field.key} className="flex items-center justify-between gap-4 text-sm">
-            <span>
-              {field.label}
-              <span className="block text-xs text-dim">{field.hint}</span>
-            </span>
-            <input
-              type="number"
-              min={0}
-              step={field.step}
-              value={config[field.key]}
-              onChange={(e) => setConfig((c) => ({ ...c, [field.key]: Number(e.target.value) }))}
-              className="w-40 text-right"
-            />
-          </label>
-        ))}
+        <ThresholdFields value={config} onChange={setConfig} />
       </div>
 
       <div className="panel p-4 flex flex-col gap-4">

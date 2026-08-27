@@ -270,6 +270,7 @@ export interface GemToken {
   pairUrl: string | null;
   failures: string[]; // labels of failed checks
   warnings: string[]; // labels of warned checks
+  safetyFail: boolean; // failed a SAFETY check (authorities, rug risks) — size failsafes don't count
 }
 
 export interface GemsRunData {
