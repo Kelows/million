@@ -79,6 +79,19 @@ export class TokensService {
     return this.detail(mint);
   }
 
+  /** Delete checked tokens that are junk: FAIL verdict or dead liquidity. Unchecked tokens are untouched. */
+  async purgeJunk(): Promise<{ purged: number }> {
+    const rows = await this.prisma.token.findMany({ where: { lastReport: { not: null } }, select: { mint: true, lastReport: true } });
+    const junk = rows
+      .filter((r) => {
+        const report = JSON.parse(r.lastReport as string) as TokenReport;
+        return report.verdict === 'fail' || (report.liquidityUsd ?? 0) <= 0;
+      })
+      .map((r) => r.mint);
+    if (junk.length) await this.prisma.token.deleteMany({ where: { mint: { in: junk } } });
+    return { purged: junk.length };
+  }
+
   async untrack(mint: string): Promise<void> {
     await this.prisma.token
       .update({ where: { mint }, data: { tracked: false } })

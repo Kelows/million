@@ -23,6 +23,12 @@ export class TokensController {
     return this.tokens.list();
   }
 
+  @Post('purge-junk')
+  @HttpCode(200)
+  purgeJunk() {
+    return this.tokens.purgeJunk();
+  }
+
   @Get(':mint')
   detail(@Param('mint', new ZodPipe(SolAddressSchema)) mint: string) {
     return this.tokens.detail(mint);

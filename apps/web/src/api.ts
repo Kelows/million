@@ -208,3 +208,11 @@ export function usePurgeJunk() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
   });
 }
+
+export function usePurgeJunkTokens() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ purged: number }>('/tokens/purge-junk', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}

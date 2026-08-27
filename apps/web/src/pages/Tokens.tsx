@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useCheckToken, useImportTokens, useTokens, useUntrackToken } from '../api';
+import { useCheckToken, useImportTokens, usePurgeJunkTokens, useTokens, useUntrackToken } from '../api';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
@@ -16,6 +16,7 @@ export function Tokens() {
   const importTokens = useImportTokens();
   const checkToken = useCheckToken();
   const untrack = useUntrackToken();
+  const purgeJunk = usePurgeJunkTokens();
   const [raw, setRaw] = useState('');
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export function Tokens() {
       (!query || t.mint.toLowerCase().includes(query) || t.symbol?.toLowerCase().includes(query) || t.name?.toLowerCase().includes(query)),
   );
   const pag = usePagination(filtered, 25);
+  const junkCount = tokens.filter((t) => t.verdict !== null && (t.verdict === 'fail' || (t.liquidityUsd ?? 0) <= 0)).length;
 
   const runCheck = async (mint: string) => {
     setChecking(mint);
@@ -93,6 +95,20 @@ export function Tokens() {
             />
             tracked only
           </label>
+          {junkCount > 0 && (
+            <button
+              className="btn btn-danger py-1! px-2! text-[0.6rem]!"
+              disabled={purgeJunk.isPending}
+              title="Delete checked tokens with a FAIL verdict or zero liquidity — unchecked tokens are untouched"
+              onClick={() => {
+                if (window.confirm(`Delete ${junkCount} junk token${junkCount === 1 ? '' : 's'} (failed check or dead liquidity)?`)) {
+                  purgeJunk.mutate();
+                }
+              }}
+            >
+              {purgeJunk.isPending ? 'purging…' : `purge junk (${junkCount})`}
+            </button>
+          )}
         </div>
         {filtered.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-dim">Nothing here yet — import above, run checks, or analyze wallets (their tokens land here automatically).</p>
