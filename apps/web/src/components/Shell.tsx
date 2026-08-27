@@ -8,9 +8,8 @@ const NAV = [
       { to: '/', label: 'Overview' },
       { to: '/wallets', label: 'Wallets' },
       { to: '/tokens', label: 'Tokens' },
-      { to: '/gems', label: 'Gems' },
+      { to: '/opportunities', label: 'Opportunities' },
       { to: '/live', label: 'Live' },
-      { to: '/recs', label: 'Recs' },
     ],
   },
   {

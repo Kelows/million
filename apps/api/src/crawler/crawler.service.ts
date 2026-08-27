@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   CrawlerConfigSchema,
   isJunkWallet,
+  whaleScore,
   type CrawlerConfig,
   type CrawlerRunStats,
   type CrawlerRunSummary,
@@ -170,14 +171,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             }
             stats.tokensScanned++;
             credits -= scanCost;
+            // absorb by quality threshold, not top-N — a good wallet is good regardless of rank
+            const scoreOf = (x: (typeof report.candidates)[number]) =>
+              whaleScore(x.preview!.winRate, x.preview!.realizedPnlSol, false);
             const clean = report.candidates
               .filter((c) => !c.inRoster && c.preview && !(c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS'))
-              .sort((a, b) => {
-                // absorb by buyer quality, not buy size — the whale-score insight
-                const score = (x: typeof a) => (x.preview!.winRate ?? 0) * 100 + Math.max(-50, Math.min(200, x.preview!.realizedPnlSol)) / 2;
-                return score(b) - score(a);
-              });
-            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} clean`);
+              .filter((c) => scoreOf(c) >= config.minWhaleScore)
+              .sort((a, b) => scoreOf(b) - scoreOf(a));
+            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} clean >= score ${config.minWhaleScore}`);
             if (!config.autoAbsorb) continue;
             for (const c of clean) {
               if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages) break;

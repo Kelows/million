@@ -11,6 +11,7 @@ import { Discover } from './pages/Discover';
 import { Gems } from './pages/Gems';
 import { Crawler } from './pages/Crawler';
 import { Live } from './pages/Live';
+import { Opportunities } from './pages/Opportunities';
 import { Tokens } from './pages/Tokens';
 import { TokenDetail } from './pages/TokenDetail';
 import { Executor } from './pages/Executor';
@@ -33,6 +34,7 @@ export const tokenCheckRoute = createRoute({
     typeof search.mint === 'string' ? { mint: search.mint } : {},
 });
 export const recsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/recs', component: Recs });
+export const opportunitiesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/opportunities', component: Opportunities });
 export const liveRoute = createRoute({ getParentRoute: () => rootRoute, path: '/live', component: Live });
 export const crawlerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/crawler', component: Crawler });
 export const tokensRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tokens', component: Tokens });
@@ -54,7 +56,7 @@ export const fundingRoute = createRoute({
 });
 export const executorRoute = createRoute({ getParentRoute: () => rootRoute, path: '/executor', component: Executor });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute]);
 
 export const router = createRouter({ routeTree });
 

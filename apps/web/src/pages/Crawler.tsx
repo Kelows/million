@@ -5,7 +5,7 @@ import { fmtAgo } from '../lib/format';
 import { ThresholdFields } from '../components/ThresholdFields';
 
 interface NumberFieldDef {
-  key: keyof Pick<CrawlerConfig, 'intervalMinutes' | 'creditsPerIteration' | 'maxTokensChecked' | 'maxWalletsAbsorbed' | 'maxWalletsReanalyzed' | 'discoveryMinSol' | 'minOpenSol' | 'deepScanBuckets'>;
+  key: keyof Pick<CrawlerConfig, 'intervalMinutes' | 'creditsPerIteration' | 'maxTokensChecked' | 'maxWalletsAbsorbed' | 'maxWalletsReanalyzed' | 'discoveryMinSol' | 'minOpenSol' | 'deepScanBuckets' | 'minWhaleScore'>;
   label: string;
   hint: string;
   step: number;
@@ -18,6 +18,7 @@ const FIELDS: NumberFieldDef[] = [
   { key: 'maxWalletsAbsorbed', label: 'Max wallets absorbed / iteration', hint: 'token source: clean size buyers of passing gems', step: 1 },
   { key: 'discoveryMinSol', label: 'Discovery min buy (SOL)', hint: 'size floor when scanning gem buyers', step: 1 },
   { key: 'minOpenSol', label: 'Min entry (SOL)', hint: 'consensus dust threshold', step: 0.5 },
+  { key: 'minWhaleScore', label: 'Min whale score to absorb', hint: 'every clean buyer at or above this joins the roster — quality is absolute, not relative', step: 10 },
   { key: 'deepScanBuckets', label: 'Deep-scan buckets', hint: 'time checkpoints when mining a new gem\u2019s whole life (~3 credits each)', step: 12 },
 ];
 

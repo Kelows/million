@@ -254,3 +254,26 @@ export function useSetSubscribed() {
     },
   });
 }
+
+import type { OpportunityConfig, OpportunityRow } from '@million/shared';
+
+export function useOpportunities() {
+  return useQuery({
+    queryKey: ['opportunities'],
+    queryFn: () => request<OpportunityRow[]>('/opportunities'),
+    refetchInterval: 5_000,
+  });
+}
+
+export function useOpportunityConfig() {
+  return useQuery({ queryKey: ['opportunity-config'], queryFn: () => request<OpportunityConfig>('/opportunities/config') });
+}
+
+export function useSetOpportunityConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: OpportunityConfig) =>
+      request<OpportunityConfig>('/opportunities/config', { method: 'PUT', body: JSON.stringify(config) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['opportunity-config'] }),
+  });
+}

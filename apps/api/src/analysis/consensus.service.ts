@@ -13,7 +13,7 @@ export interface ConsensusResult {
 export class ConsensusService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async compute(minOpenSol: number): Promise<ConsensusResult> {
+  async compute(minOpenSol: number, minCount = 1): Promise<ConsensusResult> {
     const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null } });
     const wallets = rows.map((w) => ({
       address: w.address,
@@ -37,7 +37,7 @@ export class ConsensusService {
       }
     }
     const consensusTokens = [...byMint.values()]
-      .filter((t) => t.count >= 2)
+      .filter((t) => t.count >= minCount)
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
 

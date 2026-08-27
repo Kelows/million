@@ -71,3 +71,21 @@ model LiveEvent {
 
   @@index([ts])
 }
+
+model Opportunity {
+  id        Int      @id @default(autoincrement())
+  mint      String
+  symbol    String?
+  wallet    String
+  verdict   String
+  buySol    Float
+  ts        DateTime
+  createdAt DateTime @default(now())
+
+  @@index([mint, createdAt])
+}
+
+model OpportunityConfig {
+  id   Int    @id @default(1)
+  data String // JSON OpportunityConfig
+}

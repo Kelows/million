@@ -41,7 +41,7 @@ export class RecommendationsService {
   }
 
   private async compute(minOpenSol: number): Promise<RecommendationsData> {
-    const { totalAnalyzed, qualifyingWallets, consensusTokens } = await this.consensus.compute(minOpenSol);
+    const { totalAnalyzed, qualifyingWallets, consensusTokens } = await this.consensus.compute(minOpenSol, 2); // recs stays a co-entry report
     return {
       generatedAt: new Date().toISOString(),
       criteria: { ...WATCH_CRITERIA, minOpenSol },

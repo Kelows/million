@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { LiveStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
+import { OpportunitiesService } from '../opportunities/opportunities.service';
 import { txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
 
@@ -28,6 +29,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly env: ConfigService,
+    private readonly opportunities: OpportunitiesService,
   ) {}
 
   onModuleInit() {
@@ -158,18 +160,23 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (kind === 'other' && tokens.size === 0 && Math.abs(sol) < 0.01 && Math.abs(usd) < USD_EPS) return; // noise
 
     this.lastEventAt = new Date();
-    await this.prisma.liveEvent
+    const ts = new Date((tx.timestamp || Date.now() / 1000) * 1000);
+    const event = await this.prisma.liveEvent
       .create({
         data: {
           wallet,
           signature,
-          ts: new Date((tx.timestamp || Date.now() / 1000) * 1000),
+          ts,
           kind,
           mint,
           sol: Math.round(sol * 1000) / 1000,
           usd: Math.round(usd * 100) / 100,
         },
       })
-      .catch(() => undefined); // duplicate race is fine
+      .catch(() => null); // duplicate race is fine
+    if (event && kind === 'buy' && mint) {
+      const buySol = Math.max(0, -sol) + Math.max(0, -usd) / 180; // rough stable leg conversion
+      void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id).catch(() => undefined);
+    }
   }
 }

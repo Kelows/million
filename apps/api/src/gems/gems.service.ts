@@ -43,7 +43,7 @@ export class GemsService {
   }
 
   private async compute(thresholds: TokenCheckThresholds, minOpenSol: number): Promise<GemsRunData> {
-    const { totalAnalyzed, qualifyingWallets, consensusTokens } = await this.consensus.compute(minOpenSol);
+    const { totalAnalyzed, qualifyingWallets, consensusTokens } = await this.consensus.compute(minOpenSol, 1);
 
     const gems: GemToken[] = [];
     // sequential: each check fans out to 4 external sources already

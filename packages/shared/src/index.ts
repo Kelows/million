@@ -339,6 +339,7 @@ export const CrawlerConfigSchema = z.object({
   autoAbsorb: z.boolean().default(true), // false = crawler only reports, never touches the roster
   deepScanNewGems: z.boolean().default(true), // first sighting of a safety-clean gem = whole-life buyer scan
   deepScanBuckets: z.coerce.number().min(12).max(96).default(48),
+  minWhaleScore: z.coerce.number().min(-100).max(200).default(40), // absorb every clean buyer at or above this, not just the best
   minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
   thresholds: TokenCheckThresholdsSchema.default(TokenCheckThresholdsSchema.parse({})),
 });
@@ -390,4 +391,28 @@ export interface LiveStatus {
   maxSubscriptions: number;
   eventsToday: number;
   lastEventAt: string | null;
+}
+
+// ── opportunities: the live, actionable signal ────────────────────────────────
+
+export const OpportunityConfigSchema = z.object({
+  minBuySol: z.coerce.number().nonnegative().default(1), // subbed wallet must spend at least this
+  allowWarn: z.boolean().default(true), // WARN verdicts count as opportunities too
+  // staged for the (paper-first) auto trader — stored now, acted on later
+  positionSol: z.coerce.number().nonnegative().default(0.1),
+  takeProfitPct: z.coerce.number().min(1).default(100),
+  stopLossPct: z.coerce.number().min(1).max(100).default(50),
+  autoTrade: z.boolean().default(false), // locked until paper stats prove expectancy
+});
+export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
+
+export interface OpportunityRow {
+  id: number;
+  mint: string;
+  symbol: string | null;
+  wallet: string;
+  walletLabel: string | null;
+  verdict: CheckStatus;
+  buySol: number;
+  ts: string; // ISO — when the triggering buy landed
 }
