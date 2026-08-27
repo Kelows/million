@@ -88,7 +88,7 @@ export function WalletDetail() {
         </div>
         <div className="text-right">
           <button
-            className={`btn mr-2 ${wallet.subscribed ? 'bg-neon text-void!' : ''}`}
+            className={`btn mr-2 ${wallet.subscribed ? 'bg-neon! text-void!' : ''}`}
             title={wallet.subscribed ? 'Streaming to the Live feed — click to unsubscribe' : 'Stream this wallet\u2019s swaps to the Live feed in real time'}
             disabled={setSubscribed.isPending}
             onClick={() => setSubscribed.mutate({ address: wallet.address, subscribed: !wallet.subscribed })}
