@@ -33,7 +33,7 @@ export function Recs() {
           {recs && (
             <div className="text-xs text-dim mt-2" title={recs.generatedAt}>
               generated {fmtAgo(recs.generatedAt)} · {recs.qualifyingWallets}/{recs.totalAnalyzed} wallets qualify
-              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed, open ≥ {recs.criteria.minOpenSol} SOL)
+              (WR &gt; {Math.round(recs.criteria.minWinRate * 100)}%, ≥ {recs.criteria.minClosedTokens} closed, entry ≥ {recs.criteria.minOpenSol} SOL)
             </div>
           )}
         </div>
@@ -47,7 +47,7 @@ export function Recs() {
       ) : recs ? (
         <>
           <div className="panel">
-            <div className="px-4 pt-4 pb-2 eyebrow">Consensus tokens · held open by ≥ 2 qualifying wallets</div>
+            <div className="px-4 pt-4 pb-2 eyebrow">Consensus tokens · entered by ≥ 2 qualifying wallets recently</div>
             {recs.consensusTokens.length === 0 ? (
               <p className="px-4 pb-4 text-sm text-dim">
                 No overlap right now — either conviction is scattered or the roster needs fresher analysis.

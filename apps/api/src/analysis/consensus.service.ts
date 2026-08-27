@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isQualifyingWallet, openPositions, type ConsensusToken, type WalletMetrics } from '@million/shared';
+import { enteredPositions, isQualifyingWallet, type ConsensusToken, type WalletMetrics } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 
 export interface ConsensusResult {
@@ -8,7 +8,7 @@ export interface ConsensusResult {
   consensusTokens: ConsensusToken[]; // held open by >= 2 qualifying wallets
 }
 
-/** Cross-wallet conviction: which tokens do qualifying whales hold open right now. */
+/** Cross-wallet conviction: which tokens did qualifying whales ENTER recently (co-entry). */
 @Injectable()
 export class ConsensusService {
   constructor(private readonly prisma: PrismaService) {}
@@ -25,7 +25,7 @@ export class ConsensusService {
 
     const byMint = new Map<string, ConsensusToken>();
     for (const w of qualifying) {
-      for (const t of openPositions(w.metrics.tokens, minOpenSol)) {
+      for (const t of enteredPositions(w.metrics.tokens, minOpenSol, w.metrics.solPriceUsd ?? 200)) {
         let entry = byMint.get(t.mint);
         if (!entry) {
           entry = { mint: t.mint, symbol: t.symbol, count: 0, holders: [] };

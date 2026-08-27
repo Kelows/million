@@ -142,13 +142,21 @@ export function isStablecoin(mint: string, symbol?: string | null): boolean {
 /** Positions below this entry cost are dust, not conviction. */
 export const DEFAULT_MIN_OPEN_SOL = 1;
 
+/** Tokens a wallet ENTERED in its analysis window (>= minSol total entry, stables excluded).
+ * The consensus signal: co-entry beats still-holding — meme wallets flip too fast to overlap on holds. */
+export function enteredPositions(tokens: TokenBreakdown[], minSol: number, solPriceUsd = 200): TokenBreakdown[] {
+  return tokens.filter(
+    (t) => t.buys > 0 && !isStablecoin(t.mint, t.symbol) && t.solIn + (t.usdIn ?? 0) / solPriceUsd >= minSol,
+  );
+}
+
 /** A wallet's open positions — stablecoins and dust-sized entries excluded. */
 export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT_MIN_OPEN_SOL): TokenBreakdown[] {
   return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol) && (t.entrySol ?? t.solIn) >= minSol);
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
-export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
+export const WATCH_CRITERIA = { minWinRate: 0.4, minClosedTokens: 2 }; // calibrated for deep (300-tx) windows
 
 /** Unambiguous junk: plumbing and farmed wallets. Snipers stay — uncopyable but watchable. */
 export const JUNK_FLAGS: WalletFlag[] = ['BOT_INFRA', 'HIGH_WINRATE_SUS'];

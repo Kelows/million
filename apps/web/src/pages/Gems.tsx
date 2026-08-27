@@ -32,7 +32,7 @@ export function Gems() {
         <div className="flex-1 min-w-0 max-w-xl">
           <h1 className="text-xl font-bold text-bright tracking-wide">Gems</h1>
           <p className="text-sm text-dim mt-1">
-            The loop's output: tokens held open by ≥ 2 qualifying whales, pushed through the full gauntlet.
+            The loop's output: tokens entered by ≥ 2 qualifying whales recently, pushed through the full gauntlet.
             Consensus is only as fresh as your last analyses.
           </p>
         </div>
