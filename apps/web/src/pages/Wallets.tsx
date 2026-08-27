@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useAnalyzeWallet, useHealth, useImportWallets, useRemoveWallet, useWallets } from '../api';
+import { useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useWallets } from '../api';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
@@ -13,7 +13,7 @@ import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import { EyeIcon } from '../components/icons';
-import { openPositions, type WalletRecord } from '@million/shared';
+import { isJunkWallet, openPositions, type WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
@@ -44,6 +44,7 @@ export function Wallets() {
   const importWallets = useImportWallets();
   const analyze = useAnalyzeWallet();
   const removeWallet = useRemoveWallet();
+  const purgeJunk = usePurgeJunk();
   const [raw, setRaw] = useState('');
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export function Wallets() {
   };
 
   const pending = wallets.filter((w) => !w.metrics && w.status !== 'analyzing');
+  const junkCount = wallets.filter((w) => w.metrics && isJunkWallet(w.metrics)).length;
   const query = search.trim().toLowerCase();
   const searched = query
     ? wallets.filter((w) => w.address.toLowerCase().includes(query) || w.label?.toLowerCase().includes(query))
@@ -150,6 +152,20 @@ export function Wallets() {
           <span className="eyebrow">Roster · {sorted.length !== wallets.length ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
           <span className="mr-auto flex items-center gap-3">
             <FilterModal fields={ROSTER_FILTERS} state={filters} onChange={setFilters} />
+            {junkCount > 0 && (
+              <button
+                className="btn btn-danger py-1! px-2! text-[0.6rem]!"
+                disabled={purgeJunk.isPending}
+                title="Delete every wallet flagged infra or sus winrate — snipers are kept"
+                onClick={() => {
+                  if (window.confirm(`Delete ${junkCount} junk wallet${junkCount === 1 ? '' : 's'} (infra / farmed)? Snipers are kept.`)) {
+                    purgeJunk.mutate();
+                  }
+                }}
+              >
+                {purgeJunk.isPending ? 'purging…' : `purge junk (${junkCount})`}
+              </button>
+            )}
             <input
               placeholder="search address / label"
               value={search}

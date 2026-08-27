@@ -150,6 +150,13 @@ export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
 export const WATCH_CRITERIA = { minWinRate: 0.5, minClosedTokens: 3 };
 
+/** Unambiguous junk: plumbing and farmed wallets. Snipers stay — uncopyable but watchable. */
+export const JUNK_FLAGS: WalletFlag[] = ['BOT_INFRA', 'HIGH_WINRATE_SUS'];
+
+export function isJunkWallet(m: WalletMetrics): boolean {
+  return m.flags.some((f) => JUNK_FLAGS.includes(f));
+}
+
 /** Bot-ish wallets: infrastructure, machine-speed traders, or farmed-looking stats. */
 export function isBotWallet(m: WalletMetrics): boolean {
   return m.flags.some((f) => f === 'BOT_INFRA' || f === 'SNIPER_SPEED' || f === 'HIGH_WINRATE_SUS');

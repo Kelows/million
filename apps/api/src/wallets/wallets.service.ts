@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
-import type { WalletImport, WalletMetrics, WalletRecord, WalletStatus } from '@million/shared';
+import { isJunkWallet, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -72,6 +72,14 @@ export class WalletsService {
       await this.prisma.wallet.update({ where: { address }, data: { status: 'error', error: message } });
       throw err;
     }
+  }
+
+  /** Delete every wallet whose analysis marks it as junk (infra / farmed). */
+  async purgeJunk(): Promise<{ purged: number }> {
+    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null } }, select: { address: true, metrics: true } });
+    const junk = rows.filter((w) => isJunkWallet(JSON.parse(w.metrics as string) as WalletMetrics)).map((w) => w.address);
+    if (junk.length) await this.prisma.wallet.deleteMany({ where: { address: { in: junk } } });
+    return { purged: junk.length };
   }
 
   async remove(address: string): Promise<void> {

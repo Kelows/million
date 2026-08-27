@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CrawlerConfigSchema,
+  isJunkWallet,
   type CrawlerConfig,
   type CrawlerRunStats,
   type CrawlerRunSummary,
@@ -105,11 +106,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       // ── wallet source: keep consensus fresh by re-analyzing the stalest wallets ──
       if (config.sources.wallets && config.maxWalletsReanalyzed > 0) {
-        const stale = await this.prisma.wallet.findMany({
+        const staleCandidates = await this.prisma.wallet.findMany({
           where: { status: 'done' },
           orderBy: { lastAnalyzedAt: 'asc' },
-          take: config.maxWalletsReanalyzed,
+          take: config.maxWalletsReanalyzed * 3, // overshoot, then drop junk — no credits wasted re-analyzing plumbing
         });
+        const stale = staleCandidates
+          .filter((w) => !w.metrics || !isJunkWallet(JSON.parse(w.metrics) as import('@million/shared').WalletMetrics))
+          .slice(0, config.maxWalletsReanalyzed);
         for (const w of stale) {
           if (credits < analyzePages) break;
           await this.wallets.analyze(w.address).catch((e) => say(`  reanalyze ${w.address.slice(0, 8)} failed: ${e.message}`));

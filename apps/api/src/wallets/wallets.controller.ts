@@ -33,6 +33,12 @@ export class WalletsController {
     return this.wallets.analyze(address);
   }
 
+  @Post('wallets/purge-junk')
+  @HttpCode(200)
+  purgeJunk() {
+    return this.wallets.purgeJunk();
+  }
+
   @Delete('wallets/:address')
   remove(@Param('address') address: string) {
     return this.wallets.remove(address);
