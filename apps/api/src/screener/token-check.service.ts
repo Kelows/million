@@ -57,22 +57,42 @@ export class TokenCheckService {
           : 'No one can freeze holder accounts.',
       );
       if (asset.mutable !== null) {
+        // informational only: mutable metadata is the platform default on pump.fun-era
+        // mints — a warn that fires on everything is noise, not signal
         push(
-          'metadata-mutable', 'Metadata immutable',
-          asset.mutable ? 'warn' : 'pass',
+          'metadata-mutable', 'Metadata',
+          'pass',
           asset.mutable ? 'mutable' : 'immutable',
-          asset.mutable ? 'Name/symbol/image can be swapped after launch — common in impersonation scams.' : 'Token identity is locked.',
+          asset.mutable
+            ? 'Mutable — the launchpad default on modern mints; not scored. Identity swaps remain possible.'
+            : 'Token identity is locked.',
         );
       }
       if (asset.tokenProgram) {
-        push(
-          'token-program', 'Standard token program',
-          asset.tokenProgram === TOKEN_PROGRAM ? 'pass' : asset.tokenProgram === TOKEN_2022_PROGRAM ? 'warn' : 'unknown',
-          asset.tokenProgram === TOKEN_2022_PROGRAM ? 'Token-2022' : 'SPL Token',
-          asset.tokenProgram === TOKEN_2022_PROGRAM
-            ? 'Token-2022 supports transfer fees and permanent delegates — verify its extensions manually.'
-            : 'Plain SPL token, no extension tricks possible.',
-        );
+        if (asset.tokenProgram === TOKEN_2022_PROGRAM) {
+          // the program itself is the pump.fun default — the EXTENSIONS are the risk
+          const dangerous = asset.mintExtensions.filter((e) =>
+            ['permanent_delegate', 'transfer_hook', 'default_account_state'].includes(e),
+          );
+          const taxed = asset.mintExtensions.includes('transfer_fee_config');
+          push(
+            'token-program', 'Token program & extensions',
+            dangerous.length ? 'fail' : taxed ? 'warn' : 'pass',
+            dangerous.length ? `2022: ${dangerous.join(', ')}` : taxed ? '2022: transfer fee' : 'Token-2022, clean',
+            dangerous.length
+              ? 'This extension lets the team seize or block your tokens — honeypot machinery.'
+              : taxed
+                ? 'Transfers are taxed — factor the fee into any exit math.'
+                : 'Token-2022 (the launchpad default) with no dangerous extensions.',
+          );
+        } else {
+          push(
+            'token-program', 'Token program & extensions',
+            asset.tokenProgram === TOKEN_PROGRAM ? 'pass' : 'unknown',
+            'SPL Token',
+            'Plain SPL token, no extension tricks possible.',
+          );
+        }
       }
     }
 

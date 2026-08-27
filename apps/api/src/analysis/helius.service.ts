@@ -168,6 +168,7 @@ export class HeliusService {
   async getAssetInfo(mint: string): Promise<AssetInfo | null> {
     type GetAssetResult = {
       mutable?: boolean;
+      mint_extensions?: Record<string, unknown>;
       token_info?: { mint_authority?: string | null; freeze_authority?: string | null; token_program?: string };
     };
     const result = await this.rpc<GetAssetResult | null>('getAsset', { id: mint }).catch(() => null);
@@ -177,6 +178,7 @@ export class HeliusService {
       freezeAuthority: result.token_info.freeze_authority ?? null,
       mutable: result.mutable ?? null,
       tokenProgram: result.token_info.token_program ?? null,
+      mintExtensions: result.mint_extensions ? Object.keys(result.mint_extensions) : [],
     };
   }
 
@@ -241,6 +243,7 @@ export interface AssetInfo {
   freezeAuthority: string | null;
   mutable: boolean | null;
   tokenProgram: string | null;
+  mintExtensions: string[]; // Token-2022 extension keys — where the real 2022 risk lives
 }
 
 export interface TopHolders {
