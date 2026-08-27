@@ -165,6 +165,12 @@ export function isJunkWallet(m: WalletMetrics): boolean {
   return m.flags.some((f) => JUNK_FLAGS.includes(f));
 }
 
+/** The whale-quality score: win rate carries most weight, realized PnL the rest, bots slammed to -100. */
+export function whaleScore(winRate: number | null, pnlSol: number, botLike: boolean): number {
+  if (botLike) return -100;
+  return Math.round((winRate ?? 0) * 100 + Math.max(-50, Math.min(200, pnlSol)) / 2);
+}
+
 /** Bot-ish wallets: infrastructure, machine-speed traders, or farmed-looking stats. */
 export function isBotWallet(m: WalletMetrics): boolean {
   return m.flags.some((f) => f === 'BOT_INFRA' || f === 'SNIPER_SPEED' || f === 'HIGH_WINRATE_SUS');

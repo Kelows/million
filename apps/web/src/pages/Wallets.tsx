@@ -13,7 +13,7 @@ import { FilterModal } from '../components/FilterModal';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
 import { EyeIcon } from '../components/icons';
-import { isJunkWallet, openPositions, type WalletRecord } from '@million/shared';
+import { isBotWallet, isJunkWallet, openPositions, whaleScore, type WalletRecord } from '@million/shared';
 
 function openCount(w: WalletRecord): number | null {
   if (!w.metrics) return null;
@@ -29,8 +29,14 @@ const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
 
+function rosterScore(w: WalletRecord): number | null {
+  if (!w.metrics) return null;
+  return whaleScore(w.metrics.winRate, w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol, isBotWallet(w.metrics));
+}
+
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
+  { key: 'score', get: (w) => rosterScore(w) },
   { key: 'winRate', get: (w) => w.metrics?.winRate ?? null },
   { key: 'pnl', get: (w) => totalPnlSol(w.metrics) },
   { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
@@ -191,6 +197,7 @@ export function Wallets() {
                   <th className="pl-4 pr-0 py-2 w-8"></th>
                   <th className="px-4 py-2 font-normal">wallet</th>
                   <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
+                  <SortHeader label="score" colKey="score" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Whale-quality score: win rate + realized PnL, bots and farmed wallets slammed to -100. Same formula as Discover." />
                   <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of fully closed tokens that ended profitable. Open positions don't count either way." />
                   <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Average-cost realized PnL over the analyzed window. SOL and USDC/USDT legs combined, stable legs converted at the SOL price at analysis time. Open positions not included." />
                   <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
@@ -217,6 +224,13 @@ export function Wallets() {
                       </td>
                       <td className="px-4 py-2"><Addr address={w.address} /></td>
                       <td className="px-4 py-2 text-ink">{w.label ?? <span className="text-dim">—</span>}</td>
+                      <td className="px-4 py-2">
+                        {(() => {
+                          const score = rosterScore(w);
+                          if (score === null) return <span className="text-dim">—</span>;
+                          return <span className={`font-bold ${score >= 50 ? 'text-profit' : score >= 0 ? 'text-ink' : 'text-loss'}`}>{score}</span>;
+                        })()}
+                      </td>
                       <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
                       <td className={`px-4 py-2 text-right ${w.metrics ? ((totalPnlSol(w.metrics) ?? 0) >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>
                         {w.metrics ? fmtSol(totalPnlSol(w.metrics) ?? 0) : '—'}

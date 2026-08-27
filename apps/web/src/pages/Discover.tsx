@@ -7,16 +7,14 @@ import { FlagChip } from '../components/FlagChip';
 import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
-import type { WhaleCandidate } from '@million/shared';
+import { whaleScore as sharedWhaleScore, type WhaleCandidate } from '@million/shared';
 
 /** The whale-finding insight: size buys are mostly bots — quality of the buyer is the signal.
  * Bots are hard-penalized; otherwise win rate carries most weight, realized PnL the rest. */
 function whaleScore(c: WhaleCandidate): number | null {
   if (!c.preview) return null;
-  if ((c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS')) return -100;
-  const wr = c.preview.winRate ?? 0;
-  const pnl = Math.max(-50, Math.min(200, c.preview.realizedPnlSol));
-  return Math.round(wr * 100 + pnl / 2);
+  const botLike = (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
+  return sharedWhaleScore(c.preview.winRate, c.preview.realizedPnlSol, botLike);
 }
 
 const DISCOVER_COLUMNS: SortColumn<WhaleCandidate>[] = [
