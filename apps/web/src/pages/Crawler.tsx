@@ -5,7 +5,7 @@ import { fmtAgo } from '../lib/format';
 import { ThresholdFields } from '../components/ThresholdFields';
 
 interface NumberFieldDef {
-  key: keyof Pick<CrawlerConfig, 'intervalMinutes' | 'creditsPerIteration' | 'maxTokensChecked' | 'maxWalletsAbsorbed' | 'maxWalletsReanalyzed' | 'discoveryMinSol' | 'minOpenSol' | 'deepScanBuckets' | 'minWhaleScore'>;
+  key: keyof Pick<CrawlerConfig, 'intervalMinutes' | 'creditsPerIteration' | 'maxTokensChecked' | 'maxWalletsAbsorbed' | 'maxWalletsReanalyzed' | 'discoveryMinSol' | 'minOpenSol' | 'deepScanBuckets' | 'minWhaleScore' | 'deepRunCredits'>;
   label: string;
   hint: string;
   step: number;

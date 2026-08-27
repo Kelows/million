@@ -13,9 +13,12 @@ import { PrismaService } from '../prisma.service';
 import { GemsService } from '../gems/gems.service';
 import { DiscoveryService } from '../discovery/discovery.service';
 import { WalletsService } from '../wallets/wallets.service';
+import { TokenCheckService } from '../screener/token-check.service';
 import { OwnersService } from '../analysis/owners.service';
 
 const KEEP_RUNS = 20;
+const COLD_START_TOKENS_PER_ITERATION = 10;
+const SAFETY_CHECK_IDS = new Set(['mint-authority', 'freeze-authority', 'rugcheck', 'deployer-history']);
 
 /**
  * The loop, automated: re-freshen stalest analyses (wallet source), run the
@@ -37,6 +40,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     private readonly wallets: WalletsService,
     private readonly env: ConfigService,
     private readonly owners: OwnersService,
+    private readonly tokenCheck: TokenCheckService,
   ) {}
 
   async onModuleInit() {
@@ -165,6 +169,44 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // wallet discovery only needs SAFETY-clean tokens — size failsafes gate trading, not curiosity
         const expandable = gemsRun.gems.filter((g) => !g.safetyFail);
         say(`gauntlet: ${gemsRun.candidates} candidates -> ${passing.length} pass, ${expandable.length} safety-clean (expansion pool)`);
+
+        // cold start: tracked tokens never mined join the pool directly — a user with
+        // zero wallets can import one token and the crawler boots the loop from it
+        if (config.sources.tokens) {
+          const knownMints = new Set(expandable.map((g) => g.mint));
+          const unmined = await this.prisma.token.findMany({
+            where: { tracked: true, purgedAt: null, deepScannedAt: null, mint: { notIn: [...knownMints] } },
+            orderBy: { addedAt: 'desc' },
+            take: COLD_START_TOKENS_PER_ITERATION,
+          });
+          for (const t of unmined) {
+            if (credits < 5) break;
+            const report = await this.tokenCheck.check(t.mint, config.thresholds).catch(() => null);
+            credits -= 2;
+            if (!report) continue;
+            const safetyFail = report.checks.some((c) => SAFETY_CHECK_IDS.has(c.id) && c.status === 'fail');
+            if (safetyFail) {
+              await this.prisma.token.update({ where: { mint: t.mint }, data: { deepScannedAt: new Date() } }).catch(() => undefined);
+              say(`  tracked ${report.symbol ?? t.mint.slice(0, 8)}: safety-failed, skipped for mining`);
+              continue;
+            }
+            expandable.push({
+              mint: t.mint,
+              symbol: report.symbol ?? t.symbol,
+              verdict: report.verdict,
+              whaleCount: 0,
+              holders: [],
+              liquidityUsd: report.liquidityUsd,
+              marketCapUsd: report.marketCapUsd,
+              pairCreatedAt: report.pairCreatedAt,
+              pairUrl: report.pairUrl,
+              failures: [],
+              warnings: [],
+              safetyFail: false,
+            });
+          }
+          if (unmined.length) say(`cold-start pool: +${unmined.length} tracked tokens considered`);
+        }
 
         // ── token source: expand from safety-clean gems into new clean wallets ──
         if (config.sources.tokens && expandable.length && config.maxWalletsAbsorbed > 0) {
