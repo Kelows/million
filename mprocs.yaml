@@ -7,3 +7,5 @@ procs:
     shell: npm run dev
   tunnel:
     shell: cloudflared tunnel run --token ***REMOVED***
+  keepawake:
+    shell: caffeinate -is
