@@ -128,7 +128,7 @@ export class WalletsService {
   }
 
   /** Soft-delete wallets matching any selected flag OR under the PnL floor: hidden everywhere, knowledge kept. */
-  async purgeJunk(flags: WalletFlag[] = JUNK_FLAGS, maxPnlSol?: number): Promise<{ purged: number }> {
+  async purgeJunk(flags: WalletFlag[] = JUNK_FLAGS, maxPnlSol?: number, maxMedianHoldMin?: number): Promise<{ purged: number }> {
     const selected = new Set(flags);
     const rows = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
@@ -138,7 +138,8 @@ export class WalletsService {
       .filter((w) => {
         const m = JSON.parse(w.metrics as string) as WalletMetrics;
         if (m.flags.some((f) => selected.has(f))) return true;
-        if (maxPnlSol !== undefined) return (m.realizedPnlTotalSol ?? m.realizedPnlSol) < maxPnlSol;
+        if (maxPnlSol !== undefined && (m.realizedPnlTotalSol ?? m.realizedPnlSol) < maxPnlSol) return true;
+        if (maxMedianHoldMin !== undefined && m.medianHoldMinutes !== null && m.medianHoldMinutes < maxMedianHoldMin) return true;
         return false;
       })
       .map((w) => w.address);

@@ -117,6 +117,8 @@ export function Wallets() {
   const [purgeFlags, setPurgeFlags] = useState<Set<string>>(new Set(['BOT_INFRA']));
   const [purgePnlOn, setPurgePnlOn] = useState(false);
   const [purgePnlMax, setPurgePnlMax] = useState(0);
+  const [purgeHoldOn, setPurgeHoldOn] = useState(false);
+  const [purgeHoldMax, setPurgeHoldMax] = useState(5);
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -317,16 +319,33 @@ export function Wallets() {
                         {wallets.filter((w) => w.metrics && (w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol) < purgePnlMax).length}
                       </span>
                     </label>
+                    <label className="flex items-center gap-3 text-sm cursor-pointer">
+                      <input type="checkbox" className="checkbox" checked={purgeHoldOn} onChange={(e) => setPurgeHoldOn(e.target.checked)} />
+                      <span>median hold under</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={purgeHoldMax}
+                        onChange={(e) => setPurgeHoldMax(Number(e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-20 text-right"
+                      />
+                      <span>min</span>
+                      <span className="text-xs text-dim ml-auto">
+                        {wallets.filter((w) => w.metrics?.medianHoldMinutes !== null && w.metrics !== null && (w.metrics.medianHoldMinutes ?? 1e9) < purgeHoldMax).length}
+                      </span>
+                    </label>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-dim">
-                        {wallets.filter((w) => w.metrics && (w.metrics.flags.some((f) => purgeFlags.has(f)) || (purgePnlOn && (w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol) < purgePnlMax))).length} wallets match
+                        {wallets.filter((w) => w.metrics && (w.metrics.flags.some((f) => purgeFlags.has(f)) || (purgePnlOn && (w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol) < purgePnlMax) || (purgeHoldOn && w.metrics.medianHoldMinutes !== null && w.metrics.medianHoldMinutes < purgeHoldMax))).length} wallets match
                       </span>
                       <button
                         className="btn btn-danger"
-                        disabled={(purgeFlags.size === 0 && !purgePnlOn) || purgeJunk.isPending}
+                        disabled={(purgeFlags.size === 0 && !purgePnlOn && !purgeHoldOn) || purgeJunk.isPending}
                         onClick={() =>
                           purgeJunk.mutate(
-                            { flags: [...purgeFlags], ...(purgePnlOn ? { maxPnlSol: purgePnlMax } : {}) },
+                            { flags: [...purgeFlags], ...(purgePnlOn ? { maxPnlSol: purgePnlMax } : {}), ...(purgeHoldOn ? { maxMedianHoldMin: purgeHoldMax } : {}) },
                             { onSuccess: () => setPurgeOpen(false) },
                           )
                         }
