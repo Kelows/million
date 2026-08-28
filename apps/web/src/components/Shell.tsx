@@ -82,7 +82,9 @@ export function Shell() {
           <span className="ml-auto text-pulse font-bold tracking-widest">PAPER MODE</span>
         </header>
         <main className="p-6 flex-1 min-w-0">
-          <Outlet />
+          <div className="w-full max-w-[1600px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

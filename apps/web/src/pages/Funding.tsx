@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import type { FundingLink } from '@million/shared';
+import { whaleScore as sharedWhaleScore, type FundingLink } from '@million/shared';
 import { useFundingChains, useImportWallets } from '../api';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+function linkScore(l: FundingLink): { na: boolean; score: number | null } {
+  if (!l.preview) return { na: false, score: null };
+  if ((l.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS')) return { na: true, score: null };
+  return { na: false, score: sharedWhaleScore(l.preview.winRate, l.preview.realizedPnlSol, false) };
+}
 const DEFAULT_MIN_SOL = 0.5;
 
 export function Funding() {
@@ -46,7 +52,7 @@ export function Funding() {
   const addableOut = outLinks.filter((l) => !l.inRoster).map((l) => l.address);
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Funding chains</h1>
         <p className="text-sm text-dim mt-1">
@@ -161,6 +167,7 @@ function FundingTable({
                 <th className="px-4 py-2 font-normal">wallet</th>
                 <th className="px-4 py-2 font-normal text-right">total SOL</th>
                 <th className="px-4 py-2 font-normal">transfers</th>
+                <th className="px-4 py-2 font-normal">score</th>
                 <th className="px-4 py-2 font-normal">swaps</th>
                 <th className="px-4 py-2 font-normal">WR</th>
                 <th className="px-4 py-2 font-normal text-right">PnL</th>
@@ -186,6 +193,14 @@ function FundingTable({
                   <td className="px-4 py-2"><Addr address={l.address} /></td>
                   <td className="px-4 py-2 text-right text-bright">{l.totalSol.toLocaleString('en-US')}</td>
                   <td className="px-4 py-2 text-dim">{l.transfers}</td>
+                  <td className="px-4 py-2">
+                    {(() => {
+                      const { na, score } = linkScore(l);
+                      if (na) return <span className="text-dim" title="Bot-flagged — not scored">N/A</span>;
+                      if (score === null) return <span className="text-dim">—</span>;
+                      return <span className={`font-bold ${score >= 50 ? 'text-profit' : score >= 0 ? 'text-ink' : 'text-loss'}`}>{score}</span>;
+                    })()}
+                  </td>
                   <td className="px-4 py-2 text-dim">{l.preview ? l.preview.totalSwaps : '—'}</td>
                   <td className="px-4 py-2">{l.preview ? fmtPct(l.preview.winRate) : '—'}</td>
                   <td className={`px-4 py-2 text-right ${l.preview ? (l.preview.realizedPnlSol >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>

@@ -28,7 +28,7 @@ export function Gems() {
   const hidden = (run?.gems.length ?? 0) - visible.length;
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl">
+    <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-6">
         <div className="flex-1 min-w-0 max-w-xl">
           <h1 className="text-xl font-bold text-bright tracking-wide">Gems</h1>

@@ -60,6 +60,7 @@ export class FundingService {
             lastAt: at,
             inRoster: false,
             preview: null,
+            flags: null,
           });
         }
       }
@@ -78,7 +79,11 @@ export class FundingService {
     for (const l of links) {
       l.inRoster = knownMetrics.has(l.address);
       const stored = knownMetrics.get(l.address);
-      if (stored) l.preview = summarizeMetrics(JSON.parse(stored) as WalletMetrics);
+      if (stored) {
+        const m = JSON.parse(stored) as WalletMetrics;
+        l.preview = summarizeMetrics(m);
+        l.flags = m.flags;
+      }
     }
 
     // quick swap analysis on the top unknown counterparties — the "worth adding" signal

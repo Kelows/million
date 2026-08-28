@@ -68,7 +68,7 @@ export function WalletDetail() {
   const m = wallet.metrics;
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl">
+    <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <Link to="/wallets" className="text-xs text-dim hover:text-ink">← roster</Link>

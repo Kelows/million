@@ -35,7 +35,7 @@ export function Dashboard() {
   const pag = usePagination(top, 10);
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Overview</h1>
         <p className="text-sm text-dim mt-1">Whale roster health at a glance. Stats cover analyzed wallets only.</p>

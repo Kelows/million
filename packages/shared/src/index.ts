@@ -262,6 +262,7 @@ export interface FundingLink {
   lastAt: string; // ISO
   inRoster: boolean;
   preview: FundingPreview | null; // null when beyond the auto-analysis cap or analysis failed
+  flags: WalletFlag[] | null; // from the preview analysis
 }
 
 export interface FundingReport {
