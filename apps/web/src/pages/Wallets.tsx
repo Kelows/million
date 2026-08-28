@@ -448,6 +448,12 @@ export function Wallets() {
           </div>
         )}
       </div>
+
+      <div className="text-xs text-dim">
+        Wondering which of these are actually followable at our latency? The{' '}
+        <Link to="/copyability" className="text-neon hover:underline">copyability lab</Link>{' '}
+        replays their recent trades one candle late and measures how much edge survives.
+      </div>
     </div>
   );
 
