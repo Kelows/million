@@ -101,16 +101,18 @@ export class CopyabilityService {
     const row = await this.prisma.wallet.findUnique({ where: { address }, select: { metrics: true } });
     if (!row?.metrics) return;
     const m = JSON.parse(row.metrics) as WalletMetrics;
+    // size = what the whale actually spent buying (entrySol is REMAINING basis — zero once closed)
+    const sizeSol = (t: (typeof m.tokens)[number]) => t.solIn + (t.usdIn ?? 0) / (m.solPriceUsd ?? 200);
     const candidates = m.tokens
       .filter((t) => !t.open && t.sells > 0 && t.firstBuyAt && t.lastActivityAt && !isExcludedToken(t.mint))
-      .filter((t) => (t.entrySol ?? t.solIn) >= MIN_ENTRY_SOL)
+      .filter((t) => sizeSol(t) >= MIN_ENTRY_SOL)
       .sort((a, b) => (b.lastActivityAt ?? '').localeCompare(a.lastActivityAt ?? ''))
       .slice(0, TOKENS_PER_WALLET);
 
     const tokens: CopyabilityToken[] = [];
     let skipped = 0;
     for (const t of candidates) {
-      const measured = await this.measureToken(t.mint, t.symbol, t.firstBuyAt as string, t.lastActivityAt as string, t.entrySol ?? t.solIn);
+      const measured = await this.measureToken(t.mint, t.symbol, t.firstBuyAt as string, t.lastActivityAt as string, sizeSol(t));
       if (measured) tokens.push(measured);
       else skipped++;
     }
