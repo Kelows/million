@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
 import { isJunkWallet, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
@@ -63,6 +63,10 @@ export class WalletsService {
         this.helius.fetchHistory(address, maxPages),
         this.dexscreener.fetchSolPriceUsd(),
       ]);
+      if (txs.length === 0 && truncated) {
+        // rate-limited into emptiness — an empty 'done' analysis poisons scores silently
+        throw new ServiceUnavailableException('rate limited while fetching history — re-run analysis');
+      }
       const metrics = computeMetrics(address, txs, truncated, solPrice);
       const symbols = await this.tokenMeta.getSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;

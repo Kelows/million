@@ -133,11 +133,15 @@ export class HeliusService {
       url.searchParams.set('limit', '100');
       if (before) url.searchParams.set('before', before);
 
-      const res = await fetch(url);
+      let res = await fetch(url);
       if (res.status === 404) break; // no transaction history for this address
+      // 429: retry with backoff — bursts (deep runs) must not poison analyses with empty data
+      for (let attempt = 0; res.status === 429 && attempt < 3; attempt++) {
+        await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
+        res = await fetch(url);
+      }
       if (res.status === 429) {
-        // rate limited — return what we have rather than failing the whole analysis
-        truncated = true;
+        truncated = true; // still throttled after retries — give up on remaining pages
         break;
       }
       if (!res.ok) {

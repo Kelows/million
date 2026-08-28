@@ -252,7 +252,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             for (const c of clean) {
               if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages) break;
               await this.wallets.import({ wallets: [c.address], source: 'crawler' });
-              await this.wallets.analyze(c.address).catch(() => undefined);
+              await new Promise((r) => setTimeout(r, 400)); // breathe between analyses — bursts trip rate limits
+              await this.wallets.analyze(c.address).catch((e) => say(`  absorb-analyze ${c.address.slice(0, 8)} failed: ${e.message}`));
               credits -= analyzePages;
               stats.walletsAbsorbed++;
               say(`  absorbed ${c.address.slice(0, 8)} (WR ${c.preview?.winRate ?? '?'})`);
