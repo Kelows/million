@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useAnalyzePendingJob, useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useStartAnalyzePending, useWallets } from '../api';
+import { useAnalyzePendingJob, useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useSetSubscribed, useStartAnalyzePending, useWallets } from '../api';
 import { createPortal } from 'react-dom';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
@@ -102,6 +102,7 @@ export function Wallets() {
   const purgeJunk = usePurgeJunk();
   const pendingJob = useAnalyzePendingJob();
   const startPending = useStartAnalyzePending();
+  const setSubscribed = useSetSubscribed();
   const [raw, setRaw] = useState('');
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -498,6 +499,14 @@ export function Wallets() {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
+                        <button
+                          className={`btn mr-2 py-1! px-2! text-[0.6rem]! ${w.subscribed ? 'text-void! bg-neon!' : ''}`}
+                          disabled={setSubscribed.isPending}
+                          title={w.subscribed ? 'Streaming to the Live feed — click to unsubscribe' : 'Stream this wallet to the Live feed'}
+                          onClick={() => setSubscribed.mutate({ address: w.address, subscribed: !w.subscribed })}
+                        >
+                          {w.subscribed ? 'sub ●' : 'sub'}
+                        </button>
                         <button
                           className="btn mr-2 py-1! px-2! text-[0.6rem]!"
                           disabled={!heliusOk || busy}
