@@ -461,12 +461,14 @@ export const OpportunityConfigSchema = z.object({
   haltClearedAt: z.string().nullable().default(null), // manual resume timestamp — closes before it don't count
   minEdgeRetentionPct: z.coerce.number().min(0).max(100).default(60), // skip triggers whose measured copyability is below this (unmeasured pass)
   trailStopPct: z.coerce.number().min(1).max(50).default(15), // asymmetric mirror: winners trail this far off peak instead of exiting flat
+  consensusOwners: z.coerce.number().int().min(0).max(10).default(2), // N distinct owners buying in the live window fires a consensus entry (0 = off)
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
 export interface OpportunityRow {
   id: number;
   kind: 'token' | 'wallet';
+  signal?: 'copy' | 'consensus';
   mint: string | null;
   symbol: string | null;
   wallet: string; // token: the buyer · rotation: the NEW wallet
@@ -494,6 +496,7 @@ export interface MoverToken {
 export interface PaperPositionRow {
   id: number;
   mint: string;
+  signal?: string; // copy | consensus
   symbol: string | null;
   wallet: string | null; // triggering wallet
   sizeSol: number;

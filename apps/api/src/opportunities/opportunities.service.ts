@@ -61,6 +61,7 @@ export class OpportunitiesService {
     return rows.map((r) => ({
       id: r.id,
       kind: (r.kind as OpportunityRow['kind']) ?? 'token',
+      signal: (r.signal as OpportunityRow['signal']) ?? 'copy',
       mint: r.mint,
       symbol: r.symbol,
       wallet: r.wallet,
@@ -104,6 +105,10 @@ export class OpportunitiesService {
     }
     if (isExcludedToken(mint)) return; // majors/stables are never opportunities
 
+    // consensus voting happens BEFORE the per-wallet novelty gates: a top-up or
+    // repeat buy can't fire a direct copy, but it still counts toward breadth
+    await this.tryConsensus(mint, wallet, buySol, ts, config).catch(() => undefined);
+
     // recency: must be NEW for this wallet — no prior live buy, not in its analyzed history
     const priorLive = await this.prisma.liveEvent.findFirst({
       where: { wallet, mint, kind: 'buy', id: { lt: eventId } },
@@ -126,7 +131,40 @@ export class OpportunitiesService {
       if (m.tokens.some((t) => t.mint === mint && t.open)) return;
     }
 
-    // dedupe: one opportunity per token per hour, whoever triggers it
+    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd);
+  }
+
+  /**
+   * Consensus entries: cyclers and top-ups can't fire direct copies, but their
+   * buys still VOTE. N distinct owners (cluster-deduped) buying ≥ minBuySol
+   * inside the live window is breadth no single wallet can fake — that's a
+   * signal in its own right, labeled so expectancy splits by entry logic.
+   */
+  private async tryConsensus(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<void> {
+    if (config.consensusOwners < 1) return;
+    const buys = await this.prisma.liveEvent.findMany({
+      where: { mint, kind: 'buy' },
+      select: { wallet: true, sol: true },
+    });
+    const voters = [...new Set(buys.filter((b) => Math.abs(b.sol ?? 0) >= config.minBuySol).map((b) => b.wallet))];
+    if (voters.length < config.consensusOwners) return;
+    const rows = await this.prisma.wallet.findMany({ where: { address: { in: voters } }, select: { address: true, ownerId: true } });
+    const owners = new Set(rows.map((r) => (r.ownerId != null ? `o${r.ownerId}` : r.address)));
+    if (owners.size < config.consensusOwners) return;
+    await this.fire(mint, wallet, buySol, ts, 'consensus', config, null);
+  }
+
+  /** Shared trigger tail: hourly mint dedupe → gauntlet → opportunity row → paper trade. */
+  private async fire(
+    mint: string,
+    wallet: string,
+    buySol: number,
+    ts: Date,
+    signal: 'copy' | 'consensus',
+    config: OpportunityConfig,
+    whalePriceUsd: number | null,
+  ): Promise<void> {
+    // dedupe: one opportunity per token per hour, whoever (and whichever signal) triggers it
     const recent = await this.prisma.opportunity.findFirst({
       where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_MINUTES * 60_000) } },
       select: { id: true },
@@ -142,10 +180,10 @@ export class OpportunitiesService {
     if (!allowed) return;
 
     await this.prisma.opportunity.create({
-      data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts },
+      data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts, signal },
     });
     this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
-    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol).catch(() => undefined);
+    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol, signal).catch(() => undefined);
   }
 }

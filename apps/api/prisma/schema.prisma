@@ -91,6 +91,7 @@ model Opportunity {
   createdAt DateTime @default(now())
 
   @@index([mint, createdAt])
+  signal        String    @default("copy") // copy = one whale's entry · consensus = N distinct owners in the window
 }
 
 model OpportunityConfig {
@@ -128,4 +129,5 @@ model PaperPosition {
 
   @@index([status])
   peakPriceUsd      Float? // set when a whale exit arms the trailing stop on a winner
+  signal            String   @default("copy") // which entry logic opened this — expectancy splits by it
 }

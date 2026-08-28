@@ -115,6 +115,9 @@ export function Opportunities() {
             {pag.rows.map((o) => (
                 <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
                   <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
+                  {o.signal === 'consensus' && (
+                    <span className="text-warn border border-warn/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="fired by owner breadth, not a single wallet's entry">CONSENSUS</span>
+                  )}
                   <span className="inline-flex items-center gap-2">
                     <Link to="/tokens/$mint" params={{ mint: o.mint! }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
                     {o.symbol && o.mint && <TokenName mint={o.mint} symbol={o.symbol} />}
@@ -194,6 +197,10 @@ export function Opportunities() {
             <label className="flex items-center justify-between gap-4 text-sm max-w-sm">
               <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
               <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Consensus owners (0 = off)<Info text="N distinct owners (clustered wallets count once) buying ≥ the min buy inside the live window fires a CONSENSUS entry — breadth no single wallet can fake. Cyclers and top-ups can't fire direct copies but still vote. Same gauntlet, own label in the book so expectancy splits by entry logic." /></span>
+              <input type="number" min={0} max={10} step={1} value={config.consensusOwners} onChange={(e) => setConfig({ ...config, consensusOwners: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
               <span className="text-dim">Min trigger copyability %<Info text="Skip signals from wallets whose measured edge retention is below this. Unmeasured wallets pass — run Copyability on the subscribed set to grow coverage." /></span>

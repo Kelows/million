@@ -49,6 +49,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     wallet: string,
     whaleEntryPriceUsd: number | null = null,
     whaleBuySol: number | null = null,
+    signal: string = 'copy',
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
@@ -114,9 +115,9 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     const fill = await this.executor.buy(mint, sizeSol);
     if (!fill) return;
     await this.prisma.paperPosition.create({
-      data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd },
+      data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal },
     });
-    this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode });
+    this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode, signal });
   }
 
   /** Mirror exits: the wallet that triggered the position just sold this mint. */
@@ -299,6 +300,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         mint: p.mint,
         symbol: p.symbol,
         wallet: p.wallet,
+        signal: p.signal,
         sizeSol: p.sizeSol,
         entryPriceUsd: p.entryPriceUsd,
         openedAt: p.openedAt.toISOString(),
