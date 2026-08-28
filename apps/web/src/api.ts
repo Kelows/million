@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { WalletImport, WalletRecord } from '@million/shared';
 
@@ -245,7 +246,7 @@ export function useLiveEvents(limit = 100) {
   return useQuery({
     queryKey: ['live-events', limit],
     queryFn: () => request<LiveEventRow[]>(`/live/events?limit=${limit}`),
-    refetchInterval: 5_000,
+    refetchInterval: 60_000, // backstop — SSE invalidates instantly
   });
 }
 
@@ -267,7 +268,7 @@ export function useOpportunities() {
   return useQuery({
     queryKey: ['opportunities'],
     queryFn: () => request<OpportunityRow[]>('/opportunities'),
-    refetchInterval: 5_000,
+    refetchInterval: 60_000, // backstop — SSE invalidates instantly
   });
 }
 
@@ -333,4 +334,32 @@ export function useClosePosition() {
     mutationFn: (id: number) => request<{ closed: number }>(`/trading/${id}/close`, { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['trading'] }),
   });
+}
+
+/** One SSE connection for the whole app: backend events instantly invalidate
+ * the matching queries — polling intervals become slow backstops. */
+export function useEventStream() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    const es = new EventSource('/api/live/stream');
+    es.onmessage = (msg) => {
+      try {
+        const { type } = JSON.parse(msg.data) as { type: string };
+        if (type === 'live_event') {
+          qc.invalidateQueries({ queryKey: ['live-events'] });
+          qc.invalidateQueries({ queryKey: ['live-status'] });
+        } else if (type === 'opportunity') {
+          qc.invalidateQueries({ queryKey: ['opportunities'] });
+          qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets
+        } else if (type === 'paper_trade') {
+          qc.invalidateQueries({ queryKey: ['trading'] });
+        } else if (type === 'crawler_run') {
+          qc.invalidateQueries({ queryKey: ['crawler'] });
+        }
+      } catch {
+        /* malformed frame — ignore */
+      }
+    };
+    return () => es.close();
+  }, [qc]);
 }

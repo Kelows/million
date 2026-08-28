@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Query, Sse, UnauthorizedException } from '@nestjs/common';
+import { map } from 'rxjs';
+import { EventsBus } from '../common/events.bus';
 import { ConfigService } from '@nestjs/config';
 import type { HeliusTx } from '../analysis/helius.service';
 import { z } from 'zod';
@@ -15,11 +17,18 @@ export class LiveController {
     private readonly live: LiveFeedService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly bus: EventsBus,
   ) {}
 
   @Get('status')
   status() {
     return this.live.status();
+  }
+
+  /** Server-sent events: the UI learns about new happenings instantly instead of polling. */
+  @Sse('stream')
+  stream() {
+    return this.bus.stream.pipe(map((e) => ({ data: e })));
   }
 
   @Post('webhook')

@@ -11,8 +11,9 @@ import { CrawlerModule } from './crawler/crawler.module';
 import { LiveModule } from './live/live.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
 import { TradingModule } from './trading/trading.module';
+import { EventsBusModule } from './common/events.bus';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), EventsBusModule, WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule],
 })
 export class AppModule {}

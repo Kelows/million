@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma.service';
 import { TokenCheckService } from '../screener/token-check.service';
 import { TradingService } from '../trading/trading.service';
 import { HeliusService } from '../analysis/helius.service';
+import { EventsBus } from '../common/events.bus';
 
 const DEDUPE_HOURS = 24;
 
@@ -28,6 +29,7 @@ export class OpportunitiesService {
     private readonly tokenCheck: TokenCheckService,
     private readonly trading: TradingService,
     private readonly helius: HeliusService,
+    private readonly bus: EventsBus,
   ) {}
 
   async getConfig(): Promise<OpportunityConfig> {
@@ -83,6 +85,7 @@ export class OpportunitiesService {
     await this.prisma.opportunity.create({
       data: { kind: 'wallet', mint: null, wallet: recipient, funder, verdict: 'unknown', buySol: Math.round(fundedSol * 100) / 100, ts },
     }).catch(() => undefined);
+    this.bus.emit('opportunity');
   }
 
   /** Called by the live feed for every ingested buy. Cheap checks first, gauntlet last. */
@@ -121,6 +124,7 @@ export class OpportunitiesService {
     await this.prisma.opportunity.create({
       data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts },
     });
+    this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
     void this.trading.openFromOpportunity(mint, report.symbol, wallet).catch(() => undefined);
   }

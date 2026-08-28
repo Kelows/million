@@ -1,5 +1,5 @@
 import { Link, Outlet } from '@tanstack/react-router';
-import { useHealth, useWallets } from '../api';
+import { useEventStream, useHealth, useWallets } from '../api';
 
 const NAV = [
   {
@@ -31,6 +31,7 @@ const NAV = [
 ];
 
 export function Shell() {
+  useEventStream(); // push, not poll
   const health = useHealth();
   const wallets = useWallets();
   const uplink = health.data?.ok ?? false;
