@@ -190,6 +190,14 @@ export function Opportunities() {
               <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
               <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
             </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-dim">Halt after consecutive losses</span>
+              <input type="number" min={1} max={50} step={1} value={config.maxConsecutiveLosses} onChange={(e) => setConfig({ ...config, maxConsecutiveLosses: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-dim">Weekly loss halt (% of bankroll)</span>
+              <input type="number" min={1} max={100} step={1} value={config.weeklyLossLimitPct} onChange={(e) => setConfig({ ...config, weeklyLossLimitPct: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
             <div className="flex items-center gap-2 mt-3 text-sm">
               <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
               {(['rules', 'mirror'] as const).map((mode) => (

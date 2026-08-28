@@ -455,6 +455,10 @@ export const OpportunityConfigSchema = z.object({
   maxTotalExposureSol: z.coerce.number().nonnegative().default(1), // portfolio cap across open positions // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
   followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub
   minFundSol: z.coerce.number().nonnegative().default(1),
+  // circuit breakers — the book-level brakes the per-position caps can't provide
+  maxConsecutiveLosses: z.coerce.number().int().min(1).max(50).default(5), // halt after this many losses in a row
+  weeklyLossLimitPct: z.coerce.number().min(1).max(100).default(35), // halt when 7-day realized PnL < -this % of bankroll
+  haltClearedAt: z.string().nullable().default(null), // manual resume timestamp — closes before it don't count
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
@@ -574,4 +578,11 @@ export interface FamousTokenRow {
 export interface FamousTokens {
   held: FamousTokenRow[]; // open positions right now — the roster's live consensus
   earned: FamousTokenRow[]; // realized PnL leaders — where the roster actually printed
+}
+
+export interface TradingHalt {
+  halted: boolean;
+  reason: string | null;
+  consecutiveLosses: number;
+  weeklyPnlSol: number; // realized over the rolling 7 days (since last resume)
 }

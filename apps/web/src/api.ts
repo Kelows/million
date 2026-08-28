@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, WalletImport, WalletRecord } from '@million/shared';
+import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -326,6 +326,7 @@ export interface TradingOverview {
   stats: TradingStats;
   open: PaperPositionRow[];
   closed: PaperPositionRow[];
+  halt: TradingHalt;
 }
 
 export function useTrading() {
@@ -469,4 +470,15 @@ export function useRunCopyability() {
 
 export function useFamousTokens() {
   return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous') });
+}
+
+export function useResumeTrading() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<TradingHalt>('/trading/resume', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trading'] });
+      qc.invalidateQueries({ queryKey: ['opportunity-config'] });
+    },
+  });
 }

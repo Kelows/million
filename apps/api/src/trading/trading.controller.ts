@@ -10,6 +10,12 @@ export class TradingController {
     return this.trading.overview();
   }
 
+  @Post('resume')
+  @HttpCode(200)
+  resume() {
+    return this.trading.resume();
+  }
+
   @Post(':id/close')
   @HttpCode(200)
   async close(@Param('id', ParseIntPipe) id: number) {

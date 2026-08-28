@@ -141,7 +141,10 @@ function TradingPanel() {
   return (
     <div className="panel">
       <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-        <span className="eyebrow">Positions</span>
+        <span className="eyebrow">
+          Positions
+          {data?.halt?.halted && <span className="ml-2 text-loss font-bold">— HALTED: {data.halt.reason}</span>}
+        </span>
         <Link to="/executor" className="text-xs text-neon hover:underline">all trades →</Link>
       </div>
       <div className="px-4 pb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">

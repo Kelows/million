@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingStats } from '@million/shared';
+import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingHalt, type TradingStats } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
@@ -46,6 +46,11 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
+    const halt = await this.haltState(config);
+    if (halt.halted) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: CIRCUIT BREAKER — ${halt.reason}`);
+      return;
+    }
     // conviction sizing, three flavors:
     //  fixed      — every position the same size
     //  whale-pct  — % of the whale's raw entry (unnormalized)
@@ -158,7 +163,49 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     await this.closeWithFill(p.id, p.mint, p.sizeSol, 'manual');
   }
 
-  async overview(): Promise<{ stats: TradingStats; open: PaperPositionRow[]; closed: PaperPositionRow[] }> {
+  /**
+   * Book-level circuit breakers, computed fresh from closed positions so there
+   * is no stored flag to drift: a loss streak since the last manual resume, or
+   * a rolling-week drawdown beyond the configured share of bankroll.
+   */
+  async haltState(config?: OpportunityConfig): Promise<TradingHalt> {
+    const cfg = config ?? (await this.config());
+    const cleared = cfg.haltClearedAt ? new Date(cfg.haltClearedAt) : new Date(0);
+    const closes = await this.prisma.paperPosition.findMany({
+      where: { status: 'closed', closedAt: { gt: cleared } },
+      orderBy: { closedAt: 'desc' },
+      select: { pnlSol: true, closedAt: true },
+      take: 500,
+    });
+    let consecutiveLosses = 0;
+    for (const p of closes) {
+      if ((p.pnlSol ?? 0) >= 0) break;
+      consecutiveLosses++;
+    }
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const weeklyPnlSol = closes
+      .filter((p) => (p.closedAt?.getTime() ?? 0) > weekAgo)
+      .reduce((sum, p) => sum + (p.pnlSol ?? 0), 0);
+    const weeklyLimitSol = (cfg.bankrollSol * cfg.weeklyLossLimitPct) / 100;
+    const reason =
+      consecutiveLosses >= cfg.maxConsecutiveLosses
+        ? `${consecutiveLosses} losses in a row (limit ${cfg.maxConsecutiveLosses})`
+        : weeklyPnlSol <= -weeklyLimitSol
+          ? `7-day realized ${weeklyPnlSol.toFixed(2)} ◎ breaches -${cfg.weeklyLossLimitPct}% of ${cfg.bankrollSol} ◎ bankroll`
+          : null;
+    return { halted: reason !== null, reason, consecutiveLosses, weeklyPnlSol: Math.round(weeklyPnlSol * 1000) / 1000 };
+  }
+
+  /** Manual resume: closes before now stop counting toward either breaker. */
+  async resume(): Promise<TradingHalt> {
+    const row = await this.prisma.opportunityConfig.findUnique({ where: { id: 1 } });
+    const cfg = OpportunityConfigSchema.parse(row ? JSON.parse(row.data) : {});
+    const data = JSON.stringify({ ...cfg, haltClearedAt: new Date().toISOString() });
+    await this.prisma.opportunityConfig.upsert({ where: { id: 1 }, create: { id: 1, data }, update: { data } });
+    return this.haltState();
+  }
+
+  async overview(): Promise<{ stats: TradingStats; open: PaperPositionRow[]; closed: PaperPositionRow[]; halt: TradingHalt }> {
     const rows = await this.prisma.paperPosition.findMany({ orderBy: { id: 'desc' }, take: 300 });
     const open: PaperPositionRow[] = [];
     const closed: PaperPositionRow[] = [];
@@ -189,7 +236,9 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     const wins = closed.filter((c) => (c.pnlSol ?? 0) > 0).length;
     const totalPnlSol = closed.reduce((s, c) => s + (c.pnlSol ?? 0), 0);
     const avgPnlPct = closed.length ? closed.reduce((s, c) => s + (c.pnlPct ?? 0), 0) / closed.length : null;
+    const halt = await this.haltState();
     return {
+      halt,
       stats: {
         mode: this.executor.mode,
         openCount: open.length,

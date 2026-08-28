@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { PaperPositionRow } from '@million/shared';
-import { useClosePosition, useTrading } from '../api';
+import { useClosePosition, useResumeTrading, useTrading } from '../api';
 import { Addr } from '../components/Addr';
 import { TokenName } from '../components/TokenName';
 import { StatTile } from '../components/StatTile';
@@ -11,7 +11,9 @@ const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss
 export function Executor() {
   const { data } = useTrading();
   const close = useClosePosition();
+  const resume = useResumeTrading();
   const s = data?.stats;
+  const halt = data?.halt;
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,6 +29,20 @@ export function Executor() {
           {(s?.mode ?? 'paper').toUpperCase()} MODE
         </span>
       </div>
+
+      {halt?.halted && (
+        <div className="panel p-4 border border-loss flex items-center justify-between gap-4">
+          <div>
+            <div className="text-loss font-bold tracking-widest text-xs font-mono">CIRCUIT BREAKER — TRADING HALTED</div>
+            <p className="text-sm text-dim mt-1">
+              {halt.reason}. No new positions open until you resume; open positions keep their exits.
+            </p>
+          </div>
+          <button className="btn shrink-0" onClick={() => resume.mutate()} disabled={resume.isPending}>
+            Resume trading
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatTile
