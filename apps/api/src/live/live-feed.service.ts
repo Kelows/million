@@ -157,13 +157,22 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       }
     };
 
+    let failed = false; // onerror -> close() can re-fire error in undici: guard the loop
     ws.onmessage = (event) => void this.onMessage(String(event.data));
     ws.onclose = () => {
       if (this.closed) return;
       setTimeout(() => this.connect(), this.reconnectDelay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, 60_000);
     };
-    ws.onerror = () => ws.close();
+    ws.onerror = () => {
+      if (failed) return;
+      failed = true;
+      try {
+        ws.close();
+      } catch {
+        /* already closing */
+      }
+    };
   }
 
   private async onMessage(raw: string) {
