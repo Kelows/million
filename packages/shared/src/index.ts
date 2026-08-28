@@ -368,7 +368,7 @@ export const CrawlerConfigSchema = z.object({
     .refine((s) => s.wallets || s.tokens, 'at least one source must be enabled')
     .default({ wallets: true, tokens: true }),
   intervalMinutes: z.coerce.number().min(5).max(1440).default(30),
-  creditsPerIteration: z.coerce.number().min(10).max(5000).default(600), // ~1 credit per fetched page/check
+  creditsPerIteration: z.coerce.number().min(10).max(50_000).default(8_000), // REAL Helius credits — enhanced calls bill 10 each
   maxTokensChecked: z.coerce.number().min(1).max(200).default(80),
   maxWalletsAbsorbed: z.coerce.number().min(0).max(200).default(50),
   maxWalletsReanalyzed: z.coerce.number().min(0).max(200).default(40),
@@ -377,7 +377,7 @@ export const CrawlerConfigSchema = z.object({
   deepScanNewGems: z.boolean().default(true), // first sighting of a safety-clean gem = whole-life buyer scan
   deepScanBuckets: z.coerce.number().min(12).max(96).default(48),
   minWhaleScore: z.coerce.number().min(-100).max(200).default(40), // absorb every clean buyer at or above this, not just the best
-  deepRunCredits: z.coerce.number().min(100).max(50_000).default(3_000), // a deep run chains iterations until this total is spent
+  deepRunCredits: z.coerce.number().min(100).max(500_000).default(60_000), // a deep run chains iterations until this total is spent (real credits)
   minOpenSol: z.coerce.number().nonnegative().default(DEFAULT_MIN_OPEN_SOL),
   thresholds: TokenCheckThresholdsSchema.default(TokenCheckThresholdsSchema.parse({})),
 });
