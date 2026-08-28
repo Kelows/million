@@ -100,7 +100,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       if (this.edgeDead) this.recoverWebhook();
       return; // events flowing — delivery is alive by definition
     }
-    const ok = await fetch(`${this.env.get<string>('WEBHOOK_URL')}/api/live/status`, { signal: AbortSignal.timeout(10_000) })
+    const ok = await fetch(`${this.env.get<string>('WEBHOOK_URL')}/api/live/webhook`, { signal: AbortSignal.timeout(10_000) })
       .then((r) => r.ok)
       .catch(() => false);
     if (ok) {

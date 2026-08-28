@@ -31,6 +31,12 @@ export class LiveController {
     return this.bus.stream.pipe(map((e) => ({ data: e })));
   }
 
+  /** Deadman probe target — proves edge→tunnel→app delivery without exposing anything. */
+  @Get('webhook')
+  webhookProbe() {
+    return { ok: true };
+  }
+
   @Post('webhook')
   @HttpCode(200)
   async webhook(@Headers('authorization') auth: string | undefined, @Body() payload: unknown) {

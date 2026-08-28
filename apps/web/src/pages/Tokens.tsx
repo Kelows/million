@@ -240,18 +240,65 @@ function FamousTable({ title, hint, rows, solLabel, pnlTone }: { title: string; 
   );
 }
 
+const HELD_COLUMNS: SortColumn<FamousTokenRow>[] = [
+  { key: 'token', get: (r) => r.symbol },
+  { key: 'owners', get: (r) => r.owners },
+  { key: 'entry', get: (r) => r.sol },
+  { key: 'realized', get: (r) => r.realizedSol ?? null },
+  { key: 'score', get: (r) => r.score ?? null },
+];
+
+function HeldTable({ rows }: { rows: FamousTokenRow[] }) {
+  const sort = useTableSort(rows, HELD_COLUMNS, 'score');
+  return (
+    <div className="panel">
+      <div className="px-4 pt-4 pb-2 eyebrow">Held across the roster</div>
+      {rows.length === 0 ? (
+        <p className="px-4 pb-4 text-sm text-dim">Nothing yet — appears as wallet analyses accumulate.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead>
+              <tr className="text-dim text-xs">
+                <SortHeader label="token" colKey="token" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                <SortHeader label="owners" colKey="owners" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="entry ◎" colKey="entry" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="realized ◎" colKey="realized" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="score" colKey="score" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right
+                  hint="Conviction: owners × √entry, discounted by profit the roster already took here. High = broadly held and still fresh — positioned, not yet milked. Low despite big holdings = the echo bag of a play that already paid." />
+              </tr>
+            </thead>
+            <tbody>
+              {sort.sorted.map((r) => (
+                <tr key={r.mint} className="border-t border-line hover:bg-deck2">
+                  <td className="px-4 py-2">
+                    <Link to="/tokens/$mint" params={{ mint: r.mint }} className="text-neon hover:underline">
+                      <TokenName mint={r.mint} symbol={r.symbol} />
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
+                  <td className="px-4 py-2 text-right text-bright">{r.sol}</td>
+                  <td className={`px-4 py-2 text-right ${(r.realizedSol ?? 0) > 0 ? 'text-profit' : 'text-dim'}`}>{(r.realizedSol ?? 0) > 0 ? '+' : ''}{r.realizedSol ?? 0}</td>
+                  <td className="px-4 py-2 text-right text-bright font-bold">{r.score ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="px-4 py-3 text-xs text-dim">
+        Open positions ≥ 0.5 ◎ at cost, distinct owners, infra excluded. Sorted by conviction: heavily held AND not yet cashed out ranks first.
+      </p>
+    </div>
+  );
+}
+
 function FamousPanel() {
   const { data } = useFamousTokens();
   if (!data || (data.held.length === 0 && data.earned.length === 0)) return null;
   return (
     <div className="grid lg:grid-cols-2 gap-4">
-      <FamousTable
-        title="Held across the roster"
-        hint="Distinct owners with an open position ≥ 0.5 ◎ at cost — clustered wallets count once, infra excluded. The roster's live consensus."
-        rows={data.held}
-        solLabel="entry ◎"
-        pnlTone={false}
-      />
+      <HeldTable rows={data.held} />
       <FamousTable
         title="Where the roster printed"
         hint="Realized PnL summed across owners that closed trades here. History, not a signal — but it shows which hunting grounds actually paid."

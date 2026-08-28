@@ -169,8 +169,20 @@ export class TokensService {
       }
     }
     const strip = (r: FamousTokenRow & { keys: Set<string> }): FamousTokenRow => ({ mint: r.mint, symbol: r.symbol, owners: r.owners, sol: Math.round(r.sol * 100) / 100 });
+    // conviction score: breadth × size, discounted by profit already taken — a mint
+    // the roster is sitting on scores high; a mint it already milked scores low even
+    // if stragglers still hold. entryShare = fresh entry / (entry + banked profit).
+    const scored = [...held.values()].map((r) => {
+      const realized = Math.max(0, earned.get(r.mint)?.sol ?? 0);
+      const entryShare = r.sol / (r.sol + realized || 1);
+      return {
+        ...strip(r),
+        realizedSol: Math.round((earned.get(r.mint)?.sol ?? 0) * 100) / 100,
+        score: Math.round(r.owners * Math.sqrt(r.sol) * entryShare * 10) / 10,
+      };
+    });
     return {
-      held: [...held.values()].sort((a, b) => b.owners - a.owners || b.sol - a.sol).slice(0, 15).map(strip),
+      held: scored.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 20),
       earned: [...earned.values()].sort((a, b) => b.sol - a.sol).slice(0, 15).map(strip),
     };
   }

@@ -573,6 +573,8 @@ export interface FamousTokenRow {
   symbol: string | null;
   owners: number; // distinct owners (clustered wallets count once)
   sol: number; // held: open entry SOL at cost · earned: realized PnL SOL
+  realizedSol?: number; // held rows: what the roster ALREADY took off this mint
+  score?: number; // held rows: conviction — owners × √entry, discounted by profit already taken
 }
 
 export interface FamousTokens {
