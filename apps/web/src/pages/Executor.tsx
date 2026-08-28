@@ -48,7 +48,7 @@ export function Executor() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <StatTile
           label="Expectancy / trade"
           value={s?.expectancySolPerTrade !== null && s?.expectancySolPerTrade !== undefined ? `${s.expectancySolPerTrade > 0 ? '+' : ''}${s.expectancySolPerTrade} ◎` : '—'}
@@ -60,15 +60,36 @@ export function Executor() {
         <StatTile label="Win rate" value={s?.winRate != null ? `${Math.round(s.winRate * 100)}%` : '—'} sub={`${s?.wins ?? 0} wins`} />
         <StatTile label="Avg trade" value={s?.avgPnlPct != null ? `${s.avgPnlPct > 0 ? '+' : ''}${s.avgPnlPct}%` : '—'} sub="mean closed PnL %" />
         <StatTile label="Open" value={String(s?.openCount ?? 0)} sub="positions being monitored" />
+        {(() => {
+          const open = data?.open ?? [];
+          const pnl = Math.round(open.reduce((sum, p) => sum + (p.unrealizedPct != null ? (p.sizeSol * p.unrealizedPct) / 100 : 0), 0) * 1000) / 1000;
+          return (
+            <StatTile
+              label="Open PnL"
+              value={open.length ? `${pnl > 0 ? '+' : ''}${pnl} ◎` : '—'}
+              sub="unrealized, mark to market"
+              tone={pnl > 0 ? 'profit' : pnl < 0 ? 'loss' : 'default'}
+            />
+          );
+        })()}
       </div>
 
+      {(data?.open.length ?? 0) === 0 && (data?.closed.length ?? 0) === 0 && (
+        <div className="panel p-10 text-center">
+          <div className="text-bright font-semibold text-lg">The book is empty</div>
+          <p className="text-sm text-dim mt-2 mb-5 max-w-md mx-auto">
+            Positions open themselves when a subscribed whale enters something that clears the gauntlet.
+            More subs, more signal.
+          </p>
+          <span className="flex items-center justify-center gap-3">
+            <Link to="/wallets" className="btn inline-block">Sub wallets</Link>
+            <Link to="/opportunities" className="text-neon text-sm hover:underline">tune the gates →</Link>
+          </span>
+        </div>
+      )}
+
       <PositionsTable
-        title={(() => {
-          const open = data?.open ?? [];
-          const pnl = open.reduce((sum, p) => sum + (p.unrealizedPct != null ? (p.sizeSol * p.unrealizedPct) / 100 : 0), 0);
-          const r = Math.round(pnl * 1000) / 1000;
-          return `Open · ${open.length} · ${r > 0 ? '+' : ''}${r} ◎ unrealized`;
-        })()}
+        title={`Open · ${data?.open.length ?? 0}`}
         rows={data?.open ?? []}
         empty="No open positions — they open automatically when opportunities fire."
         onClose={(id) => close.mutate(id)}

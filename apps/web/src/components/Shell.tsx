@@ -7,6 +7,7 @@ const NAV = [
     section: 'Intel',
     links: [
       { to: '/', label: 'Overview' },
+      { to: '/executor', label: 'Trading' },
       { to: '/wallets', label: 'Wallets' },
       { to: '/tokens', label: 'Tokens' },
       { to: '/opportunities', label: 'Opportunities' },
@@ -26,7 +27,6 @@ const NAV = [
     section: 'Ops',
     links: [
       { to: '/crawler', label: 'Crawler' },
-      { to: '/executor', label: 'Trading' },
       { to: '/screener', label: 'Screener' },
     ],
   },

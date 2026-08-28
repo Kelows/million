@@ -131,7 +131,10 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const dayAgo = new Date(Date.now() - 86_400_000);
     return {
       ingestion: this.webhookMode ? (this.edgeDead ? ('webhook-fallback' as const) : ('webhook' as const)) : ('websocket' as const),
-      connected: this.webhookMode && !this.edgeDead ? this.webhookSynced : this.ws?.readyState === WebSocket.OPEN,
+      connected:
+        this.webhookMode && !this.edgeDead
+          ? this.webhookSynced || (this.lastEventAt !== null && Date.now() - this.lastEventAt.getTime() < 10 * 60_000) // a failed sync PUT with events still flowing is not "down"
+          : this.ws?.readyState === WebSocket.OPEN,
       subscribedWallets,
       activeSubscriptions: this.subBySubId.size,
       maxSubscriptions: MAX_SUBSCRIPTIONS,

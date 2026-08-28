@@ -120,6 +120,7 @@ export class OpportunitiesService {
     }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
+      if ((m.flags ?? []).includes('BOT_INFRA')) return; // infra "buys" are inventory moves, never signal
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
       if (m.tokens.some((t) => t.mint === mint && t.open)) return;
