@@ -1,5 +1,6 @@
 import { Link, Outlet } from '@tanstack/react-router';
 import { useEventStream, useHealth, useLiveStatus, useTrading, useWallets } from '../api';
+import { TradeToasts } from './TradeToasts';
 
 const NAV = [
   {
@@ -98,7 +99,7 @@ export function Shell() {
           {/* the live book, everywhere: open PnL marks to market on every push/poll */}
           <span className="ml-auto flex items-center gap-4 [font-variant-numeric:tabular-nums]">
             {stats && stats.openCount > 0 && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-3">
                 <span className="text-dim">OPEN {stats.openCount}</span>
                 <span className={`font-bold ${openPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {openPnl >= 0 ? '▲' : '▼'} {openPnl >= 0 ? '+' : ''}{(Math.round(openPnl * 1000) / 1000).toFixed(3)} ◎
@@ -142,6 +143,7 @@ export function Shell() {
             ⚠ WEBSOCKET FALLBACK — only {live.data.activeSubscriptions}/{live.data.subscribedWallets} subscribed wallets are streaming (cap {live.data.maxSubscriptions}). Restore the webhook (tunnel pane) for full coverage.
           </div>
         )}
+        <TradeToasts />
         <main className="p-6 flex-1 min-w-0">
           <div className="w-full max-w-[1600px]">
             <Outlet />

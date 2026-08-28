@@ -349,7 +349,7 @@ export function useEventStream() {
     const es = new EventSource('/api/live/stream');
     es.onmessage = (msg) => {
       try {
-        const { type } = JSON.parse(msg.data) as { type: string };
+        const { type, data } = JSON.parse(msg.data) as { type: string; data?: unknown };
         if (type === 'live_event') {
           qc.invalidateQueries({ queryKey: ['live-events'] });
           qc.invalidateQueries({ queryKey: ['live-status'] });
@@ -359,6 +359,7 @@ export function useEventStream() {
           qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets
         } else if (type === 'paper_trade') {
           qc.invalidateQueries({ queryKey: ['trading'] });
+          if (data) window.dispatchEvent(new CustomEvent('trade-toast', { detail: data }));
         } else if (type === 'crawler_run') {
           qc.invalidateQueries({ queryKey: ['crawler'] });
         } else if (type === 'wallet_analyzed') {

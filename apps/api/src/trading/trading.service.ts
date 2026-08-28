@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } 
 import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingHalt, type TradingStats } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
+import { EventsBus } from '../common/events.bus';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
 const TICK_MS = 60_000;
@@ -21,6 +22,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     @Inject(TRADE_EXECUTOR) private readonly executor: TradeExecutor,
     private readonly helius: HeliusService,
+    private readonly bus: EventsBus,
   ) {}
 
   onModuleInit() {
@@ -105,6 +107,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.paperPosition.create({
       data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd },
     });
+    this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode });
   }
 
   /** Mirror exits: the wallet that triggered the position just sold this mint. */
@@ -161,6 +164,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         pnlPct: Math.round(pnlPct * 100) / 100,
         pnlSol: Math.round(p.sizeSol * (pnlPct / 100) * 1000) / 1000,
       },
+    });
+    this.bus.emit('paper_trade', {
+      kind: 'closed',
+      symbol: p.symbol,
+      mint: p.mint,
+      sizeSol: p.sizeSol,
+      pnlSol: Math.round(p.sizeSol * (pnlPct / 100) * 1000) / 1000,
+      pnlPct: Math.round(pnlPct * 100) / 100,
+      reason,
+      mode: this.executor.mode,
     });
   }
 
