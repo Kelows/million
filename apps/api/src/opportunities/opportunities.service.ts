@@ -9,6 +9,7 @@ import {
 } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { TokenCheckService } from '../screener/token-check.service';
+import { TradingService } from '../trading/trading.service';
 
 const DEDUPE_HOURS = 24;
 
@@ -24,6 +25,7 @@ export class OpportunitiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenCheck: TokenCheckService,
+    private readonly trading: TradingService,
   ) {}
 
   async getConfig(): Promise<OpportunityConfig> {
@@ -95,5 +97,7 @@ export class OpportunitiesService {
     await this.prisma.opportunity.create({
       data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts },
     });
+    // every opportunity is also a (paper) trade — this is where expectancy data comes from
+    void this.trading.openFromOpportunity(mint, report.symbol, wallet).catch(() => undefined);
   }
 }

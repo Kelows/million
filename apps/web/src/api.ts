@@ -309,3 +309,23 @@ export function useSubscribeOwner() {
     },
   });
 }
+
+import type { PaperPositionRow, TradingStats } from '@million/shared';
+
+export interface TradingOverview {
+  stats: TradingStats;
+  open: PaperPositionRow[];
+  closed: PaperPositionRow[];
+}
+
+export function useTrading() {
+  return useQuery({ queryKey: ['trading'], queryFn: () => request<TradingOverview>('/trading'), refetchInterval: 30_000 });
+}
+
+export function useClosePosition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request<{ closed: number }>(`/trading/${id}/close`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trading'] }),
+  });
+}

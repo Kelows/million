@@ -435,6 +435,10 @@ export const OpportunityConfigSchema = z.object({
   takeProfitPct: z.coerce.number().min(1).default(100),
   stopLossPct: z.coerce.number().min(1).max(100).default(50),
   autoTrade: z.boolean().default(false), // locked until paper stats prove expectancy
+  paperEnabled: z.boolean().default(true), // every opportunity opens a simulated position
+  slippagePct: z.coerce.number().min(0).max(50).default(2), // assumed cost per side
+  maxHoldHours: z.coerce.number().min(1).max(720).default(48), // timeout exit
+  maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
@@ -458,4 +462,36 @@ export interface MoverToken {
   marketCapUsd: number;
   volumeH24Usd: number;
   alreadyTracked: boolean;
+}
+
+// ── paper trading ─────────────────────────────────────────────────────────────
+
+export interface PaperPositionRow {
+  id: number;
+  mint: string;
+  symbol: string | null;
+  wallet: string | null; // triggering wallet
+  sizeSol: number;
+  entryPriceUsd: number;
+  openedAt: string;
+  status: 'open' | 'closed';
+  currentPriceUsd?: number | null; // open positions only
+  unrealizedPct?: number | null;
+  exitPriceUsd: number | null;
+  exitReason: string | null; // tp | sl | timeout | manual
+  closedAt: string | null;
+  pnlSol: number | null;
+  pnlPct: number | null;
+  mode: string;
+}
+
+export interface TradingStats {
+  mode: string;
+  openCount: number;
+  closedCount: number;
+  wins: number;
+  winRate: number | null;
+  totalPnlSol: number;
+  avgPnlPct: number | null;
+  expectancySolPerTrade: number | null; // THE number — gates auto-trade
 }

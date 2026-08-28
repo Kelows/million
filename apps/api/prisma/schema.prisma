@@ -101,3 +101,22 @@ model WalletEdge {
 
   @@unique([a, b, type])
 }
+
+model PaperPosition {
+  id            Int       @id @default(autoincrement())
+  mint          String
+  symbol        String?
+  wallet        String?
+  sizeSol       Float
+  entryPriceUsd Float
+  openedAt      DateTime  @default(now())
+  status        String    @default("open") // open | closed
+  exitPriceUsd  Float?
+  exitReason    String? // tp | sl | timeout | manual
+  closedAt      DateTime?
+  pnlSol        Float?
+  pnlPct        Float?
+  mode          String    @default("paper")
+
+  @@index([status])
+}

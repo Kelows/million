@@ -103,12 +103,13 @@ Ordered by dependency, not ambition:
    The roster self-maintains in the same motion: new counterparties are
    auto-previewed and absorbed when clean; infra/farmed wallets are flagged out;
    dormant wallets decay; funding chains follow actors across address rotations.
-3. **Paper trading** — every gem event records a simulated entry (configurable
-   size, latency assumption, exit rule) and tracks it to resolution. This produces
-   the number that decides everything else: does following the loop have positive
-   expectancy after latency? No auto-execution until this says yes over a real
-   sample (weeks, not days). Built right, paper -> live is a single flag flip:
-   the whole pipeline runs identically either way, only the fill is real.
+3. **Paper trading** — ✅ SHIPPED 2026-08-28. Every opportunity opens a
+   simulated position (size/TP/SL/slippage/max-hold/caps configurable); a 60s
+   monitor exits on tp/sl/timeout/dead-pool; the Trading page reports the gate
+   number: expectancy SOL/trade. Architecture is the promised seam: a
+   TradeExecutor interface behind a DI token — PaperExecutor today, a Jupiter
+   executor is one provider swap (trading.module.ts) when expectancy justifies
+   it over a real sample (weeks, not days).
 4. **Copyability score** — replay each whale's entries with +2 blocks of latency
    against real price paths; a whale whose edge dies in two blocks is decoration,
    not signal. Feeds wallet ranking and gem ranking both.

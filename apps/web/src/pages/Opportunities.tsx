@@ -143,7 +143,11 @@ export function Opportunities() {
           </div>
 
           <div className="border-t border-line pt-4">
-            <span className="eyebrow">Auto-trade · <span className="text-pulse normal-case tracking-normal">staged — paper engine first</span></span>
+            <span className="eyebrow">Trading rules · <span className="text-profit normal-case tracking-normal">paper engine live</span> · <span className="text-pulse normal-case tracking-normal">auto-trade locked</span></span>
+            <label className="flex items-center gap-3 text-sm mt-3 cursor-pointer">
+              <input type="checkbox" className="checkbox" checked={config.paperEnabled} onChange={(e) => setConfig({ ...config, paperEnabled: e.target.checked })} />
+              paper-trade every opportunity
+            </label>
             <div className="grid sm:grid-cols-3 gap-x-8 gap-y-3 mt-3">
               <label className="flex items-center justify-between gap-4 text-sm">
                 <span>Position (SOL)</span>
@@ -156,6 +160,18 @@ export function Opportunities() {
               <label className="flex items-center justify-between gap-4 text-sm">
                 <span>Stop loss %</span>
                 <input type="number" min={1} max={100} step={5} value={config.stopLossPct} onChange={(e) => setConfig({ ...config, stopLossPct: Number(e.target.value) })} className="w-24 text-right" />
+              </label>
+              <label className="flex items-center justify-between gap-4 text-sm">
+                <span>Slippage % / side</span>
+                <input type="number" min={0} max={50} step={0.5} value={config.slippagePct} onChange={(e) => setConfig({ ...config, slippagePct: Number(e.target.value) })} className="w-24 text-right" />
+              </label>
+              <label className="flex items-center justify-between gap-4 text-sm">
+                <span>Max hold (hours)</span>
+                <input type="number" min={1} max={720} step={6} value={config.maxHoldHours} onChange={(e) => setConfig({ ...config, maxHoldHours: Number(e.target.value) })} className="w-24 text-right" />
+              </label>
+              <label className="flex items-center justify-between gap-4 text-sm">
+                <span>Max open positions</span>
+                <input type="number" min={1} max={50} step={1} value={config.maxOpenPositions} onChange={(e) => setConfig({ ...config, maxOpenPositions: Number(e.target.value) })} className="w-24 text-right" />
               </label>
             </div>
             <label className="flex items-center gap-3 text-sm mt-3 opacity-60 cursor-not-allowed" title="Locked until the paper-trade engine proves positive expectancy — see docs/closed-loop.md">

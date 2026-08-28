@@ -24,7 +24,7 @@ const NAV = [
     section: 'Ops',
     links: [
       { to: '/crawler', label: 'Crawler' },
-      { to: '/executor', label: 'Executor' },
+      { to: '/executor', label: 'Trading' },
       { to: '/screener', label: 'Screener' },
     ],
   },
