@@ -219,6 +219,19 @@ export function Opportunities() {
               <input type="number" min={1} max={100} step={1} value={config.weeklyLossLimitPct} onChange={(e) => setConfig({ ...config, weeklyLossLimitPct: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <div className="flex items-center gap-2 mt-3 text-sm">
+              <span className="text-dim text-xs uppercase tracking-wider mr-1">trade signals</span>
+              {(['both', 'copy', 'consensus'] as const).map((sig) => (
+                <button
+                  key={sig}
+                  className={`btn py-1! px-2! text-[0.65rem]! ${config.tradeSignals === sig ? '' : 'opacity-50'}`}
+                  onClick={() => setConfig({ ...config, tradeSignals: sig })}
+                  title={sig === 'both' ? 'every passing signal opens a position' : sig === 'copy' ? 'only single-whale entries trade — consensus still shows in the feed' : 'only owner-breadth entries trade — copies still show in the feed'}
+                >
+                  {sig}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-3 text-sm">
               <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
               {(['rules', 'mirror', 'mirror-trail'] as const).map((mode) => (
                 <button

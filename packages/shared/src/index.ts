@@ -462,6 +462,7 @@ export const OpportunityConfigSchema = z.object({
   minEdgeRetentionPct: z.coerce.number().min(0).max(100).default(60), // skip triggers whose measured copyability is below this (unmeasured pass)
   trailStopPct: z.coerce.number().min(1).max(50).default(15), // asymmetric mirror: winners trail this far off peak instead of exiting flat
   consensusOwners: z.coerce.number().int().min(0).max(10).default(2), // N distinct owners buying in the live window fires a consensus entry (0 = off)
+  tradeSignals: z.enum(['both', 'copy', 'consensus']).default('both'), // which signal kinds may OPEN positions — the feed always shows both
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 

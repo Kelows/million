@@ -53,6 +53,10 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
+    if (config.tradeSignals !== 'both' && signal !== config.tradeSignals) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: ${signal} signals not traded (tradeSignals=${config.tradeSignals})`);
+      return;
+    }
     // two-key launch: the live executor refuses entries until autoTrade is ALSO
     // flipped in the UI — an env var alone must never spend real money. Exits
     // (tick/mirror) stay unaffected: an open live position must always be closable.
