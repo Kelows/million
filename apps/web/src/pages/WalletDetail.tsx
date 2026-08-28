@@ -91,7 +91,7 @@ export function WalletDetail() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <span className="eyebrow">Owner · {wallet.ownerAggregate.members} wallets</span>
                 <button
-                  className={`btn py-1! px-2! text-[0.6rem]! ${wallet.ownerAggregate.subscribedCount === wallet.ownerAggregate.members ? 'bg-neon! text-void!' : ''}`}
+                  className="btn py-1! px-2! text-[0.6rem]!"
                   disabled={subscribeOwner.isPending}
                   title="Subscribe every wallet of this owner to the live feed (each uses one of the 25 slots)"
                   onClick={() =>
