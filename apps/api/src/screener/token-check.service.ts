@@ -160,8 +160,14 @@ export class TokenCheckService {
         // the aggregate line can't individually nuke the pool, so a distributed
         // top-10 gets grace the aggregate-only rule denied. One big account never
         // does — and the deployer holding the top bag fails at ANY size.
+        // a dev-owned top bag is judged by size: ≤3% is skin in the game,
+        // 3–8% is a watch item, beyond that it's exit liquidity in waiting
         holders.largestOwner !== null && rug?.creator != null && holders.largestOwner === rug.creator
-          ? 'fail'
+          ? holders.largestPct <= 3
+            ? 'pass'
+            : holders.largestPct <= 8
+              ? 'warn'
+              : 'fail'
           : holders.top10Pct <= t.maxTop10Pct
           ? 'pass'
           : holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5
@@ -170,7 +176,7 @@ export class TokenCheckService {
               ? 'warn'
               : 'fail',
         fmtPct(holders.top10Pct),
-        `${holders.largestOwner !== null && rug?.creator != null && holders.largestOwner === rug.creator ? 'THE LARGEST HOLDER IS THE DEPLOYER — a dev bag at any size is exit liquidity waiting to happen. ' : holders.top10Pct > t.maxTop10Pct && holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5 ? 'Over the aggregate line but distributed — no account can single-handedly dump. ' : ''}Largest single account holds ${fmtPct(holders.largestPct)}. ${
+        `${holders.largestOwner !== null && rug?.creator != null && holders.largestOwner === rug.creator ? `The largest holder is the DEPLOYER (${fmtPct(holders.largestPct)} dev bag${holders.largestPct <= 3 ? ' — small enough to read as skin in the game' : holders.largestPct <= 8 ? ' — watch it' : ' — exit liquidity in waiting'}). ` : holders.top10Pct > t.maxTop10Pct && holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5 ? 'Over the aggregate line but distributed — no account can single-handedly dump. ' : ''}Largest single account holds ${fmtPct(holders.largestPct)}. ${
           holders.excludedVaults > 0
             ? `${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
             : 'No LP vault identified to exclude — the pool may be inflating this number.'
