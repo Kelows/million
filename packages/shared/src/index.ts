@@ -424,7 +424,7 @@ export interface LiveEventRow {
 }
 
 export interface LiveStatus {
-  ingestion: 'webhook' | 'websocket';
+  ingestion: 'webhook' | 'websocket' | 'webhook-fallback'; // fallback = webhook registered but deliveries dead, WS carrying the feed
   connected: boolean;
   subscribedWallets: number;
   activeSubscriptions: number;

@@ -29,6 +29,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private walletByReqId = new Map<number, string>(); // pending subscribe request id -> wallet
   private nextReqId = 1;
   private lastEventAt: Date | null = null;
+  private edgeDead = false; // webhook registered but deliveries not arriving (e.g. tunnel quota 403)
   private webhookSynced = false;
 
   constructor(
@@ -51,10 +52,18 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (!this.env.get('HELIUS_API_KEY')) return;
     if (this.webhookMode) {
       void this.syncWebhook().then(() => {
-        if (!this.webhookSynced) this.connect(); // tunnel down? never go deaf — WS fallback
+        if (!this.webhookSynced) {
+          this.edgeDead = true; // tunnel down at boot? never go deaf — WS fallback
+          this.connect();
+        }
       });
       // drift guard: rotations and edits keep the address set moving
       setInterval(() => void this.syncWebhook(), 5 * 60_000);
+      // deadman: Helius saying "webhook active" proves nothing about DELIVERY —
+      // today's failure mode was ngrok's edge 403ing everything while every
+      // health signal stayed green. Silence triggers a self-probe of the public
+      // URL; a failed probe flips to the websocket so the feed never goes deaf.
+      setInterval(() => void this.deadmanCheck(), 5 * 60_000);
     } else this.connect();
   }
 
@@ -69,7 +78,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const existing = list.find((w) => w.webhookURL === url);
     const body = JSON.stringify({
       webhookURL: url,
-      transactionTypes: ['ANY'],
+      transactionTypes: ['SWAP', 'TRANSFER'], // ANY burned the tunnel's monthly quota on vote/stake/NFT noise
       accountAddresses: addresses,
       webhookType: 'enhanced',
       authHeader: this.env.get<string>('WEBHOOK_SECRET') ?? '',
@@ -84,6 +93,34 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async deadmanCheck(): Promise<void> {
+    if (!this.webhookMode) return;
+    const quietMs = this.lastEventAt ? Date.now() - this.lastEventAt.getTime() : Infinity;
+    if (quietMs < 10 * 60_000) {
+      if (this.edgeDead) this.recoverWebhook();
+      return; // events flowing — delivery is alive by definition
+    }
+    const ok = await fetch(`${this.env.get<string>('WEBHOOK_URL')}/api/live/status`, { signal: AbortSignal.timeout(10_000) })
+      .then((r) => r.ok)
+      .catch(() => false);
+    if (ok) {
+      if (this.edgeDead) this.recoverWebhook();
+      return; // tunnel healthy, the roster is just quiet
+    }
+    if (!this.edgeDead) {
+      this.edgeDead = true;
+      console.error('[live] DEADMAN: webhook edge unreachable (tunnel down or quota exhausted) — falling back to websocket');
+      this.connect();
+    }
+  }
+
+  private recoverWebhook(): void {
+    this.edgeDead = false;
+    console.log('[live] webhook edge recovered — closing websocket fallback');
+    this.ws?.close();
+    this.ws = null;
+  }
+
   onModuleDestroy() {
     this.closed = true;
     this.ws?.close();
@@ -93,8 +130,8 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const subscribedWallets = await this.prisma.wallet.count({ where: { subscribed: true, purgedAt: null } });
     const dayAgo = new Date(Date.now() - 86_400_000);
     return {
-      ingestion: this.webhookMode ? ('webhook' as const) : ('websocket' as const),
-      connected: this.webhookMode ? this.webhookSynced : this.ws?.readyState === WebSocket.OPEN,
+      ingestion: this.webhookMode ? (this.edgeDead ? ('webhook-fallback' as const) : ('webhook' as const)) : ('websocket' as const),
+      connected: this.webhookMode && !this.edgeDead ? this.webhookSynced : this.ws?.readyState === WebSocket.OPEN,
       subscribedWallets,
       activeSubscriptions: this.subBySubId.size,
       maxSubscriptions: MAX_SUBSCRIPTIONS,
@@ -131,6 +168,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private connect() {
     const key = this.env.get<string>('HELIUS_API_KEY');
     if (!key || this.closed) return;
+    if (this.webhookMode && !this.edgeDead) return; // webhook healthy — kills stray WS reconnect loops after recovery
     const ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${key}`);
     this.ws = ws;
 
@@ -141,6 +179,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       const subs = await this.prisma.wallet.findMany({
         where: { subscribed: true, purgedAt: null },
         select: { address: true },
+        orderBy: [{ scoreAtAbsorb: { sort: 'desc', nulls: 'last' } }], // 25 slots — spend them on the best whales
         take: MAX_SUBSCRIPTIONS,
       });
       for (const { address } of subs) {

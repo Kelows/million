@@ -86,7 +86,12 @@ export function Shell() {
         </header>
         {live.data && !live.data.connected && live.data.subscribedWallets > 0 && (
           <div className="px-6 py-2 text-xs font-mono bg-loss/10 border-b border-loss text-loss">
-            ⚠ LIVE FEED DOWN — {live.data.ingestion === 'webhook' ? 'webhook not synced (is the ngrok pane running?)' : 'websocket disconnected'} · opportunities and mirrors are blind
+            ⚠ LIVE FEED DOWN — {live.data.ingestion !== 'websocket' ? 'webhook not synced (is the ngrok pane running?)' : 'websocket disconnected'} · opportunities and mirrors are blind
+          </div>
+        )}
+        {live.data && live.data.ingestion === 'webhook-fallback' && (
+          <div className="px-4 py-2 text-xs font-mono bg-warn/10 text-warn border-b border-warn/40">
+            ⚠ WEBHOOK DELIVERIES DEAD (tunnel quota or outage) — websocket fallback carrying the top {live.data.maxSubscriptions} of {live.data.subscribedWallets} subs
           </div>
         )}
         {live.data && live.data.connected && live.data.ingestion === 'websocket' && live.data.subscribedWallets > live.data.maxSubscriptions && (
