@@ -64,7 +64,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       feePayers.set(tx.feePayer, (feePayers.get(tx.feePayer) ?? 0) + 1);
     }
 
-    const { sol, usd, tokens: tokenDeltas } = txDeltas(wallet, tx, counterparties);
+    const { sol, usd, tokens: tokenDeltas } = orchestratedDeltas(wallet, tx, counterparties);
 
     if (tokenDeltas.size === 0) {
       if (usd > USD_EPS || sol > 0.01) sweepIns++;
@@ -219,6 +219,29 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
 }
 
 /** A wallet's quote and token deltas in one tx — shared by the ledger and the live feed. */
+
+/**
+ * Orchestrator attribution: fleets execute each trade through a fresh wallet
+ * while one address pays every fee (the 2snHH pattern). When the analyzed
+ * wallet is the fee payer but has no deltas of its own, the executor is the
+ * account it exchanged a direct native transfer with in the same tx (the
+ * fee/tip skim) — its deltas ARE the entity's trade, at zero extra fetches.
+ */
+export function orchestratedDeltas(wallet: string, tx: HeliusTx, counterparties?: Set<string>): TxDeltas {
+  const own = txDeltas(wallet, tx, counterparties);
+  if (own.tokens.size > 0 || tx.feePayer !== wallet) return own;
+  const linked = new Set<string>();
+  for (const t of tx.nativeTransfers ?? []) {
+    if (t.fromUserAccount === wallet && t.toUserAccount) linked.add(t.toUserAccount);
+    if (t.toUserAccount === wallet && t.fromUserAccount) linked.add(t.fromUserAccount);
+  }
+  for (const executor of linked) {
+    const d = txDeltas(executor, tx);
+    if (d.tokens.size > 0) return d;
+  }
+  return own;
+}
+
 export function txDeltas(wallet: string, tx: HeliusTx, counterparties?: Set<string>): TxDeltas {
   let sol = 0;
   let usd = 0;
