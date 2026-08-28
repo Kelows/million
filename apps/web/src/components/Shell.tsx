@@ -11,7 +11,6 @@ const NAV = [
       { to: '/wallets', label: 'Wallets' },
       { to: '/tokens', label: 'Tokens' },
       { to: '/opportunities', label: 'Opportunities' },
-      { to: '/copyability', label: 'Copyability' },
       { to: '/live', label: 'Live' },
     ],
   },
