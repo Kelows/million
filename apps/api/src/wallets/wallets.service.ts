@@ -102,10 +102,11 @@ export class WalletsService {
     await this.prisma.wallet.update({ where: { address }, data: { status: 'analyzing', error: null } });
     try {
       const maxPages = Number(this.config.get('ANALYSIS_MAX_PAGES') ?? 5);
-      const [{ txs, truncated }, solPrice, stats] = await Promise.all([
+      const [{ txs, truncated }, solPrice, stats, balanceSol] = await Promise.all([
         this.helius.fetchHistory(address, maxPages),
         this.dexscreener.fetchSolPriceUsd(),
         this.helius.accountStats(address).catch(() => null),
+        this.helius.getBalanceSol(address).catch(() => null),
       ]);
       if (txs.length === 0 && truncated) {
         // rate-limited into emptiness — an empty 'done' analysis poisons scores silently
@@ -130,7 +131,14 @@ export class WalletsService {
           : {};
       const updated = await this.prisma.wallet.update({
         where: { address },
-        data: { status: 'done', metrics: JSON.stringify(metrics), lastAnalyzedAt: new Date(), error: null, ...cohort },
+        data: {
+          status: 'done',
+          metrics: JSON.stringify(metrics),
+          lastAnalyzedAt: new Date(),
+          error: null,
+          ...cohort,
+          ...(balanceSol !== null ? { balanceSol, balanceAt: new Date() } : {}),
+        },
       });
       return this.toRecord(updated);
     } catch (err) {

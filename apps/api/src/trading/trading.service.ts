@@ -56,7 +56,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     if (config.sizingMode === 'whale-pct' && whaleBuySol) {
       sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(whaleBuySol * config.copyPct) / 100));
     } else if (config.sizingMode === 'whale-frac' && whaleBuySol) {
-      const balance = await this.helius.getBalanceSol(wallet).catch(() => null);
+      // cached balance first — stale beats hot-path latency; live RPC only self-heals an empty cache
+      const row = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { balanceSol: true } });
+      let balance = row?.balanceSol ?? null;
+      if (balance === null) {
+        balance = await this.helius.getBalanceSol(wallet).catch(() => null);
+        if (balance !== null) {
+          await this.prisma.wallet.update({ where: { address: wallet }, data: { balanceSol: balance, balanceAt: new Date() } }).catch(() => undefined);
+        }
+      }
       const bankrollAtEntry = (balance ?? 0) + whaleBuySol;
       const fraction = bankrollAtEntry > 0 ? Math.min(0.25, whaleBuySol / bankrollAtEntry) : 0.05;
       sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(config.bankrollSol * fraction * 100) / 100));

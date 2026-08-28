@@ -21,6 +21,8 @@ model Wallet {
   ownerId        Int? // cluster assignment from the owner graph (rebuilt, not stable across rebuilds)
   scoreAtAbsorb  Float? // frozen at first analysis — the cohort experiment's independent variable
   pnlAtAbsorb    Float? // realized PnL at that moment; forward PnL = current - this
+  balanceSol     Float? // cached at analysis time — stale beats a hot-path RPC for sizing
+  balanceAt      DateTime?
 }
 
 model Token {
