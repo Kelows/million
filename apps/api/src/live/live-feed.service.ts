@@ -25,6 +25,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private walletByReqId = new Map<number, string>(); // pending subscribe request id -> wallet
   private nextReqId = 1;
   private lastEventAt: Date | null = null;
+  private webhookSynced = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,8 +33,40 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly opportunities: OpportunitiesService,
   ) {}
 
+  private get webhookMode(): boolean {
+    return Boolean(this.env.get('WEBHOOK_URL'));
+  }
+
   onModuleInit() {
-    if (this.env.get('HELIUS_API_KEY')) this.connect();
+    if (!this.env.get('HELIUS_API_KEY')) return;
+    if (this.webhookMode) void this.syncWebhook();
+    else this.connect();
+  }
+
+  /** Create/update the Helius webhook so it carries exactly the subscribed set. No cap. */
+  private async syncWebhook(): Promise<void> {
+    const key = this.env.get<string>('HELIUS_API_KEY');
+    const url = `${this.env.get<string>('WEBHOOK_URL')}/api/live/webhook`;
+    const subs = await this.prisma.wallet.findMany({ where: { subscribed: true, purgedAt: null }, select: { address: true } });
+    const addresses = subs.map((w) => w.address);
+    const base = `https://api.helius.xyz/v0/webhooks?api-key=${key}`;
+    const list = (await fetch(base).then((r) => (r.ok ? r.json() : [])).catch(() => [])) as { webhookID: string; webhookURL: string }[];
+    const existing = list.find((w) => w.webhookURL === url);
+    const body = JSON.stringify({
+      webhookURL: url,
+      transactionTypes: ['ANY'],
+      accountAddresses: addresses,
+      webhookType: 'enhanced',
+      authHeader: this.env.get<string>('WEBHOOK_SECRET') ?? '',
+    });
+    const headers = { 'Content-Type': 'application/json' };
+    if (existing) {
+      this.webhookSynced = await fetch(`https://api.helius.xyz/v0/webhooks/${existing.webhookID}?api-key=${key}`, { method: 'PUT', headers, body })
+        .then((r) => r.ok)
+        .catch(() => false);
+    } else if (addresses.length) {
+      this.webhookSynced = await fetch(base, { method: 'POST', headers, body }).then((r) => r.ok).catch(() => false);
+    }
   }
 
   onModuleDestroy() {
@@ -45,7 +78,8 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const subscribedWallets = await this.prisma.wallet.count({ where: { subscribed: true, purgedAt: null } });
     const dayAgo = new Date(Date.now() - 86_400_000);
     return {
-      connected: this.ws?.readyState === WebSocket.OPEN,
+      ingestion: this.webhookMode ? ('webhook' as const) : ('websocket' as const),
+      connected: this.webhookMode ? this.webhookSynced : this.ws?.readyState === WebSocket.OPEN,
       subscribedWallets,
       activeSubscriptions: this.subBySubId.size,
       maxSubscriptions: MAX_SUBSCRIPTIONS,
@@ -54,8 +88,12 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** Called after any subscription change: tear down and resubscribe the current set. */
+  /** Called after any subscription change: re-point whichever transport is active. */
   async resync() {
+    if (this.webhookMode) {
+      void this.syncWebhook();
+      return;
+    }
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.close(); // reconnect path re-reads the subscribed set
     }
@@ -139,7 +177,29 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (!res?.ok) return;
     const [tx] = (await res.json()) as HeliusTx[];
     if (!tx) return;
+    await this.processTx(wallet, tx);
+  }
 
+  /** Webhook path: Helius delivers the parsed tx directly — route to every subscribed wallet it touches. */
+  async ingestWebhookTxs(txs: HeliusTx[]): Promise<void> {
+    const subs = await this.prisma.wallet.findMany({ where: { subscribed: true, purgedAt: null }, select: { address: true } });
+    const subSet = subs.map((w) => w.address);
+    for (const tx of txs) {
+      for (const wallet of subSet) {
+        const touches =
+          tx.accountData?.some((a) => a.account === wallet) ||
+          tx.nativeTransfers?.some((t) => t.fromUserAccount === wallet || t.toUserAccount === wallet) ||
+          tx.tokenTransfers?.some((t) => t.fromUserAccount === wallet || t.toUserAccount === wallet);
+        if (!touches) continue;
+        const existing = await this.prisma.liveEvent.findUnique({ where: { signature: tx.signature } }).catch(() => null);
+        if (existing) break;
+        await this.processTx(wallet, tx);
+        break; // one event per tx; first touching wallet claims it
+      }
+    }
+  }
+
+  private async processTx(wallet: string, tx: HeliusTx) {
     const { sol, usd, tokens } = txDeltas(wallet, tx);
     // classify from this wallet's perspective; one event per non-quote token moved
     let kind: 'buy' | 'sell' | 'other' = 'other';
@@ -165,7 +225,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       .create({
         data: {
           wallet,
-          signature,
+          signature: tx.signature,
           ts,
           kind,
           mint,

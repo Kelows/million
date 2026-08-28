@@ -5,3 +5,5 @@ procs:
   web:
     cwd: apps/web
     shell: npm run dev
+  ngrok:
+    shell: ngrok http --domain=one-choice-raptor.ngrok-free.app 3001

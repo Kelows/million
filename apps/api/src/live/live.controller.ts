@@ -1,4 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { HeliusTx } from '../analysis/helius.service';
 import { z } from 'zod';
 import type { LiveEventRow } from '@million/shared';
 import { ZodPipe } from '../zod.pipe';
@@ -12,11 +14,22 @@ export class LiveController {
   constructor(
     private readonly live: LiveFeedService,
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
   ) {}
 
   @Get('status')
   status() {
     return this.live.status();
+  }
+
+  @Post('webhook')
+  @HttpCode(200)
+  async webhook(@Headers('authorization') auth: string | undefined, @Body() payload: unknown) {
+    const secret = this.config.get<string>('WEBHOOK_SECRET');
+    if (secret && auth !== secret) throw new UnauthorizedException();
+    const txs = Array.isArray(payload) ? (payload as HeliusTx[]) : [];
+    void this.live.ingestWebhookTxs(txs).catch(() => undefined);
+    return { received: txs.length };
   }
 
   @Get('events')

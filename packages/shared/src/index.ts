@@ -417,6 +417,7 @@ export interface LiveEventRow {
 }
 
 export interface LiveStatus {
+  ingestion: 'webhook' | 'websocket';
   connected: boolean;
   subscribedWallets: number;
   activeSubscriptions: number;
