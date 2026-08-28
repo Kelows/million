@@ -68,8 +68,11 @@ export class WalletsController {
 
   @Post('wallets/purge-junk')
   @HttpCode(200)
-  purgeJunk() {
-    return this.wallets.purgeJunk();
+  purgeJunk(
+    @Body(new ZodPipe(z.object({ flags: z.array(z.string()).min(1).max(10).optional() })))
+    body: { flags?: string[] },
+  ) {
+    return this.wallets.purgeJunk(body.flags as import('@million/shared').WalletFlag[] | undefined);
   }
 
   @Delete('wallets/:address')

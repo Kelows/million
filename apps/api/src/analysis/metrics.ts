@@ -177,6 +177,9 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       counterparties.size > 500 ||
       sweepIns > 100);
   if (isInfra) flags.push('BOT_INFRA');
+  // the SPX lesson: 117 sells vs 12 buys = a distribution pipe, not a trader.
+  // Their "PnL" is an exit ramp for a position acquired elsewhere (bridge, insider, early).
+  if (!isInfra && totalSells >= 20 && totalSells > totalBuys * 4) flags.push('DISTRIBUTOR');
   if (firstSeen !== null && now - firstSeen < 7 * 86400 && !truncated) flags.push('FRESH_WALLET');
   if (medianHold !== null && medianHold < 5 && closed.length >= 5) flags.push('SNIPER_SPEED');
   if (winRate !== null && winRate > 0.9 && closed.length >= 20) flags.push('HIGH_WINRATE_SUS');

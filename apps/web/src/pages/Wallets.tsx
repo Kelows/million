@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useEffect, useRef, useState } from 'react';
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useWallets } from '../api';
+import { createPortal } from 'react-dom';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
@@ -110,6 +111,8 @@ export function Wallets() {
     try { return localStorage.getItem('million.groupOwners') !== 'off'; } catch { return true; }
   });
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeFlags, setPurgeFlags] = useState<Set<string>>(new Set(['BOT_INFRA']));
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -150,7 +153,15 @@ export function Wallets() {
   const junkCount = wallets.filter((w) => w.metrics && isJunkWallet(w.metrics)).length;
   const query = search.trim().toLowerCase();
   const searched = query
-    ? wallets.filter((w) => w.address.toLowerCase().includes(query) || w.label?.toLowerCase().includes(query))
+    ? wallets.filter(
+        (w) =>
+          w.address.toLowerCase().includes(query) ||
+          w.label?.toLowerCase().includes(query) ||
+          w.metrics?.flags.some((f) => {
+            const label = FLAG_OPTIONS.find((o) => o.value === f)?.label ?? f;
+            return f.toLowerCase().includes(query) || label.toLowerCase().includes(query);
+          }),
+      )
     : wallets;
   const filtered = applyFilters(searched, ROSTER_FILTERS, filters);
   const rows: RosterRow[] = (() => {
@@ -171,7 +182,18 @@ export function Wallets() {
     }
     return [...groups, ...singles];
   })();
-  const { sorted, sortKey, dir, toggle } = useTableSort(rows, ROW_COLUMNS);
+  const urlSearch = getRouteApi('/wallets').useSearch();
+  const navigate = useNavigate();
+  const { sorted, sortKey, dir, toggle } = useTableSort(
+    rows,
+    ROW_COLUMNS,
+    urlSearch.sort ?? 'lastSeen',
+    urlSearch.dir ?? 'desc',
+  );
+  useEffect(() => {
+    void navigate({ to: '/wallets', search: { sort: sortKey ?? undefined, dir }, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortKey, dir]);
   const pag = usePagination(sorted, 25);
 
   const toggleGroup = (ownerId: number) =>
@@ -236,20 +258,61 @@ export function Wallets() {
           <span className="eyebrow">Roster · {sorted.length !== wallets.length ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
           <span className="mr-auto flex items-center gap-3">
             <FilterModal fields={ROSTER_FILTERS} state={filters} onChange={setFilters} />
-            {junkCount > 0 && (
-              <button
-                className="btn btn-danger py-1! px-2! text-[0.6rem]!"
-                disabled={purgeJunk.isPending}
-                title="Delete every wallet flagged infra or sus winrate — snipers are kept"
-                onClick={() => {
-                  if (window.confirm(`Delete ${junkCount} junk wallet${junkCount === 1 ? '' : 's'} (infra / farmed)? Snipers are kept.`)) {
-                    purgeJunk.mutate();
-                  }
-                }}
-              >
-                {purgeJunk.isPending ? 'purging…' : `purge junk (${junkCount})`}
-              </button>
-            )}
+            <button
+              className="btn btn-danger py-1! px-2! text-[0.6rem]!"
+              title="Choose which flags to sweep from the roster (soft-delete — knowledge kept)"
+              onClick={() => setPurgeOpen(true)}
+            >
+              purge…
+            </button>
+            {purgeOpen &&
+              createPortal(
+                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPurgeOpen(false)}>
+                  <div className="panel panel-raised w-96 max-w-full p-5 flex flex-col gap-4" role="dialog" aria-label="Purge wallets" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between">
+                      <span className="eyebrow">Purge wallets by flag</span>
+                      <button type="button" className="text-dim hover:text-ink text-sm" onClick={() => setPurgeOpen(false)}>✕</button>
+                    </div>
+                    <p className="text-xs text-dim">
+                      Soft-delete: hidden everywhere, knowledge kept so the crawler never re-absorbs them.
+                    </p>
+                    {FLAG_OPTIONS.map((option) => {
+                      const count = wallets.filter((w) => w.metrics?.flags.includes(option.value)).length;
+                      return (
+                        <label key={option.value} className={`flex items-center gap-3 text-sm ${count === 0 ? 'opacity-40' : 'cursor-pointer'}`}>
+                          <input
+                            type="checkbox"
+                            className="checkbox"
+                            disabled={count === 0}
+                            checked={purgeFlags.has(option.value)}
+                            onChange={(e) => {
+                              const next = new Set(purgeFlags);
+                              if (e.target.checked) next.add(option.value);
+                              else next.delete(option.value);
+                              setPurgeFlags(next);
+                            }}
+                          />
+                          <span className="uppercase tracking-wider text-xs font-semibold">{option.label}</span>
+                          <span className="text-xs text-dim ml-auto">{count} wallet{count === 1 ? '' : 's'}</span>
+                        </label>
+                      );
+                    })}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-dim">
+                        {wallets.filter((w) => w.metrics?.flags.some((f) => purgeFlags.has(f))).length} wallets match
+                      </span>
+                      <button
+                        className="btn btn-danger"
+                        disabled={purgeFlags.size === 0 || purgeJunk.isPending}
+                        onClick={() => purgeJunk.mutate([...purgeFlags], { onSuccess: () => setPurgeOpen(false) })}
+                      >
+                        {purgeJunk.isPending ? 'Purging…' : 'Purge selected'}
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body,
+              )}
             <input
               placeholder="search address / label"
               value={search}

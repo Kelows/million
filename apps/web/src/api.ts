@@ -226,7 +226,8 @@ export function useRunCrawlerOnce() {
 export function usePurgeJunk() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => request<{ purged: number }>('/wallets/purge-junk', { method: 'POST' }),
+    mutationFn: (flags: string[]) =>
+      request<{ purged: number }>('/wallets/purge-junk', { method: 'POST', body: JSON.stringify({ flags }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
   });
 }

@@ -19,7 +19,15 @@ import { Executor } from './pages/Executor';
 const rootRoute = createRootRoute({ component: Shell });
 
 export const dashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: Dashboard });
-export const walletsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/wallets', component: Wallets });
+export const walletsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/wallets',
+  component: Wallets,
+  validateSearch: (search: Record<string, unknown>): { sort?: string; dir?: 'asc' | 'desc' } => ({
+    ...(typeof search.sort === 'string' ? { sort: search.sort } : {}),
+    ...(search.dir === 'asc' || search.dir === 'desc' ? { dir: search.dir } : {}),
+  }),
+});
 export const walletDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/wallets/$address',

@@ -28,7 +28,8 @@ export type WalletFlag =
   | 'HIGH_WINRATE_SUS' // >90% win rate over many tokens — possibly farmed for copy-traders
   | 'LOW_ACTIVITY' // too few closed trades to trust the stats
   | 'DORMANT' // no swaps in the last 14 days
-  | 'BOT_INFRA'; // automated infrastructure (broker/volume/MEV), not a trader
+  | 'BOT_INFRA' // automated infrastructure (broker/volume/MEV), not a trader
+  | 'DISTRIBUTOR'; // sells vastly exceed buys — an early holder exiting a bag, not trading
 
 export interface TokenBreakdown {
   mint: string;

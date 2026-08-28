@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
-import { isJunkWallet, openPositions, type OwnerAggregate, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
+import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -123,13 +123,16 @@ export class WalletsService {
     }
   }
 
-  /** Soft-delete every junk wallet (infra / farmed): hidden everywhere, knowledge kept so re-discovery is free. */
-  async purgeJunk(): Promise<{ purged: number }> {
+  /** Soft-delete wallets carrying any of the selected flags: hidden everywhere, knowledge kept. */
+  async purgeJunk(flags: WalletFlag[] = JUNK_FLAGS): Promise<{ purged: number }> {
+    const selected = new Set(flags);
     const rows = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
       select: { address: true, metrics: true },
     });
-    const junk = rows.filter((w) => isJunkWallet(JSON.parse(w.metrics as string) as WalletMetrics)).map((w) => w.address);
+    const junk = rows
+      .filter((w) => (JSON.parse(w.metrics as string) as WalletMetrics).flags.some((f) => selected.has(f)))
+      .map((w) => w.address);
     if (junk.length) await this.prisma.wallet.updateMany({ where: { address: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
   }
