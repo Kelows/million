@@ -46,6 +46,13 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
+    // two-key launch: the live executor refuses entries until autoTrade is ALSO
+    // flipped in the UI — an env var alone must never spend real money. Exits
+    // (tick/mirror) stay unaffected: an open live position must always be closable.
+    if (this.executor.mode === 'live' && !config.autoTrade) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: live executor armed but autoTrade is OFF`);
+      return;
+    }
     const halt = await this.haltState(config);
     if (halt.halted) {
       console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: CIRCUIT BREAKER — ${halt.reason}`);
