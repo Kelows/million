@@ -162,7 +162,10 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       }
       // mirror-trail: their exit cuts losers instantly; a winner arms a trailing stop instead
       const price = await this.executor.quote(p.mint);
-      const inProfit = price !== null && price > p.entryPriceUsd;
+      // arm the trail only on a REAL winner (≥+10%): between 0 and the +25%
+      // breakeven ratchet, an armed trail can give back 8-30% — a marginal
+      // winner is better mirror-closed than donated to the giveback zone
+      const inProfit = price !== null && price > p.entryPriceUsd * 1.1;
       if (!inProfit) {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
       } else if (p.peakPriceUsd === null) {

@@ -7,6 +7,7 @@ import { TradingService } from '../trading/trading.service';
 import { EventsBus } from '../common/events.bus';
 import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 
 const MAX_SUBSCRIPTIONS = 25; // standard websocket comfort zone on the free tier
 const EVENT_RETENTION_MINUTES = 15; // the feed is a window, not an archive
@@ -40,6 +41,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly opportunities: OpportunitiesService,
     private readonly bus: EventsBus,
     private readonly trading: TradingService,
+    private readonly dexscreener: DexScreenerService,
   ) {}
 
   private get webhookMode(): boolean {
@@ -327,10 +329,12 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event) this.bus.emit('live_event');
     if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
     if (event && kind === 'buy' && mint) {
-      const buySol = Math.max(0, -sol) + Math.max(0, -usd) / 180; // rough stable leg conversion
+      // live rate: a stale constant here biases the fill-fidelity gap directly
+      const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+      const buySol = Math.max(0, -sol) + Math.max(0, -usd) / solUsd;
       const qty = tokens.get(mint) ?? 0;
       // the whale's own fill price in USD — the latency-cost baseline
-      const whalePriceUsd = qty > 0 ? (Math.max(0, -usd) + Math.max(0, -sol) * 180) / qty : null;
+      const whalePriceUsd = qty > 0 ? (Math.max(0, -usd) + Math.max(0, -sol) * solUsd) / qty : null;
       void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id, whalePriceUsd).catch(() => undefined);
     }
     // owner rotation: outgoing SOL to fresh wallets is how actors spawn new addresses

@@ -170,11 +170,21 @@ export class OpportunitiesService {
    */
   private async tryConsensus(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<void> {
     if (config.consensusOwners < 1) return;
-    const buys = await this.prisma.liveEvent.findMany({
-      where: { mint, kind: 'buy' },
-      select: { wallet: true, sol: true },
+    const events = await this.prisma.liveEvent.findMany({
+      where: { mint, kind: { in: ['buy', 'sell'] } },
+      select: { wallet: true, sol: true, usd: true, kind: true },
     });
-    const voters = [...new Set(buys.filter((b) => Math.abs(b.sol ?? 0) >= config.minBuySol).map((b) => b.wallet))];
+    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+    const sellers = new Set(events.filter((e) => e.kind === 'sell').map((e) => e.wallet));
+    // net buyers only, USD legs counted: a ping-ponging wallet is churn, not conviction
+    const voters = [
+      ...new Set(
+        events
+          .filter((e) => e.kind === 'buy' && !sellers.has(e.wallet))
+          .filter((e) => Math.abs(e.sol ?? 0) + Math.abs(e.usd ?? 0) / solUsd >= config.minBuySol)
+          .map((e) => e.wallet),
+      ),
+    ];
     if (voters.length < config.consensusOwners) return;
     const rows = await this.prisma.wallet.findMany({ where: { address: { in: voters } }, select: { address: true, ownerId: true } });
     const owners = new Set(rows.map((r) => (r.ownerId != null ? `o${r.ownerId}` : r.address)));

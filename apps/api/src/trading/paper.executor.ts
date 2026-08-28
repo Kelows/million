@@ -28,7 +28,7 @@ export class PaperExecutor implements TradeExecutor {
     const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
     const liq = pair?.liquidityUsd ?? 0;
     if (liq <= 0) return Math.min(25, base + 5);
-    const sizeUsd = sizeSol * 180; // rough; the ratio is what matters
+    const sizeUsd = sizeSol * (await this.dexscreener.fetchSolPriceUsd().catch(() => 200));
     const impact = (sizeUsd / liq) * 100;
     return Math.min(25, base + impact);
   }
