@@ -4,6 +4,7 @@ import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { RugcheckService } from './rugcheck.service';
 import { JupiterService } from '../analysis/jupiter.service';
+import { PrismaService } from '../prisma.service';
 
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
@@ -18,13 +19,30 @@ export class TokenCheckService {
     private readonly dexscreener: DexScreenerService,
     private readonly rugcheck: RugcheckService,
     private readonly jupiter: JupiterService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async check(mint: string, t: TokenCheckThresholds): Promise<TokenReport> {
+    // cache-aware: immutable facts (revoked authorities, token program) are one-way
+    // doors — once observed safe they never need re-fetching. Slow movers reuse
+    // within a TTL; volatile market facts always refresh.
+    const cachedRow = await this.prisma.token
+      .findUnique({ where: { mint }, select: { lastReport: true, lastCheckedAt: true } })
+      .catch(() => null);
+    const prev = cachedRow?.lastReport ? (JSON.parse(cachedRow.lastReport) as TokenReport) : null;
+    const prevAgeMs = cachedRow?.lastCheckedAt ? Date.now() - cachedRow.lastCheckedAt.getTime() : Infinity;
+    const prevCheck = (id: string) => prev?.checks.find((c) => c.id === id);
+    const staticSafe =
+      prevCheck('mint-authority')?.status === 'pass' &&
+      prevCheck('freeze-authority')?.status === 'pass' &&
+      Boolean(prevCheck('token-program'));
+    const reuseDeployer = prevAgeMs < 24 * 3_600_000 && Boolean(prevCheck('deployer-history'));
+    const reuseRug = prevAgeMs < 6 * 3_600_000 && Boolean(prevCheck('rugcheck'));
+
     const [asset, pair, rug, sellSim] = await Promise.all([
-      this.helius.getAssetInfo(mint).catch(() => null),
+      staticSafe ? Promise.resolve(null) : this.helius.getAssetInfo(mint).catch(() => null),
       this.dexscreener.fetchBestPair(mint),
-      this.rugcheck.fetchSummary(mint),
+      reuseDeployer && reuseRug ? Promise.resolve(null) : this.rugcheck.fetchSummary(mint),
       this.jupiter.sellSimulation(mint).catch(() => null),
     ]);
     // LP vault exclusion: the pools' token accounts must not count as "holders"
@@ -39,7 +57,13 @@ export class TokenCheckService {
       checks.push({ id, label, status, value, detail });
 
     // ── critical: supply control ──
-    if (!asset) {
+    if (staticSafe) {
+      // one-way doors observed safe before — reuse verbatim
+      for (const id of ['mint-authority', 'freeze-authority', 'metadata-mutable', 'token-program']) {
+        const c = prevCheck(id);
+        if (c) checks.push(c);
+      }
+    } else if (!asset) {
       push('mint-authority', 'Mint authority revoked', 'unknown', null, 'Could not load mint data from Helius.');
       push('freeze-authority', 'Freeze authority revoked', 'unknown', null, 'Could not load mint data from Helius.');
     } else {
@@ -141,7 +165,12 @@ export class TokenCheckService {
     }
 
     // ── deployer history: serial ruggers launch constantly and leave corpses ──
-    if (rug?.creatorTokens && rug.creatorTokens.length > 1) {
+    if (reuseDeployer) {
+      for (const id of ['deployer-history', 'deployer-funding']) {
+        const c = prevCheck(id);
+        if (c) checks.push(c);
+      }
+    } else if (rug?.creatorTokens && rug.creatorTokens.length > 1) {
       const others = rug.creatorTokens.filter((ct) => ct.mint !== mint);
       const dead = others.filter((ct) => (ct.marketCap ?? 0) < 1000).length;
       const deadShare = others.length ? dead / others.length : 0;
@@ -175,7 +204,7 @@ export class TokenCheckService {
     }
 
     // ── deployer funding: exchange-like source (traceable) vs fresh-wallet chain (opaque) ──
-    if (rug?.creator) {
+    if (!reuseDeployer && rug?.creator) {
       const funding = await this.deployerFunding(rug.creator).catch(() => null);
       if (!funding || funding.funder === null) {
         push('deployer-funding', 'Deployer funding', 'unknown', null, 'No sizeable SOL inflow found in the deployer recent history.');
@@ -192,7 +221,10 @@ export class TokenCheckService {
     }
 
     // ── external: rugcheck ──
-    if (!rug) {
+    if (reuseRug) {
+      const c = prevCheck('rugcheck');
+      if (c) checks.push(c);
+    } else if (!rug) {
       push('rugcheck', 'RugCheck risk scan', 'unknown', null, 'RugCheck did not respond — check manually at rugcheck.xyz.');
     } else {
       const danger = rug.risks.filter((r) => r.level === 'danger');
@@ -226,7 +258,7 @@ export class TokenCheckService {
       pairCreatedAt: pair?.pairCreatedAt ?? null,
       dex: pair?.dex ?? null,
       pairUrl: pair?.pairUrl ?? null,
-      rugcheckScore: rug?.score ?? null,
+      rugcheckScore: rug?.score ?? prev?.rugcheckScore ?? null,
       checks,
       verdict,
       fetchedAt: new Date().toISOString(),
