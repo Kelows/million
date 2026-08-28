@@ -9,7 +9,7 @@ import { txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
 
 const MAX_SUBSCRIPTIONS = 25; // standard websocket comfort zone on the free tier
-const EVENT_RETENTION_HOURS = 1; // the feed is a window, not an archive
+const EVENT_RETENTION_MINUTES = 15; // the feed is a window, not an archive
 const EVENT_MAX_ROWS = 5_000; // hard cap regardless of age
 const SOL_EPS = 0.005;
 const USD_EPS = 0.5;
@@ -47,7 +47,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     // retention: prune at boot and daily — opportunities/rotations/positions keep
     // their own records, so old raw events carry no unique knowledge
     void this.pruneEvents();
-    setInterval(() => void this.pruneEvents(), 10 * 60_000);
+    setInterval(() => void this.pruneEvents(), 5 * 60_000);
     if (!this.env.get('HELIUS_API_KEY')) return;
     if (this.webhookMode) {
       void this.syncWebhook().then(() => {
@@ -115,7 +115,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async pruneEvents() {
-    const cutoff = new Date(Date.now() - EVENT_RETENTION_HOURS * 3_600_000);
+    const cutoff = new Date(Date.now() - EVENT_RETENTION_MINUTES * 60_000);
     await this.prisma.liveEvent.deleteMany({ where: { ts: { lt: cutoff } } }).catch(() => undefined);
     const count = await this.prisma.liveEvent.count().catch(() => 0);
     if (count > EVENT_MAX_ROWS) {
