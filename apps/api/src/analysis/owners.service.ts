@@ -8,7 +8,7 @@ const FUNDING_MIN_SOL = 1;
 const FEEPAYER_MIN_SHARE = 0.15;
 const COENTRY_MIN_SHARED = 2;
 const COENTRY_MIN_JACCARD = 0.25;
-const HUB_DEGREE_MAX = 20; // nodes touching more than this are exchanges/infra — never cluster through them
+const HUB_DEGREE_MAX = 6; // a node funding/paying for more than this many wallets is a disperser/exchange, not an owner — never cluster through it
 
 /**
  * The Owner graph, v1. Edges are extracted from data we already fetch (funding
