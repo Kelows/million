@@ -238,30 +238,35 @@ export class HeliusService {
     ]);
     const total = supply?.value?.uiAmount;
     if (!largest?.value?.length || !total) return null;
-    const authorityVaults = await this.authorityOwnedVaults(largest.value.map((v) => v.address));
-    const amounts = largest.value
-      .filter((v) => !excludeAccounts.has(v.address) && !authorityVaults.has(v.address))
-      .map((v) => v.uiAmount ?? 0);
-    if (!amounts.length) return null;
+    const owners = await this.ownersOf(largest.value.map((v) => v.address));
+    const real = largest.value.filter((v) => {
+      const owner = owners.get(v.address);
+      return !excludeAccounts.has(v.address) && !(owner && AMM_AUTHORITIES.has(owner));
+    });
+    if (!real.length) return null;
+    const amounts = real.map((v) => v.uiAmount ?? 0);
     const top10 = amounts.slice(0, 10).reduce((s, a) => s + a, 0);
     return {
       top10Pct: (top10 / total) * 100,
       largestPct: (amounts[0] / total) * 100,
-      excludedVaults: excludeAccounts.size + authorityVaults.size,
+      largestOwner: owners.get(real[0].address) ?? null,
+      excludedVaults: excludeAccounts.size + (largest.value.length - real.length - [...excludeAccounts].filter((a) => largest.value?.some((v) => v.address === a)).length),
     };
   }
 
-  /** Accounts among `addresses` owned by a global AMM authority — LP vaults in disguise. */
-  private async authorityOwnedVaults(addresses: string[]): Promise<Set<string>> {
+  /** Owner wallet of each token account, one getMultipleAccounts call. */
+  private async ownersOf(addresses: string[]): Promise<Map<string, string>> {
     type Multi = { value?: ({ data?: { parsed?: { info?: { owner?: string } } } } | null)[] };
     const infos = await this.rpc<Multi>('getMultipleAccounts', [addresses, { encoding: 'jsonParsed' }]).catch(() => null);
-    const vaults = new Set<string>();
+    const out = new Map<string, string>();
     addresses.forEach((a, i) => {
       const owner = infos?.value?.[i]?.data?.parsed?.info?.owner;
-      if (owner && AMM_AUTHORITIES.has(owner)) vaults.add(a);
+      if (owner) out.set(a, owner);
     });
-    return vaults;
+    return out;
   }
+
+
 
   /**
    * Owners of the biggest non-vault token accounts — deep sell-sim candidates.
@@ -332,6 +337,7 @@ export interface AssetInfo {
 export interface TopHolders {
   top10Pct: number;
   largestPct: number;
+  largestOwner: string | null; // wallet behind the biggest non-vault account — dev-bag detection
   excludedVaults: number;
 }
 

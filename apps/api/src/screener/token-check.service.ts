@@ -158,8 +158,11 @@ export class TokenCheckService {
         'top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`,
         // Concentration is the risk, not breadth: ten ~2.5% holders slightly over
         // the aggregate line can't individually nuke the pool, so a distributed
-        // top-10 gets grace the aggregate-only rule denied. One big account never does.
-        holders.top10Pct <= t.maxTop10Pct
+        // top-10 gets grace the aggregate-only rule denied. One big account never
+        // does — and the deployer holding the top bag fails at ANY size.
+        holders.largestOwner !== null && rug?.creator != null && holders.largestOwner === rug.creator
+          ? 'fail'
+          : holders.top10Pct <= t.maxTop10Pct
           ? 'pass'
           : holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5
             ? 'pass'
@@ -167,7 +170,7 @@ export class TokenCheckService {
               ? 'warn'
               : 'fail',
         fmtPct(holders.top10Pct),
-        `${holders.top10Pct > t.maxTop10Pct && holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5 ? 'Over the aggregate line but distributed — no account can single-handedly dump. ' : ''}Largest single account holds ${fmtPct(holders.largestPct)}. ${
+        `${holders.largestOwner !== null && rug?.creator != null && holders.largestOwner === rug.creator ? 'THE LARGEST HOLDER IS THE DEPLOYER — a dev bag at any size is exit liquidity waiting to happen. ' : holders.top10Pct > t.maxTop10Pct && holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5 ? 'Over the aggregate line but distributed — no account can single-handedly dump. ' : ''}Largest single account holds ${fmtPct(holders.largestPct)}. ${
           holders.excludedVaults > 0
             ? `${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
             : 'No LP vault identified to exclude — the pool may be inflating this number.'
