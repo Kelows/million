@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Token } from '@prisma/client';
 import {
-  isStablecoin,
+  isExcludedToken,
   type TokenCheckThresholds,
   type TokenDetailData,
   type TokenReport,
@@ -20,7 +20,7 @@ export class TokensService {
   ) {}
 
   async import(mints: string[], source: string | null): Promise<{ imported: number; skipped: number }> {
-    const unique = [...new Set(mints)].filter((m) => !isStablecoin(m));
+    const unique = [...new Set(mints)].filter((m) => !isExcludedToken(m));
     let imported = 0;
     for (const mint of unique) {
       const existing = await this.prisma.token.findUnique({ where: { mint } });

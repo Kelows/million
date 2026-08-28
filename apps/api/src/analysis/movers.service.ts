@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isStablecoin, type MoverToken } from '@million/shared';
+import { isExcludedToken, type MoverToken } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 
 const GT = 'https://api.geckoterminal.com/api/v2';
@@ -31,7 +31,7 @@ export class MoversService {
       const body = await this.json<{ data?: { relationships?: { base_token?: { data?: { id?: string } } } }[] }>(`${GT}${path}`);
       for (const p of body?.data ?? []) {
         const mint = (p.relationships?.base_token?.data?.id ?? '').replace('solana_', '');
-        if (mint && !EXCLUDE.has(mint) && !isStablecoin(mint)) mints.add(mint);
+        if (mint && !EXCLUDE.has(mint) && !isExcludedToken(mint)) mints.add(mint);
       }
       await sleep(300);
     }

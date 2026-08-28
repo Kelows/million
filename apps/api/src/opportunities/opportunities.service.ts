@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   CrawlerConfigSchema,
+  isExcludedToken,
   OpportunityConfigSchema,
   type OpportunityConfig,
   type OpportunityRow,
@@ -62,6 +63,7 @@ export class OpportunitiesService {
   async evaluate(wallet: string, mint: string, buySol: number, ts: Date, eventId: number): Promise<void> {
     const config = await this.getConfig();
     if (buySol < config.minBuySol) return;
+    if (isExcludedToken(mint)) return; // majors/stables are never opportunities
 
     // recency: must be NEW for this wallet — no prior live buy, not in its analyzed history
     const priorLive = await this.prisma.liveEvent.findFirst({

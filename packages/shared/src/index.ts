@@ -135,12 +135,28 @@ export const STABLECOIN_MINTS = new Set([
   '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', // PYUSD
 ]);
 
+/** Majors/wrapped/quote-like tokens that are never a meme signal — excluded like stables. */
+export const EXCLUDED_TOKEN_MINTS = new Set([
+  '5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ', // WBTC
+  'CB9dDufT3ZuQXqqSfa1c5kY935TEreyBw9XJXxHKpump', // USDUC (stable parody, trades like a quote)
+  '3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh', // WBTC (Portal)
+  '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', // WETH (Portal)
+]);
+
 /** Known mints first, then a symbol heuristic — "as much as we can" coverage. */
 export function isStablecoin(mint: string, symbol?: string | null): boolean {
   if (STABLECOIN_MINTS.has(mint)) return true;
   if (!symbol) return false;
   const s = symbol.toUpperCase();
   return s.includes('USD') || s === 'DAI';
+}
+
+/** Not a signal: stables, majors, wrapped assets — by mint or symbol. */
+export function isExcludedToken(mint: string, symbol?: string | null): boolean {
+  if (isStablecoin(mint, symbol)) return true;
+  if (EXCLUDED_TOKEN_MINTS.has(mint)) return true;
+  const s = symbol?.toUpperCase();
+  return s === 'WBTC' || s === 'WETH' || s === 'WSOL' || s === 'CBBTC';
 }
 
 /** Positions below this entry cost are dust, not conviction. */
@@ -150,13 +166,13 @@ export const DEFAULT_MIN_OPEN_SOL = 1;
  * The consensus signal: co-entry beats still-holding — meme wallets flip too fast to overlap on holds. */
 export function enteredPositions(tokens: TokenBreakdown[], minSol: number, solPriceUsd = 200): TokenBreakdown[] {
   return tokens.filter(
-    (t) => t.buys > 0 && !isStablecoin(t.mint, t.symbol) && t.solIn + (t.usdIn ?? 0) / solPriceUsd >= minSol,
+    (t) => t.buys > 0 && !isExcludedToken(t.mint, t.symbol) && t.solIn + (t.usdIn ?? 0) / solPriceUsd >= minSol,
   );
 }
 
 /** A wallet's open positions — stablecoins and dust-sized entries excluded. */
 export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT_MIN_OPEN_SOL): TokenBreakdown[] {
-  return tokens.filter((t) => t.open && !isStablecoin(t.mint, t.symbol) && (t.entrySol ?? t.solIn) >= minSol);
+  return tokens.filter((t) => t.open && !isExcludedToken(t.mint, t.symbol) && (t.entrySol ?? t.solIn) >= minSol);
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
