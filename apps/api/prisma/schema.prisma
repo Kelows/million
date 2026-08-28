@@ -23,6 +23,7 @@ model Wallet {
   pnlAtAbsorb    Float? // realized PnL at that moment; forward PnL = current - this
   balanceSol     Float? // cached at analysis time — stale beats a hot-path RPC for sizing
   balanceAt      DateTime?
+  copyability    String? // JSON CopyabilityResult — whale edge re-simulated with copy latency
 }
 
 model Token {

@@ -10,6 +10,7 @@ import { Funding } from './pages/Funding';
 import { Discover } from './pages/Discover';
 import { Gems } from './pages/Gems';
 import { Crawler } from './pages/Crawler';
+import { Copyability } from './pages/Copyability';
 import { Live } from './pages/Live';
 import { Opportunities } from './pages/Opportunities';
 import { Tokens } from './pages/Tokens';
@@ -66,9 +67,10 @@ export const fundingRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { address?: string } =>
     typeof search.address === 'string' ? { address: search.address } : {},
 });
+export const copyabilityRoute = createRoute({ getParentRoute: () => rootRoute, path: '/copyability', component: Copyability });
 export const executorRoute = createRoute({ getParentRoute: () => rootRoute, path: '/executor', component: Executor });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute, copyabilityRoute]);
 
 export const router = createRouter({ routeTree });
 

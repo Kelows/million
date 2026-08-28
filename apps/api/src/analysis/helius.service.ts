@@ -1,6 +1,13 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+// Vault owners the pair-address exclusion can't see: these AMMs hold liquidity
+// under a global authority, not the pool account itself.
+const AMM_AUTHORITIES = new Set([
+  '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1', // Raydium AMM v4
+  'GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL', // Raydium CPMM
+]);
+
 export interface HeliusTokenTransfer {
   fromUserAccount: string | null;
   toUserAccount: string | null;
@@ -231,14 +238,58 @@ export class HeliusService {
     ]);
     const total = supply?.value?.uiAmount;
     if (!largest?.value?.length || !total) return null;
-    const amounts = largest.value.filter((v) => !excludeAccounts.has(v.address)).map((v) => v.uiAmount ?? 0);
+    const authorityVaults = await this.authorityOwnedVaults(largest.value.map((v) => v.address));
+    const amounts = largest.value
+      .filter((v) => !excludeAccounts.has(v.address) && !authorityVaults.has(v.address))
+      .map((v) => v.uiAmount ?? 0);
     if (!amounts.length) return null;
     const top10 = amounts.slice(0, 10).reduce((s, a) => s + a, 0);
     return {
       top10Pct: (top10 / total) * 100,
       largestPct: (amounts[0] / total) * 100,
-      excludedVaults: excludeAccounts.size,
+      excludedVaults: excludeAccounts.size + authorityVaults.size,
     };
+  }
+
+  /** Accounts among `addresses` owned by a global AMM authority — LP vaults in disguise. */
+  private async authorityOwnedVaults(addresses: string[]): Promise<Set<string>> {
+    type Multi = { value?: ({ data?: { parsed?: { info?: { owner?: string } } } } | null)[] };
+    const infos = await this.rpc<Multi>('getMultipleAccounts', [addresses, { encoding: 'jsonParsed' }]).catch(() => null);
+    const vaults = new Set<string>();
+    addresses.forEach((a, i) => {
+      const owner = infos?.value?.[i]?.data?.parsed?.info?.owner;
+      if (owner && AMM_AUTHORITIES.has(owner)) vaults.add(a);
+    });
+    return vaults;
+  }
+
+  /**
+   * Owners of the biggest non-vault token accounts — deep sell-sim candidates.
+   * Pool vaults hide behind AMM authorities the pair-address exclusion can't
+   * see, so callers probe candidates in order and let the simulation itself
+   * reject the vault-shaped ones.
+   */
+  async topHolderCandidates(mint: string, excludeAccounts: Set<string> = new Set(), max = 4): Promise<{ owner: string; amountRaw: string }[]> {
+    type Largest = { value?: { address: string; amount: string }[] };
+    const largest = await this.rpc<Largest>('getTokenLargestAccounts', [mint]).catch(() => null);
+    const accounts = (largest?.value ?? []).filter((v) => !excludeAccounts.has(v.address) && Number(v.amount) > 0).slice(0, max);
+    if (!accounts.length) return [];
+    type Multi = { value?: ({ data?: { parsed?: { info?: { owner?: string } } } } | null)[] };
+    const infos = await this.rpc<Multi>('getMultipleAccounts', [accounts.map((a) => a.address), { encoding: 'jsonParsed' }]).catch(() => null);
+    return accounts.flatMap((a, i) => {
+      const owner = infos?.value?.[i]?.data?.parsed?.info?.owner;
+      return owner && !AMM_AUTHORITIES.has(owner) ? [{ owner, amountRaw: a.amount }] : [];
+    });
+  }
+
+  /** Dry-run a serialized transaction against live chain state, no signatures needed. */
+  async simulateTransaction(txBase64: string): Promise<{ err: unknown; logs: string[] | null } | null> {
+    type Sim = { value?: { err: unknown; logs: string[] | null } };
+    const result = await this.rpc<Sim>('simulateTransaction', [
+      txBase64,
+      { sigVerify: false, replaceRecentBlockhash: true, encoding: 'base64' },
+    ]).catch(() => null);
+    return result?.value ?? null;
   }
 
   /** Batch token metadata via DAS getAssetBatch — one call per 1000 mints, same API key. */

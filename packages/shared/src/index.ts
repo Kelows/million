@@ -523,3 +523,41 @@ export interface TradingStats {
   expectancySolPerTrade: number | null; // THE number — gates auto-trade
   avgLatencyCostPct: number | null; // our entry vs the whale's own fill
 }
+
+// ── copyability: does the whale's edge survive OUR latency? ──
+
+export interface CopyabilityToken {
+  mint: string;
+  symbol: string | null;
+  entryAt: string; // whale's first buy (ISO)
+  exitAt: string; // whale's last activity (ISO)
+  whaleRetPct: number; // candle-close to candle-close over the whale's hold
+  copierRetPct: number; // same trade entered/exited one candle (~1 min) later
+  weightSol: number; // whale's entry size — weights the aggregate
+}
+
+export interface CopyabilityResult {
+  computedAt: string;
+  delaySec: number; // simulated copy latency (webhook + gauntlet + execution)
+  tokens: CopyabilityToken[];
+  sampled: number; // closed tokens measured
+  skipped: number; // closed tokens without candle/pool data
+  whaleAvgRetPct: number | null; // size-weighted
+  copierAvgRetPct: number | null;
+  edgeRetentionPct: number | null; // copier/whale ×100 — null when whale edge too small to divide by
+}
+
+export interface CopyabilityWalletRow {
+  address: string;
+  label: string | null;
+  whaleScore: number | null;
+  lastSeen: string | null;
+  copyability: CopyabilityResult | null;
+}
+
+export interface CopyabilityJobStatus {
+  running: boolean;
+  done: number;
+  total: number;
+  current: string | null; // address in flight
+}

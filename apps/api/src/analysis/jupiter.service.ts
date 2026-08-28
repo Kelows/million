@@ -29,6 +29,36 @@ export class JupiterService {
     return { buyRoute: true, sellRoute: true, roundTripLossPct: Math.round(loss * 10) / 10 };
   }
 
+  /**
+   * v2 deep check: build the REAL sell transaction as the token's biggest live
+   * holder and dry-run it on-chain. A transfer-hook honeypot quotes fine on
+   * every aggregator and reverts only at execution — this is the only probe
+   * that catches it, and it costs one free Jupiter call + one RPC simulate.
+   */
+  async buildSellTransaction(mint: string, holderOwner: string, amountRaw: string): Promise<string | null> {
+    // sell a tenth of the bag — enough to exercise the hook, small enough to route cleanly
+    const amount = Math.floor(Number(amountRaw) / 10);
+    if (!amount) return null;
+    for (const host of HOSTS) {
+      const url = `${host}?inputMint=${mint}&outputMint=${WSOL}&amount=${amount}&slippageBps=3000&swapMode=ExactIn`;
+      const res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
+      if (!res?.ok) continue;
+      const quote = (await res.json().catch(() => null)) as { outAmount?: string } | null;
+      if (!quote?.outAmount) continue;
+      const swapHost = host.replace(/\/quote$/, '/swap');
+      const swapRes = await fetch(swapHost, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+        body: JSON.stringify({ quoteResponse: quote, userPublicKey: holderOwner, wrapAndUnwrapSol: true }),
+      }).catch(() => null);
+      if (!swapRes?.ok) continue;
+      const body = (await swapRes.json().catch(() => null)) as { swapTransaction?: string } | null;
+      if (body?.swapTransaction) return body.swapTransaction;
+    }
+    return null;
+  }
+
   /** Raw out amount for an exact-in quote, or null when unroutable. */
   private async quote(inputMint: string, outputMint: string, amountRaw: number): Promise<number | null> {
     for (const host of HOSTS) {

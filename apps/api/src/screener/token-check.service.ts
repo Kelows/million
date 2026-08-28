@@ -44,7 +44,7 @@ export class TokenCheckService {
     const [asset, pair, rug, sellSim] = await Promise.all([
       staticSafe ? Promise.resolve(null) : this.helius.getAssetInfo(mint).catch(() => null),
       this.dexscreener.fetchBestPair(mint),
-      reuseDeployer && reuseRug ? Promise.resolve(null) : this.rugcheck.fetchSummary(mint),
+      reuseRug ? Promise.resolve(null) : this.rugcheck.fetchSummary(mint),
       this.jupiter.sellSimulation(mint).catch(() => null),
     ]);
     // LP vault exclusion: the pools' token accounts must not count as "holders"
@@ -186,6 +186,10 @@ export class TokenCheckService {
       push('deployer-history', 'Deployer history', rug.creatorTokens ? 'pass' : 'unknown',
         rug.creatorTokens ? 'first launch' : null,
         rug.creatorTokens ? 'No other tokens from this creator in RugCheck data.' : 'RugCheck did not return creator history.');
+    } else {
+      // rug skipped this round — a stale cached row beats a hole in the report
+      const c = prevCheck('deployer-history');
+      if (c) checks.push(c);
     }
 
     // ── the hard honeypot check: can you actually get OUT, and at what cost ──
@@ -205,8 +209,29 @@ export class TokenCheckService {
       );
     }
 
+    // ── deep honeypot probe: the REAL sell transaction of a real holder, dry-run on-chain ──
+    // Transfer hooks are baked into the mint at creation, so one conclusive result is cached for good.
+    const prevDeep = prevCheck('sell-sim-deep');
+    if (prevDeep && prevDeep.status !== 'unknown') {
+      checks.push(prevDeep);
+    } else {
+      const deep = await this.deepSellSim(mint, vaults).catch(() => null);
+      if (deep === null) {
+        push('sell-sim-deep', 'Sell simulation (on-chain)', 'unknown', null, 'Could not build a holder sell transaction to simulate — no sizeable holder or no route yet.');
+      } else if (deep.inconclusive) {
+        push('sell-sim-deep', 'Sell simulation (on-chain)', 'unknown', 'slippage', 'Simulation hit slippage between quote and execution — market too thin to conclude, will retry.');
+      } else if (deep.err) {
+        push('sell-sim-deep', 'Sell simulation (on-chain)', 'fail', 'REVERTS', 'The biggest holder\u2019s real sell transaction reverts on-chain while quotes look fine — the transfer-hook honeypot shape.');
+      } else {
+        push('sell-sim-deep', 'Sell simulation (on-chain)', 'pass', 'executes', 'A real holder\u2019s sell transaction simulates successfully against live chain state.');
+      }
+    }
+
     // ── deployer funding: exchange-like source (traceable) vs fresh-wallet chain (opaque) ──
-    if (!reuseDeployer && rug?.creator) {
+    if (!reuseDeployer && !rug) {
+      const c = prevCheck('deployer-funding');
+      if (c) checks.push(c);
+    } else if (!reuseDeployer && rug?.creator) {
       const funding = await this.deployerFunding(rug.creator).catch(() => null);
       if (!funding || funding.funder === null) {
         push('deployer-funding', 'Deployer funding', 'unknown', null, 'No sizeable SOL inflow found in the deployer recent history.');
@@ -284,5 +309,33 @@ export class TokenCheckService {
     if (!top) return { funder: null, funderBusy: false };
     const sigs = await this.helius.signatureIndex(top[0], 0, 1);
     return { funder: top[0], funderBusy: sigs.length >= 900 };
+  }
+
+  /**
+   * Probe up to four of the biggest holders: build each one's real Jupiter sell
+   * and dry-run it. Vault-shaped candidates fail inside the router itself (bad
+   * source account) and are skipped; only a revert whose innermost failing
+   * program is a token program counts as the honeypot verdict.
+   */
+  private async deepSellSim(mint: string, vaults: Set<string>): Promise<{ err: unknown; inconclusive: boolean } | null> {
+    const candidates = await this.helius.topHolderCandidates(mint, vaults).catch(() => []);
+    let sawInconclusive = false;
+    for (const holder of candidates) {
+      const tx = await this.jupiter.buildSellTransaction(mint, holder.owner, holder.amountRaw).catch(() => null);
+      if (!tx) continue;
+      const sim = await this.helius.simulateTransaction(tx);
+      if (!sim) continue;
+      if (sim.err === null) return { err: null, inconclusive: false };
+      const logs = (sim.logs ?? []).join('\n');
+      if (/SlippageToleranceExceeded|0x1771/.test(logs)) {
+        sawInconclusive = true;
+        continue; // market moved between quote and sim — says nothing about the token
+      }
+      const innermost = (sim.logs ?? []).find((l) => / failed: /.test(l));
+      const routerOrFunds = !innermost || innermost.includes('JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4') || /insufficient funds|frozen/i.test(logs);
+      if (routerOrFunds) continue; // vault-shaped or empty-ATA candidate, not evidence about the token
+      return { err: sim.err, inconclusive: false }; // a token-program CPI revert — the honeypot shape
+    }
+    return sawInconclusive ? { err: null, inconclusive: true } : null;
   }
 }

@@ -12,8 +12,9 @@ import { LiveModule } from './live/live.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
 import { TradingModule } from './trading/trading.module';
 import { EventsBusModule } from './common/events.bus';
+import { CopyabilityModule } from './copyability/copyability.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), EventsBusModule, WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), EventsBusModule, WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule, CopyabilityModule],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { WalletImport, WalletRecord } from '@million/shared';
+import type { CopyabilityJobStatus, CopyabilityWalletRow, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -365,6 +365,9 @@ export function useEventStream() {
         } else if (type === 'token_checked') {
           qc.invalidateQueries({ queryKey: ['tokens'] });
           qc.invalidateQueries({ queryKey: ['recheck-all'] });
+        } else if (type === 'copyability') {
+          qc.invalidateQueries({ queryKey: ['copyability'] });
+          qc.invalidateQueries({ queryKey: ['copyability-status'] });
         }
       } catch {
         /* malformed frame — ignore */
@@ -441,4 +444,25 @@ export interface EmitterRow {
 
 export function useEmitters() {
   return useQuery({ queryKey: ['emitters'], queryFn: () => request<EmitterRow[]>('/live/emitters'), refetchInterval: 30_000 });
+}
+
+export function useCopyability() {
+  return useQuery({ queryKey: ['copyability'], queryFn: () => request<CopyabilityWalletRow[]>('/copyability') });
+}
+
+export function useCopyabilityStatus() {
+  return useQuery({
+    queryKey: ['copyability-status'],
+    queryFn: () => request<CopyabilityJobStatus>('/copyability/status'),
+    refetchInterval: (q) => (q.state.data?.running ? 2_500 : false),
+  });
+}
+
+export function useRunCopyability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { addresses?: string[]; top?: number }) =>
+      request<{ started: boolean }>('/copyability/run', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['copyability-status'] }),
+  });
 }
