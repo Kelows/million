@@ -100,11 +100,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     const dupe = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'open' } });
     if (dupe) return;
-    // churn guard: this mint just stopped us out — don't chase the whale straight back in
-    const lastClosed = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'closed' }, orderBy: { closedAt: 'desc' }, select: { closedAt: true, pnlSol: true } });
-    if (lastClosed?.closedAt && (lastClosed.pnlSol ?? 0) < 0 && Date.now() - lastClosed.closedAt.getTime() < 3_600_000) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: lost here under an hour ago`);
-      return;
+    // churn guard — RULES MODE ONLY: there, losses come from OUR stop logic and
+    // serial re-stop-outs are our failure loop. In the mirror modes the whale's
+    // judgment is the strategy, and that includes their judgment to re-enter a
+    // token they just lost on: copying means following.
+    if (config.exitMode === 'rules') {
+      const lastClosed = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'closed' }, orderBy: { closedAt: 'desc' }, select: { closedAt: true, pnlSol: true } });
+      if (lastClosed?.closedAt && (lastClosed.pnlSol ?? 0) < 0 && Date.now() - lastClosed.closedAt.getTime() < 3_600_000) {
+        console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: lost here under an hour ago (rules-mode churn guard)`);
+        return;
+      }
     }
     const fill = await this.executor.buy(mint, sizeSol);
     if (!fill) return;
