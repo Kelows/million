@@ -205,6 +205,26 @@ export class OpportunitiesService {
     config: OpportunityConfig,
     whalePriceUsd: number | null,
   ): Promise<void> {
+    // fresh-entry gate (preset knob): the trigger must be the roster's FIRST
+    // owner into this mint. If our whales already hold it, the story is
+    // mid-flight — we'd be buying the crowd's position, not the discovery.
+    if (config.freshEntriesOnly) {
+      const holders = await this.prisma.wallet.findMany({
+        where: { metrics: { contains: mint }, purgedAt: null },
+        select: { address: true, metrics: true },
+      });
+      const held = holders.some((w) => {
+        if (w.address === wallet) return false; // the trigger's own (stale) position doesn't count against them
+        const m = JSON.parse(w.metrics as string) as WalletMetrics;
+        return m.tokens.some((t) => t.mint === mint && t.open);
+      });
+      if (held) {
+        this.shadow.record(mint, null, wallet, 'roster-fresh');
+        this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): roster already holds this — not a fresh discovery`);
+        return;
+      }
+    }
+
     // dedupe: one opportunity per token per hour, whoever (and whichever signal) triggers it
     const recent = await this.prisma.opportunity.findFirst({
       where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_MINUTES * 60_000) } },

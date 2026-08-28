@@ -464,6 +464,8 @@ export const OpportunityConfigSchema = z.object({
   consensusOwners: z.coerce.number().int().min(0).max(10).default(2), // N distinct owners buying in the live window fires a consensus entry (0 = off)
   tradeSignals: z.enum(['both', 'copy', 'consensus']).default('both'), // which signal kinds may OPEN positions — the feed always shows both
   minMedianHoldMinutes: z.coerce.number().min(0).max(1440).default(15), // trigger wallet's median hold must exceed this — retention(δ/H) is ≤0 for scalpers (0 = off)
+  freshEntriesOnly: z.boolean().default(false), // trigger must be the roster's FIRST owner in — if our whales already hold it, the story is mid-flight
+  strategyPreset: z.string().nullable().default(null), // which preset these settings started from — a label, not a lock
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
@@ -603,3 +605,37 @@ export interface ShadowGuardStat {
   avgPnlPct: number | null; // what the skipped trades did — negative means the guard saved money
   avoidedSol: number; // -sum(pnlSol): positive = the guard earned its keep
 }
+
+// ── strategy presets: named starting points, not locks — apply, then tweak ──
+
+export interface StrategyPreset {
+  id: string;
+  name: string;
+  tagline: string;
+  opportunity: Partial<OpportunityConfig>;
+  thresholds: Partial<TokenCheckThresholds>;
+}
+
+export const STRATEGY_PRESETS: StrategyPreset[] = [
+  {
+    id: 'swing-copy',
+    name: 'Swing Copy',
+    tagline: 'follow patient whales into proven pools — the copyability sweet spot',
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 60, exitMode: 'mirror', sizingMode: 'whale-frac', tradeSignals: 'copy', consensusOwners: 0, allowWarn: false, freshEntriesOnly: false },
+    thresholds: { minLiquidityUsd: 100_000, minMarketCapUsd: 200_000, minTokenAgeMinutes: 60 },
+  },
+  {
+    id: 'launch-surf',
+    name: 'Launch Surf',
+    tagline: 'young thin pools, fresh mints only, trail the winners — high variance by design',
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'both', consensusOwners: 2, allowWarn: false, freshEntriesOnly: true },
+    thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
+  },
+  {
+    id: 'consensus-chorus',
+    name: 'Consensus Chorus',
+    tagline: 'enter only when distinct owners agree — breadth over any single wallet',
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'consensus', consensusOwners: 2, allowWarn: false, freshEntriesOnly: false },
+    thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
+  },
+];

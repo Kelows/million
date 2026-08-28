@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from '@tanstack/react-router';
+import { STRATEGY_PRESETS } from '@million/shared';
 import type { OpportunityConfig } from '@million/shared';
-import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig, useSetSubscribed, useUnsubscribeAll, useWallets } from '../api';
+import { useCrawler, useLiveStatus, useOpportunities, useOpportunityConfig, useSetCrawlerConfig, useSetOpportunityConfig, useSetSubscribed, useUnsubscribeAll, useWallets } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -118,6 +119,8 @@ export function Opportunities() {
         </div>
       </div>
 
+      {config && <PresetBar config={config} setConfig={setConfig} />}
+
       <div className="panel">
         <div className="px-4 pt-4 pb-2 eyebrow">Signals · newest first</div>
         {tokenSignals.length === 0 ? (
@@ -212,6 +215,10 @@ export function Opportunities() {
             <label className="flex items-center justify-between gap-4 text-sm max-w-sm">
               <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
               <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Fresh entries only<Info text="Trigger must be the roster's FIRST owner into the token. If our whales already hold it, the story is mid-flight — we'd buy the crowd's position, not the discovery." /></span>
+              <input type="checkbox" checked={config.freshEntriesOnly} onChange={(e) => setConfig({ ...config, freshEntriesOnly: e.target.checked })} />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
               <span className="text-dim">Consensus owners (0 = off)<Info text="N distinct owners (clustered wallets count once) buying ≥ the min buy inside the live window fires a CONSENSUS entry — breadth no single wallet can fake. Cyclers and top-ups can't fire direct copies but still vote. Same gauntlet, own label in the book so expectancy splits by entry logic." /></span>
@@ -334,6 +341,35 @@ export function Opportunities() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PresetBar({ config, setConfig }: { config: OpportunityConfig; setConfig: (c: OpportunityConfig) => void }) {
+  const { data: crawler } = useCrawler();
+  const saveCrawler = useSetCrawlerConfig();
+  return (
+    <div className="panel p-4 flex flex-col gap-2">
+      <span className="eyebrow">Strategy presets — a starting point, then tweak the knobs{config.strategyPreset && <span className="normal-case tracking-normal text-neon"> · based on {config.strategyPreset}</span>}</span>
+      <div className="flex flex-wrap gap-3">
+        {STRATEGY_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            className={`btn py-1.5! px-3! text-left ${config.strategyPreset === p.name ? '' : 'opacity-60'}`}
+            title={p.tagline}
+            onClick={() => {
+              const changes = Object.entries(p.opportunity).map(([k, v]) => `${k}=${v}`).join(', ');
+              const th = Object.entries(p.thresholds).map(([k, v]) => `${k}=${v}`).join(', ');
+              if (!window.confirm(`Apply "${p.name}"?\n\n${p.tagline}\n\nSets: ${changes}\nGauntlet: ${th}\n\nYour other knobs stay as they are. Consider resetting the book — settings changes mid-experiment fork the data.`)) return;
+              setConfig({ ...config, ...p.opportunity, strategyPreset: p.name });
+              if (crawler?.config) saveCrawler.mutate({ ...crawler.config, thresholds: { ...crawler.config.thresholds, ...p.thresholds } });
+            }}
+          >
+            <span className="font-bold block">{p.name}</span>
+            <span className="text-xs text-dim block max-w-52">{p.tagline}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
