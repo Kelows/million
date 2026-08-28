@@ -156,11 +156,22 @@ export class TokenCheckService {
     if (holders) {
       push(
         'top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`,
-        holders.top10Pct <= t.maxTop10Pct ? 'pass' : 'fail',
+        // Concentration is the risk, not breadth: ten ~2.5% holders slightly over
+        // the aggregate line can't individually nuke the pool, so a distributed
+        // top-10 gets grace the aggregate-only rule denied. One big account never does.
+        holders.top10Pct <= t.maxTop10Pct
+          ? 'pass'
+          : holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5
+            ? 'pass'
+            : holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 10
+              ? 'warn'
+              : 'fail',
         fmtPct(holders.top10Pct),
-        holders.excludedVaults > 0
-          ? `Largest single account holds ${fmtPct(holders.largestPct)}. ${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
-          : `Largest single account holds ${fmtPct(holders.largestPct)}. No LP vault identified to exclude — the pool may be inflating this number.`,
+        `${holders.top10Pct > t.maxTop10Pct && holders.top10Pct <= t.maxTop10Pct + 10 && holders.largestPct <= 5 ? 'Over the aggregate line but distributed — no account can single-handedly dump. ' : ''}Largest single account holds ${fmtPct(holders.largestPct)}. ${
+          holders.excludedVaults > 0
+            ? `${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
+            : 'No LP vault identified to exclude — the pool may be inflating this number.'
+        }`,
       );
     } else {
       push('top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`, 'unknown', null, 'Could not load holder accounts.');
