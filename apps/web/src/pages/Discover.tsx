@@ -42,10 +42,9 @@ export function Discover() {
   const [sinceDays, setSinceDays] = useState(30);
   const [buckets, setBuckets] = useState(24);
   const [inputError, setInputError] = useState<string | null>(null);
-  // scans fire only on explicit submit — knob changes just stage the next scan
-  const [params, setParams] = useState<DiscoveryParams | null>(
-    initial ? { mint: initial, minSol: 5, mode: 'recent', sinceDays: 30, buckets: 24 } : null,
-  );
+  // scans fire only on explicit submit — arriving via a link prefills the mint
+  // but never auto-scans, so you can flip to deep mode first
+  const [params, setParams] = useState<DiscoveryParams | null>(null);
   const { data: report, isFetching, error } = useDiscovery(params);
   const [showInfra, setShowInfra] = useState(false);
   const isFlagged = (c: WhaleCandidate) => (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
