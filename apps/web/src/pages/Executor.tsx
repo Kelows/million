@@ -43,7 +43,12 @@ export function Executor() {
       </div>
 
       <PositionsTable
-        title={`Open · ${data?.open.length ?? 0}`}
+        title={(() => {
+          const open = data?.open ?? [];
+          const pnl = open.reduce((sum, p) => sum + (p.unrealizedPct != null ? (p.sizeSol * p.unrealizedPct) / 100 : 0), 0);
+          const r = Math.round(pnl * 1000) / 1000;
+          return `Open · ${open.length} · ${r > 0 ? '+' : ''}${r} ◎ unrealized`;
+        })()}
         rows={data?.open ?? []}
         empty="No open positions — they open automatically when opportunities fire."
         onClose={(id) => close.mutate(id)}
