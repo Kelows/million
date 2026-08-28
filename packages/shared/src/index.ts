@@ -365,7 +365,7 @@ export const CrawlerConfigSchema = z.object({
   maxTokensChecked: z.coerce.number().min(1).max(200).default(80),
   maxWalletsAbsorbed: z.coerce.number().min(0).max(200).default(50),
   maxWalletsReanalyzed: z.coerce.number().min(0).max(200).default(40),
-  discoveryMinSol: z.coerce.number().nonnegative().default(5),
+  discoveryMinSol: z.coerce.number().nonnegative().default(2), // 5 was above the pond — young-token buys run 1-3 SOL
   autoAbsorb: z.boolean().default(true), // false = crawler only reports, never touches the roster
   deepScanNewGems: z.boolean().default(true), // first sighting of a safety-clean gem = whole-life buyer scan
   deepScanBuckets: z.coerce.number().min(12).max(96).default(48),
