@@ -69,6 +69,8 @@ function SubbedWalletsButton({ count }: { count: number }) {
 export function Opportunities() {
   const { data: status } = useLiveStatus();
   const { data: opportunities = [] } = useOpportunities();
+  const tokenSignals = opportunities.filter((o) => o.kind !== 'wallet');
+  const rotations = opportunities.filter((o) => o.kind === 'wallet').slice(0, 5);
   const { data: savedConfig } = useOpportunityConfig();
   const save = useSetOpportunityConfig();
   const [config, setConfig] = useState<OpportunityConfig | null>(null);
@@ -99,34 +101,14 @@ export function Opportunities() {
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 eyebrow">Signals · newest first</div>
-        {opportunities.length === 0 ? (
+        {tokenSignals.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-dim">
             None yet. Sub quality wallets (wallet detail → Sub) and signals appear the moment one enters something new
             that clears the checks.
           </p>
         ) : (
           <ul>
-            {opportunities.map((o) =>
-              o.kind === 'wallet' ? (
-                <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
-                  <span className="font-mono text-xs font-bold text-neon">ROTATION</span>
-                  <span className="inline-flex items-center gap-2">
-                    <Link to="/wallets/$address" params={{ address: o.wallet }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
-                    <span className="text-bright font-semibold">new wallet</span>
-                    <Addr address={o.wallet} />
-                  </span>
-                  <span className="text-xs text-dim">
-                    funded {o.buySol} ◎ by{' '}
-                    {o.funder ? (
-                      <Link to="/wallets/$address" params={{ address: o.funder }} className="text-neon hover:underline">
-                        {o.funderLabel ?? truncAddr(o.funder)}
-                      </Link>
-                    ) : '?'}{' '}
-                    · sub inherited · <span title={o.ts}>{fmtAgo(o.ts)}</span>
-                  </span>
-                  <Link to="/funding" search={{ address: o.wallet }} className="text-xs text-neon hover:underline ml-auto">trace →</Link>
-                </li>
-              ) : (
+            {tokenSignals.map((o) => (
                 <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
                   <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
                   <span className="inline-flex items-center gap-2">
@@ -143,8 +125,39 @@ export function Opportunities() {
                   </span>
                   {o.mint && <Link to="/discover" search={{ mint: o.mint }} className="text-xs text-neon hover:underline ml-auto">find whales →</Link>}
                 </li>
-              ),
-            )}
+              ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="px-4 pt-4 pb-2 eyebrow">Rotations · last 5 · owners spawning fresh wallets</div>
+        {rotations.length === 0 ? (
+          <p className="px-4 pb-4 text-sm text-dim">
+            No rotations seen yet — when a subbed wallet funds a fresh address, it appears here with the sub inherited.
+          </p>
+        ) : (
+          <ul>
+            {rotations.map((o) => (
+              <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
+                <span className="font-mono text-xs font-bold text-neon">ROTATION</span>
+                <span className="inline-flex items-center gap-2">
+                  <Link to="/wallets/$address" params={{ address: o.wallet }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
+                  <span className="text-bright font-semibold">new wallet</span>
+                  <Addr address={o.wallet} />
+                </span>
+                <span className="text-xs text-dim">
+                  funded {o.buySol} ◎ by{' '}
+                  {o.funder ? (
+                    <Link to="/wallets/$address" params={{ address: o.funder }} className="text-neon hover:underline">
+                      {o.funderLabel ?? truncAddr(o.funder)}
+                    </Link>
+                  ) : '?'}{' '}
+                  · sub inherited · <span title={o.ts}>{fmtAgo(o.ts)}</span>
+                </span>
+                <Link to="/funding" search={{ address: o.wallet }} className="text-xs text-neon hover:underline ml-auto">trace →</Link>
+              </li>
+            ))}
           </ul>
         )}
       </div>
