@@ -182,6 +182,14 @@ export function Opportunities() {
               <input type="checkbox" className="checkbox" checked={config.paperEnabled} onChange={(e) => setConfig({ ...config, paperEnabled: e.target.checked })} />
               paper-trade every opportunity
             </label>
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
+              <input type="checkbox" className="checkbox" checked={config.ignoreSniperTriggers} onChange={(e) => setConfig({ ...config, ignoreSniperTriggers: e.target.checked })} />
+              ignore sniper triggers (machine-speed entries are adverse selection at our latency)
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm max-w-sm">
+              <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
+              <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
             <div className="flex items-center gap-2 mt-3 text-sm">
               <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
               {(['rules', 'mirror'] as const).map((mode) => (

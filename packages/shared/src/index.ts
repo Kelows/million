@@ -444,7 +444,9 @@ export const OpportunityConfigSchema = z.object({
   slippagePct: z.coerce.number().min(0).max(50).default(2), // assumed cost per side
   maxHoldHours: z.coerce.number().min(1).max(720).default(48), // timeout exit
   maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
-  exitMode: z.enum(['rules', 'mirror']).default('rules'), // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
+  exitMode: z.enum(['rules', 'mirror']).default('rules'),
+  ignoreSniperTriggers: z.boolean().default(true), // machine-speed entries are adverse selection at human latency
+  maxTotalExposureSol: z.coerce.number().nonnegative().default(1), // portfolio cap across open positions // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
   followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub
   minFundSol: z.coerce.number().nonnegative().default(1),
 });
@@ -496,6 +498,14 @@ export interface PaperPositionRow {
   mode: string;
 }
 
+export interface CohortRow {
+  bucket: string; // score-at-absorb range
+  wallets: number;
+  avgScoreAtAbsorb: number;
+  avgForwardPnlSol: number; // current realized minus realized at absorption
+  medianForwardPnlSol: number;
+}
+
 export interface TradingStats {
   mode: string;
   openCount: number;
@@ -505,4 +515,5 @@ export interface TradingStats {
   totalPnlSol: number;
   avgPnlPct: number | null;
   expectancySolPerTrade: number | null; // THE number — gates auto-trade
+  avgLatencyCostPct: number | null; // our entry vs the whale's own fill
 }

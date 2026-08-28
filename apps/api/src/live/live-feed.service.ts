@@ -267,7 +267,10 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
     if (event && kind === 'buy' && mint) {
       const buySol = Math.max(0, -sol) + Math.max(0, -usd) / 180; // rough stable leg conversion
-      void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id).catch(() => undefined);
+      const qty = tokens.get(mint) ?? 0;
+      // the whale's own fill price in USD — the latency-cost baseline
+      const whalePriceUsd = qty > 0 ? (Math.max(0, -usd) + Math.max(0, -sol) * 180) / qty : null;
+      void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id, whalePriceUsd).catch(() => undefined);
     }
     // owner rotation: outgoing SOL to fresh wallets is how actors spawn new addresses
     if (event) {

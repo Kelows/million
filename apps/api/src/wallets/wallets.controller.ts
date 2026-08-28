@@ -74,6 +74,11 @@ export class WalletsController {
     return result;
   }
 
+  @Get('wallets/cohorts')
+  cohorts() {
+    return this.wallets.cohorts();
+  }
+
   @Post('wallets/analyze-pending')
   @HttpCode(200)
   analyzePending() {

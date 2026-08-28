@@ -423,3 +423,9 @@ export function useStartRecheckAll() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recheck-all'] }),
   });
 }
+
+import type { CohortRow } from '@million/shared';
+
+export function useCohorts() {
+  return useQuery({ queryKey: ['cohorts'], queryFn: () => request<CohortRow[]>('/wallets/cohorts'), staleTime: 5 * 60_000 });
+}

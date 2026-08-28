@@ -35,17 +35,26 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Called for every new opportunity — the feed that drives everything. */
-  async openFromOpportunity(mint: string, symbol: string | null, wallet: string): Promise<void> {
+  async openFromOpportunity(mint: string, symbol: string | null, wallet: string, whaleEntryPriceUsd: number | null = null): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
-    const openCount = await this.prisma.paperPosition.count({ where: { status: 'open' } });
-    if (openCount >= config.maxOpenPositions) return;
+    const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
+    if (open.length >= config.maxOpenPositions) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);
+      return;
+    }
+    // FIX: portfolio exposure cap — ten positions in one meta is one bet wearing ten hats
+    const exposure = open.reduce((s, p) => s + p.sizeSol, 0);
+    if (exposure + config.positionSol > config.maxTotalExposureSol) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: exposure cap (${config.maxTotalExposureSol}◎) reached`);
+      return;
+    }
     const dupe = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'open' } });
     if (dupe) return;
     const fill = await this.executor.buy(mint, config.positionSol);
     if (!fill) return;
     await this.prisma.paperPosition.create({
-      data: { mint, symbol, wallet, sizeSol: config.positionSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode },
+      data: { mint, symbol, wallet, sizeSol: config.positionSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd },
     });
   }
 
@@ -153,6 +162,12 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         totalPnlSol: Math.round(totalPnlSol * 1000) / 1000,
         avgPnlPct: avgPnlPct !== null ? Math.round(avgPnlPct * 100) / 100 : null,
         expectancySolPerTrade: closed.length ? Math.round((totalPnlSol / closed.length) * 1000) / 1000 : null,
+        avgLatencyCostPct: (() => {
+          const pairs = rows.filter((p) => p.whaleEntryPriceUsd && p.whaleEntryPriceUsd > 0);
+          if (!pairs.length) return null;
+          const costs = pairs.map((p) => (p.entryPriceUsd / p.whaleEntryPriceUsd! - 1) * 100);
+          return Math.round((costs.reduce((s, x) => s + x, 0) / costs.length) * 100) / 100;
+        })(),
       },
       open,
       closed,

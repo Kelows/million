@@ -1,5 +1,5 @@
 import { Link, Outlet } from '@tanstack/react-router';
-import { useEventStream, useHealth, useWallets } from '../api';
+import { useEventStream, useHealth, useLiveStatus, useWallets } from '../api';
 
 const NAV = [
   {
@@ -33,6 +33,7 @@ const NAV = [
 export function Shell() {
   useEventStream(); // push, not poll
   const health = useHealth();
+  const live = useLiveStatus();
   const wallets = useWallets();
   const uplink = health.data?.ok ?? false;
   const heliusOk = health.data?.heliusConfigured ?? false;
@@ -82,6 +83,16 @@ export function Shell() {
           <span className="text-dim">ROSTER {wallets.data?.length ?? 0}</span>
           <span className="ml-auto text-pulse font-bold tracking-widest">PAPER MODE</span>
         </header>
+        {live.data && !live.data.connected && live.data.subscribedWallets > 0 && (
+          <div className="px-6 py-2 text-xs font-mono bg-loss/10 border-b border-loss text-loss">
+            ⚠ LIVE FEED DOWN — {live.data.ingestion === 'webhook' ? 'webhook not synced (is the ngrok pane running?)' : 'websocket disconnected'} · opportunities and mirrors are blind
+          </div>
+        )}
+        {live.data && live.data.connected && live.data.ingestion === 'websocket' && live.data.subscribedWallets > live.data.maxSubscriptions && (
+          <div className="px-6 py-2 text-xs font-mono bg-warn/10 border-b border-warn text-warn">
+            ⚠ WEBSOCKET FALLBACK — only {live.data.activeSubscriptions}/{live.data.subscribedWallets} subscribed wallets are streaming (cap {live.data.maxSubscriptions}). Restore the webhook (ngrok) for full coverage.
+          </div>
+        )}
         <main className="p-6 flex-1 min-w-0">
           <div className="w-full max-w-[1600px]">
             <Outlet />

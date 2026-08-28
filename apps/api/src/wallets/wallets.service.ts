@@ -115,9 +115,16 @@ export class WalletsService {
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
       // owner evidence rides along for free — same txs we just fetched
       await this.owners.extractEdges(address, txs, metrics).catch(() => undefined);
+      const existing = await this.prisma.wallet.findUnique({ where: { address }, select: { scoreAtAbsorb: true } });
+      const pnlNow = metrics.realizedPnlTotalSol ?? metrics.realizedPnlSol;
+      const isBotNow = metrics.flags.some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
+      const cohort =
+        existing?.scoreAtAbsorb == null
+          ? { scoreAtAbsorb: isBotNow ? -100 : (metrics.winRate ?? 0) * 100 + Math.max(-50, Math.min(200, pnlNow)) / 2, pnlAtAbsorb: pnlNow }
+          : {};
       const updated = await this.prisma.wallet.update({
         where: { address },
-        data: { status: 'done', metrics: JSON.stringify(metrics), lastAnalyzedAt: new Date(), error: null },
+        data: { status: 'done', metrics: JSON.stringify(metrics), lastAnalyzedAt: new Date(), error: null, ...cohort },
       });
       return this.toRecord(updated);
     } catch (err) {
@@ -174,6 +181,34 @@ export class WalletsService {
 
   getAnalyzePendingStatus() {
     return this.pendingJob;
+  }
+
+  /** The cohort experiment: does score-at-absorption predict FORWARD realized PnL? */
+  async cohorts(): Promise<import('@million/shared').CohortRow[]> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { purgedAt: null, metrics: { not: null }, scoreAtAbsorb: { not: null } },
+      select: { metrics: true, scoreAtAbsorb: true, pnlAtAbsorb: true },
+    });
+    const buckets: Record<string, { scores: number[]; fwd: number[] }> = {};
+    for (const w of rows) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      const fwd = (m.realizedPnlTotalSol ?? m.realizedPnlSol) - (w.pnlAtAbsorb ?? 0);
+      const sc = w.scoreAtAbsorb ?? 0;
+      const bucket = sc < 40 ? '<40' : sc < 70 ? '40-70' : sc < 110 ? '70-110' : '110+';
+      (buckets[bucket] ??= { scores: [], fwd: [] });
+      buckets[bucket].scores.push(sc);
+      buckets[bucket].fwd.push(fwd);
+    }
+    return Object.entries(buckets).map(([bucket, b]) => {
+      const sorted = [...b.fwd].sort((x, y) => x - y);
+      return {
+        bucket,
+        wallets: b.fwd.length,
+        avgScoreAtAbsorb: Math.round(b.scores.reduce((s2, x) => s2 + x, 0) / b.scores.length),
+        avgForwardPnlSol: Math.round((b.fwd.reduce((s2, x) => s2 + x, 0) / b.fwd.length) * 100) / 100,
+        medianForwardPnlSol: Math.round(sorted[Math.floor(sorted.length / 2)] * 100) / 100,
+      };
+    }).sort((a, b) => a.avgScoreAtAbsorb - b.avgScoreAtAbsorb);
   }
 
   async setLabel(address: string, label: string | null): Promise<WalletRecord> {

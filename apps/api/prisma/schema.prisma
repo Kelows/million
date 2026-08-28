@@ -19,6 +19,8 @@ model Wallet {
   purgedAt       DateTime? // soft-deleted junk: hidden everywhere, knowledge retained
   subscribed     Boolean   @default(false) // live feed follows this wallet
   ownerId        Int? // cluster assignment from the owner graph (rebuilt, not stable across rebuilds)
+  scoreAtAbsorb  Float? // frozen at first analysis — the cohort experiment's independent variable
+  pnlAtAbsorb    Float? // realized PnL at that moment; forward PnL = current - this
 }
 
 model Token {
@@ -119,6 +121,7 @@ model PaperPosition {
   pnlSol        Float?
   pnlPct        Float?
   mode          String    @default("paper")
+  whaleEntryPriceUsd Float? // the trigger wallet's own fill — latency cost = ours vs theirs
 
   @@index([status])
 }

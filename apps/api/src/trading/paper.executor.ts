@@ -22,17 +22,28 @@ export class PaperExecutor implements TradeExecutor {
     return pair?.priceUsd ?? null;
   }
 
-  async buy(mint: string, _sizeSol: number): Promise<Fill | null> {
+  /** Slippage grows with size relative to pool depth — flat % flatters thin pools. */
+  private async effectiveSlippage(mint: string, sizeSol: number): Promise<number> {
+    const base = await this.slippage();
+    const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
+    const liq = pair?.liquidityUsd ?? 0;
+    if (liq <= 0) return Math.min(25, base + 5);
+    const sizeUsd = sizeSol * 180; // rough; the ratio is what matters
+    const impact = (sizeUsd / liq) * 100;
+    return Math.min(25, base + impact);
+  }
+
+  async buy(mint: string, sizeSol: number): Promise<Fill | null> {
     const price = await this.quote(mint);
     if (price === null) return null;
-    const slip = await this.slippage();
+    const slip = await this.effectiveSlippage(mint, sizeSol);
     return { priceUsd: price * (1 + slip / 100), at: new Date() };
   }
 
-  async sell(mint: string, _sizeSol: number): Promise<Fill | null> {
+  async sell(mint: string, sizeSol: number): Promise<Fill | null> {
     const price = await this.quote(mint);
     if (price === null) return null;
-    const slip = await this.slippage();
+    const slip = await this.effectiveSlippage(mint, sizeSol);
     return { priceUsd: price * (1 - slip / 100), at: new Date() };
   }
 

@@ -100,6 +100,9 @@ export class OwnersService {
       if (rx !== ry) parent.set(rx, ry);
     };
     for (const e of edges) {
+      // co-entry is evidence, never a bridge: copytraders of the same launches would
+      // chain the whole roster into one blob (the 182-wallet owner incident)
+      if (e.type === 'coentry') continue;
       if ((degree.get(e.a) ?? 0) > HUB_DEGREE_MAX || (degree.get(e.b) ?? 0) > HUB_DEGREE_MAX) continue;
       if (parent.get(e.a) === undefined) parent.set(e.a, e.a);
       if (parent.get(e.b) === undefined) parent.set(e.b, e.b);
