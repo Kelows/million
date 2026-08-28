@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useEmitters, useLiveEvents, useLiveStatus, useSetSubscribed } from '../api';
+import { useEmitters, useLiveEvents, useLiveStatus, useOpportunities, useSetSubscribed } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -17,7 +18,14 @@ const KIND_STYLE: Record<string, string> = {
 export function Live() {
   const { data: status } = useLiveStatus();
   const { data: events = [] } = useLiveEvents(150);
-  const pag = usePagination(events, 25);
+  const { data: opportunities = [] } = useOpportunities();
+  const [buysOnly, setBuysOnly] = useState(false);
+  const [minSol, setMinSol] = useState(0);
+  // signal lens: the firehose is healthy, legibility is the problem — filter
+  // locally and badge the events that actually became opportunities
+  const oppMints = new Set(opportunities.filter((o) => o.mint).map((o) => o.mint));
+  const visible = events.filter((e) => (!buysOnly || e.kind === 'buy') && Math.abs(e.sol ?? 0) >= minSol);
+  const pag = usePagination(visible, 25);
   const { data: emitters = [] } = useEmitters();
   const setSubscribed = useSetSubscribed();
 
@@ -75,7 +83,21 @@ export function Live() {
       )}
 
       <div className="panel">
-        <div className="px-4 pt-4 pb-2 eyebrow">Events · newest first · refreshes every 5s</div>
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4 flex-wrap">
+          <span className="eyebrow">Events · newest first</span>
+          <span className="flex items-center gap-4 text-xs font-mono">
+            <label className="flex items-center gap-1.5 text-dim cursor-pointer">
+              <input type="checkbox" checked={buysOnly} onChange={(e) => setBuysOnly(e.target.checked)} />
+              buys only
+            </label>
+            <label className="flex items-center gap-1.5 text-dim">
+              ≥
+              <input type="number" min={0} step={1} value={minSol} onChange={(e) => setMinSol(Number(e.target.value))} className="w-16 text-right" />
+              ◎
+            </label>
+            <span className="text-dim">{visible.length}/{events.length}</span>
+          </span>
+        </div>
         {events.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-dim">
             Nothing yet. Sub a wallet (its detail page → Sub) and events appear here as they trade.
@@ -115,6 +137,9 @@ export function Live() {
                           </Link>
                           {e.symbol && e.mint && <TokenName mint={e.mint} symbol={e.symbol} />}
                           <Addr address={e.mint} kind="token" />
+                          {oppMints.has(e.mint) && (
+                            <Link to="/opportunities" title="this token fired an opportunity" className="text-neon border border-neon/50 px-1 text-[0.6rem] font-bold tracking-widest hover:bg-neon/10">OPP</Link>
+                          )}
                         </span>
                       ) : (
                         <span className="text-dim">—</span>
