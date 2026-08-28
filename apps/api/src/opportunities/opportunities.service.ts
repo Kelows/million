@@ -115,6 +115,14 @@ export class OpportunitiesService {
       select: { id: true },
     });
     if (priorLive) return;
+    // cycler guard: a wallet that SOLD this mint minutes ago isn't entering, it's
+    // ping-ponging — copying a seconds-scale scalp cycle means buying their
+    // impact spike and selling into their dump. Their profit, our fee.
+    const recentSell = await this.prisma.liveEvent.findFirst({
+      where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - 10 * 60_000) } },
+      select: { id: true },
+    });
+    if (recentSell) return;
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
     // copyability gate: the one measured trigger below threshold went 0-for-3 as
     // predicted — a whale whose edge dies inside our latency is unfollowable no

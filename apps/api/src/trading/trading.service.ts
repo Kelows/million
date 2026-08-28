@@ -118,6 +118,13 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     const fill = await this.executor.buy(mint, sizeSol);
     if (!fill) return;
+    // fill fidelity: if our achievable price is far from the whale's recorded
+    // fill, we are demonstrably not getting their trade — on thin pools their
+    // own impact IS the spike, and we'd be buying its deflation
+    if (whaleEntryPriceUsd && Math.abs(fill.priceUsd / whaleEntryPriceUsd - 1) > 0.4) {
+      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${((fill.priceUsd / whaleEntryPriceUsd - 1) * 100).toFixed(0)}% from whale's price — not their trade anymore`);
+      return;
+    }
     await this.prisma.paperPosition.create({
       data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal },
     });
