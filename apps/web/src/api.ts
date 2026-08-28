@@ -503,3 +503,14 @@ export function useDecisionLog() {
     refetchInterval: 10_000,
   });
 }
+
+export function useSubscribeAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ subscribed: number }>('/wallets/subscribe-all', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallets'] });
+      qc.invalidateQueries({ queryKey: ['live-status'] });
+    },
+  });
+}

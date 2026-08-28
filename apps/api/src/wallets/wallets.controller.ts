@@ -53,6 +53,14 @@ export class WalletsController {
     return this.wallets.setLabel(address, body.label || null);
   }
 
+  @Post('wallets/subscribe-all')
+  @HttpCode(200)
+  async subscribeAll() {
+    const count = await this.wallets.subscribeAll();
+    void this.live.resync();
+    return { subscribed: count };
+  }
+
   @Post('wallets/unsubscribe-all')
   @HttpCode(200)
   async unsubscribeAll() {

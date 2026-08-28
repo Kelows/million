@@ -232,6 +232,19 @@ export class WalletsService {
     return this.toRecord(updated);
   }
 
+  /** Sub every wallet worth streaming: analyzed, not purged, not infra. */
+  async subscribeAll(): Promise<number> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { metrics: { not: null }, purgedAt: null, subscribed: false },
+      select: { address: true, metrics: true },
+    });
+    const eligible = rows
+      .filter((w) => !((JSON.parse(w.metrics as string) as WalletMetrics).flags ?? []).includes('BOT_INFRA'))
+      .map((w) => w.address);
+    if (eligible.length) await this.prisma.wallet.updateMany({ where: { address: { in: eligible } }, data: { subscribed: true } });
+    return eligible.length;
+  }
+
   async unsubscribeAll(): Promise<number> {
     const r = await this.prisma.wallet.updateMany({ where: { subscribed: true }, data: { subscribed: false } });
     return r.count;

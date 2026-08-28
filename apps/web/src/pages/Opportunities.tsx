@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from '@tanstack/react-router';
 import { STRATEGY_PRESETS } from '@million/shared';
 import type { OpportunityConfig } from '@million/shared';
-import { useCrawler, useLiveStatus, useOpportunities, useOpportunityConfig, useSetCrawlerConfig, useSetOpportunityConfig, useSetSubscribed, useUnsubscribeAll, useWallets } from '../api';
+import { useCrawler, useLiveStatus, useOpportunities, useOpportunityConfig, useSetCrawlerConfig, useSetOpportunityConfig, useSetSubscribed, useSubscribeAll, useUnsubscribeAll, useWallets } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -18,6 +18,7 @@ function SubbedWalletsButton({ count }: { count: number }) {
   const { data: wallets = [] } = useWallets();
   const setSubscribed = useSetSubscribed();
   const unsubAll = useUnsubscribeAll();
+  const subAll = useSubscribeAll();
   const subbed = wallets.filter((w) => w.subscribed);
 
   return (
@@ -54,7 +55,13 @@ function SubbedWalletsButton({ count }: { count: number }) {
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {subbed.length === 0 ? (
-                  <p className="text-sm text-dim py-6 text-center">No wallets subbed — Sub them from their detail page.</p>
+                  <div className="py-6 text-center flex flex-col items-center gap-3">
+                    <p className="text-sm text-dim">No wallets subbed — sub them from their detail page, or all at once:</p>
+                    <button className="btn" disabled={subAll.isPending} onClick={() => subAll.mutate()}>
+                      {subAll.isPending ? 'Subbing…' : 'Sub all analyzed wallets'}
+                    </button>
+                    <p className="text-xs text-dim">every analyzed, non-purged, non-infra wallet joins the feed</p>
+                  </div>
                 ) : (
                   <ul>
                     {subbed.map((w) => (
