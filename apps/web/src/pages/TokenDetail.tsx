@@ -50,8 +50,16 @@ export function TokenDetail() {
       {report ? (
         <TokenReportView report={report} />
       ) : (
-        <div className="panel p-8 text-center text-sm text-dim">
-          {check.isPending ? 'Running the gauntlet…' : 'No check yet.'}
+        <div className="panel p-8 text-center">
+          {check.isPending ? (
+            <p className="text-sm text-dim">Running the gauntlet…</p>
+          ) : (
+            <>
+              <div className="text-bright font-semibold">Not checked yet</div>
+              <p className="text-sm text-dim mt-2 mb-4">Run the gauntlet — authorities, liquidity, LP lock, holders, deployer, on-chain sell simulation.</p>
+              <button className="btn" onClick={() => check.mutate(mint)}>Run the gauntlet</button>
+            </>
+          )}
         </div>
       )}
 
