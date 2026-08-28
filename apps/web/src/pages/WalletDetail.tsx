@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from '@tanstack/react-router';
+import { getRouteApi, Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useAnalyzeWallet, useImportWallets, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
@@ -43,7 +43,13 @@ export function WalletDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notInRoster, autoRun, address]);
   // hook must run on every render path, so it sits above the early returns
-  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
+  const urlSearch = getRouteApi('/wallets/$address').useSearch();
+  const navigate = useNavigate();
+  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, urlSearch.sort ?? 'realized', urlSearch.dir ?? 'desc');
+  useEffect(() => {
+    void navigate({ to: '/wallets/$address', params: { address }, search: { sort: tokenSort.sortKey ?? undefined, dir: tokenSort.dir }, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenSort.sortKey, tokenSort.dir]);
   const pag = usePagination(tokenSort.sorted, 25);
   const setSubscribed = useSetSubscribed();
   const subscribeOwner = useSubscribeOwner();

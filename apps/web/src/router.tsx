@@ -32,6 +32,10 @@ export const walletDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/wallets/$address',
   component: WalletDetail,
+  validateSearch: (search: Record<string, unknown>): { sort?: string; dir?: 'asc' | 'desc' } => ({
+    ...(typeof search.sort === 'string' ? { sort: search.sort } : {}),
+    ...(search.dir === 'asc' || search.dir === 'desc' ? { dir: search.dir } : {}),
+  }),
 });
 export const screenerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/screener', component: Screener });
 export const tokenCheckRoute = createRoute({
