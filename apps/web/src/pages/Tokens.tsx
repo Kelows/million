@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useCheckToken, useImportTokens, usePurgeJunkTokens, useTokens, useUntrackToken } from '../api';
+import { useCheckToken, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -33,6 +33,8 @@ export function Tokens() {
   const checkToken = useCheckToken();
   const untrack = useUntrackToken();
   const purgeJunk = usePurgeJunkTokens();
+  const recheckJob = useRecheckAllJob();
+  const startRecheck = useStartRecheckAll();
   const [raw, setRaw] = useState('');
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -102,6 +104,14 @@ export function Tokens() {
         <div className="px-4 pt-4 pb-2 flex items-center gap-4 flex-wrap">
           <span className="eyebrow">Tokens · {filtered.length !== tokens.length ? `${filtered.length} / ${tokens.length}` : tokens.length}</span>
           <MoversModal />
+          <button
+            className="btn py-1! px-2! text-[0.6rem]!"
+            disabled={recheckJob.data?.running || startRecheck.isPending}
+            title="Re-run the gauntlet on every tracked token — server-side, survives leaving the page"
+            onClick={() => startRecheck.mutate()}
+          >
+            {recheckJob.data?.running ? `re-checking ${recheckJob.data.done}/${recheckJob.data.total}…` : 're-check all'}
+          </button>
           <input placeholder="search symbol / mint" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56 py-1! text-xs" />
           <label className="flex items-center gap-2 text-xs text-dim cursor-pointer">
             <input

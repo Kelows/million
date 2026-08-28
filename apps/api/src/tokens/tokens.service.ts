@@ -11,12 +11,14 @@ import {
 } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { TokenCheckService } from '../screener/token-check.service';
+import { EventsBus } from '../common/events.bus';
 
 @Injectable()
 export class TokensService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenCheck: TokenCheckService,
+    private readonly bus: EventsBus,
   ) {}
 
   async import(mints: string[], source: string | null): Promise<{ imported: number; skipped: number }> {
@@ -94,6 +96,37 @@ export class TokensService {
       .map((r) => r.mint);
     if (junk.length) await this.prisma.token.updateMany({ where: { mint: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
+  }
+
+  private recheckJob = { running: false, done: 0, total: 0 };
+
+  /** Server-side batch: re-run the gauntlet on every tracked token (verdicts go stale when checks evolve). */
+  startRecheckAll(thresholds: TokenCheckThresholds): { started: boolean } {
+    if (this.recheckJob.running) return { started: false };
+    this.recheckJob = { running: true, done: 0, total: 0 };
+    void (async () => {
+      try {
+        const tracked = await this.prisma.token.findMany({
+          where: { tracked: true, purgedAt: null },
+          select: { mint: true },
+        });
+        this.recheckJob.total = tracked.length;
+        for (const { mint } of tracked) {
+          await this.check(mint, thresholds).catch(() => undefined);
+          this.recheckJob.done++;
+          this.bus.emit('token_checked');
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      } finally {
+        this.recheckJob.running = false;
+        this.bus.emit('token_checked');
+      }
+    })();
+    return { started: true };
+  }
+
+  getRecheckStatus() {
+    return this.recheckJob;
   }
 
   async untrack(mint: string): Promise<void> {

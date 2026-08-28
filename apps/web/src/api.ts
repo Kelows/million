@@ -362,6 +362,9 @@ export function useEventStream() {
         } else if (type === 'wallet_analyzed') {
           qc.invalidateQueries({ queryKey: ['wallets'] });
           qc.invalidateQueries({ queryKey: ['analyze-pending'] });
+        } else if (type === 'token_checked') {
+          qc.invalidateQueries({ queryKey: ['tokens'] });
+          qc.invalidateQueries({ queryKey: ['recheck-all'] });
         }
       } catch {
         /* malformed frame — ignore */
@@ -399,5 +402,24 @@ export function useStartAnalyzePending() {
   return useMutation({
     mutationFn: () => request<{ started: boolean }>('/wallets/analyze-pending', { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['analyze-pending'] }),
+  });
+}
+
+export function useRecheckAllJob() {
+  return useQuery({
+    queryKey: ['recheck-all'],
+    queryFn: () => request<AnalyzePendingJob>('/tokens/jobs/recheck-all'),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useStartRecheckAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams(Object.entries(loadFailsafes()).map(([k, v]) => [k, String(v)]));
+      return request<{ started: boolean }>(`/tokens/recheck-all?${params}`, { method: 'POST' });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['recheck-all'] }),
   });
 }

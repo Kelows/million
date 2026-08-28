@@ -45,6 +45,17 @@ export class TokensController {
     return this.tokens.purgeJunk();
   }
 
+  @Post('recheck-all')
+  @HttpCode(200)
+  recheckAll(@Query(new ZodPipe(TokenCheckThresholdsSchema)) thresholds: ReturnType<typeof TokenCheckThresholdsSchema.parse>) {
+    return this.tokens.startRecheckAll(thresholds);
+  }
+
+  @Get('jobs/recheck-all')
+  recheckStatus() {
+    return this.tokens.getRecheckStatus();
+  }
+
   @Get(':mint')
   detail(@Param('mint', new ZodPipe(SolAddressSchema)) mint: string) {
     return this.tokens.detail(mint);
