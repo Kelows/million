@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Token } from '@prisma/client';
 import {
+  CrawlerConfigSchema,
   isExcludedToken,
   type FamousTokenRow,
   type FamousTokens,
@@ -57,9 +58,17 @@ export class TokensService {
     };
   }
 
+  /** Crawler-config thresholds are THE thresholds; explicit query params override per-key. */
+  private async resolveThresholds(partial: Partial<TokenCheckThresholds>): Promise<TokenCheckThresholds> {
+    const row = await this.prisma.crawlerConfig.findUnique({ where: { id: 1 } }).catch(() => null);
+    const base = CrawlerConfigSchema.parse(row ? JSON.parse(row.data) : {}).thresholds;
+    const overrides = Object.fromEntries(Object.entries(partial).filter(([, v]) => v !== undefined));
+    return { ...base, ...overrides };
+  }
+
   /** Runs the gauntlet, stores the report, and starts tracking the token. */
-  async check(mint: string, thresholds: TokenCheckThresholds): Promise<TokenDetailData> {
-    const report = await this.tokenCheck.check(mint, thresholds);
+  async check(mint: string, partial: Partial<TokenCheckThresholds>): Promise<TokenDetailData> {
+    const report = await this.tokenCheck.check(mint, await this.resolveThresholds(partial));
     await this.prisma.token.upsert({
       where: { mint },
       create: {
@@ -103,7 +112,7 @@ export class TokensService {
   private recheckJob = { running: false, done: 0, total: 0 };
 
   /** Server-side batch: re-run the gauntlet on every tracked token (verdicts go stale when checks evolve). */
-  startRecheckAll(thresholds: TokenCheckThresholds): { started: boolean } {
+  startRecheckAll(thresholds: Partial<TokenCheckThresholds>): { started: boolean } {
     if (this.recheckJob.running) return { started: false };
     this.recheckJob = { running: true, done: 0, total: 0 };
     void (async () => {

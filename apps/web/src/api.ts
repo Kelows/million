@@ -173,10 +173,7 @@ export function useImportTokens() {
 export function useCheckToken() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (mint: string) => {
-      const params = new URLSearchParams(Object.entries(loadFailsafes()).map(([k, v]) => [k, String(v)]));
-      return request<TokenDetailData>(`/tokens/${mint}/check?${params}`, { method: 'POST' });
-    },
+    mutationFn: (mint: string) => request<TokenDetailData>(`/tokens/${mint}/check`, { method: 'POST' }), // thresholds resolve server-side from the crawler config
     onSuccess: (data, mint) => {
       qc.setQueryData(['tokens', mint], data);
       qc.invalidateQueries({ queryKey: ['tokens'], exact: true });
@@ -423,8 +420,7 @@ export function useStartRecheckAll() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => {
-      const params = new URLSearchParams(Object.entries(loadFailsafes()).map(([k, v]) => [k, String(v)]));
-      return request<{ started: boolean }>(`/tokens/recheck-all?${params}`, { method: 'POST' });
+      return request<{ started: boolean }>('/tokens/recheck-all', { method: 'POST' }); // thresholds resolve server-side
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recheck-all'] }),
   });

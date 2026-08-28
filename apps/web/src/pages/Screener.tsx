@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { loadFailsafes, saveFailsafes, type FailsafeConfig } from '../lib/failsafes';
+import { useCrawler, useSetCrawlerConfig } from '../api';
 import { loadMinOpenSol, saveMinOpenSol } from '../lib/settings';
 import { ThresholdFields } from '../components/ThresholdFields';
 
@@ -13,30 +13,28 @@ const PLANNED_CHECKS = [
 
 
 export function Screener() {
-  const [config, setConfig] = useState<FailsafeConfig>(loadFailsafes);
+  const { data: crawler } = useCrawler();
+  const save = useSetCrawlerConfig();
   const [minOpenSol, setMinOpenSol] = useState<number>(loadMinOpenSol);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (!saveFailsafes(config)) return;
-    setSaved(true);
-    const t = setTimeout(() => setSaved(false), 1200);
-    return () => clearTimeout(t);
-  }, [config]);
+  const config = crawler?.config;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Token screener</h1>
         <p className="text-sm text-dim mt-1">
-          Failsafes every entry must pass. <Link to="/token-check" className="text-neon hover:underline">Token check</Link> and
-          the executor both read these thresholds.
+          Failsafes every entry must pass — ONE set of thresholds, stored server-side: manual checks, opportunities,
+          the crawler and re-checks all read the same values (also editable on the <Link to="/crawler" className="text-neon hover:underline">Crawler</Link> page).
         </p>
       </div>
 
       <div className="panel p-4 flex flex-col gap-4">
-        <span className="eyebrow">Failsafes {saved && <span className="text-profit normal-case tracking-normal">· saved</span>}</span>
-        <ThresholdFields value={config} onChange={setConfig} />
+        <span className="eyebrow">Failsafes {save.isSuccess && <span className="text-profit normal-case tracking-normal">· saved</span>}</span>
+        {config ? (
+          <ThresholdFields value={config.thresholds} onChange={(t) => save.mutate({ ...config, thresholds: t })} />
+        ) : (
+          <p className="text-sm text-dim">Loading…</p>
+        )}
       </div>
 
       <div className="panel p-4 flex flex-col gap-4">

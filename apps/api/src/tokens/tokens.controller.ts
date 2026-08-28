@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { SolAddressSchema, TokenCheckThresholdsSchema } from '@million/shared';
+
+const PartialThresholdsSchema = TokenCheckThresholdsSchema.partial();
 import { ZodPipe } from '../zod.pipe';
 import { TokensService } from './tokens.service';
 import { MoversService } from '../analysis/movers.service';
@@ -47,7 +49,7 @@ export class TokensController {
 
   @Post('recheck-all')
   @HttpCode(200)
-  recheckAll(@Query(new ZodPipe(TokenCheckThresholdsSchema)) thresholds: ReturnType<typeof TokenCheckThresholdsSchema.parse>) {
+  recheckAll(@Query(new ZodPipe(PartialThresholdsSchema)) thresholds: ReturnType<typeof PartialThresholdsSchema.parse>) {
     return this.tokens.startRecheckAll(thresholds);
   }
 
@@ -70,7 +72,7 @@ export class TokensController {
   @HttpCode(200)
   check(
     @Param('mint', new ZodPipe(SolAddressSchema)) mint: string,
-    @Query(new ZodPipe(TokenCheckThresholdsSchema)) thresholds: ReturnType<typeof TokenCheckThresholdsSchema.parse>,
+    @Query(new ZodPipe(PartialThresholdsSchema)) thresholds: ReturnType<typeof PartialThresholdsSchema.parse>,
   ) {
     return this.tokens.check(mint, thresholds);
   }
