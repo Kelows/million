@@ -13,7 +13,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       : `${res.status} ${res.statusText}`;
     throw new Error(message);
   }
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T; // DELETEs return empty bodies
 }
 
 export interface Health {
