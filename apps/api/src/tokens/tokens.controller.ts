@@ -1,8 +1,15 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { SolAddressSchema, TokenCheckThresholdsSchema } from '@million/shared';
+import { SolAddressSchema } from '@million/shared';
 
-const PartialThresholdsSchema = TokenCheckThresholdsSchema.partial();
+// NOT TokenCheckThresholdsSchema.partial(): zod still fills .default()s through
+// .partial(), which silently turns "no params" into a full stale-default override.
+const PartialThresholdsSchema = z.object({
+  minLiquidityUsd: z.coerce.number().nonnegative().optional(),
+  minMarketCapUsd: z.coerce.number().nonnegative().optional(),
+  maxTop10Pct: z.coerce.number().min(0).max(100).optional(),
+  minTokenAgeMinutes: z.coerce.number().nonnegative().optional(),
+});
 import { ZodPipe } from '../zod.pipe';
 import { TokensService } from './tokens.service';
 import { MoversService } from '../analysis/movers.service';
