@@ -30,6 +30,8 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private nextReqId = 1;
   private lastEventAt: Date | null = null;
   private edgeDead = false; // webhook registered but deliveries not arriving (e.g. tunnel quota 403)
+  private lastSyncKey = ''; // address-set + URL of the last successful PUT — identical sets skip the call
+  private lastSyncAt = 0;
   private webhookSynced = false;
 
   constructor(
@@ -73,6 +75,10 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const url = `${this.env.get<string>('WEBHOOK_URL')}/api/live/webhook`;
     const subs = await this.prisma.wallet.findMany({ where: { subscribed: true, purgedAt: null }, select: { address: true } });
     const addresses = subs.map((w) => w.address);
+    // idle economy: an unchanged set needs no management call — resync only on
+    // drift, or hourly as insurance against Helius-side surprises
+    const syncKey = `${url}|${addresses.slice().sort().join(',')}`;
+    if (this.webhookSynced && syncKey === this.lastSyncKey && Date.now() - this.lastSyncAt < 3_600_000) return;
     const base = `https://api.helius.xyz/v0/webhooks?api-key=${key}`;
     const list = (await fetch(base).then((r) => (r.ok ? r.json() : [])).catch(() => [])) as { webhookID: string; webhookURL: string }[];
     const existing = list.find((w) => w.webhookURL === url);
@@ -90,6 +96,10 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
         .catch(() => false);
     } else if (addresses.length) {
       this.webhookSynced = await fetch(base, { method: 'POST', headers, body }).then((r) => r.ok).catch(() => false);
+    }
+    if (this.webhookSynced) {
+      this.lastSyncKey = syncKey;
+      this.lastSyncAt = Date.now();
     }
   }
 
