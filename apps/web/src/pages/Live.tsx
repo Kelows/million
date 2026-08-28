@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router';
-import { useLiveEvents, useLiveStatus } from '../api';
+import { useEmitters, useLiveEvents, useLiveStatus, useSetSubscribed } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
+import { FlagChip } from '../components/FlagChip';
 import { fmtAgo, truncAddr } from '../lib/format';
 
 const KIND_STYLE: Record<string, string> = {
@@ -14,6 +15,8 @@ const KIND_STYLE: Record<string, string> = {
 export function Live() {
   const { data: status } = useLiveStatus();
   const { data: events = [] } = useLiveEvents(150);
+  const { data: emitters = [] } = useEmitters();
+  const setSubscribed = useSetSubscribed();
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,6 +38,38 @@ export function Live() {
           <div className="text-dim">{status?.eventsToday ?? 0} events today</div>
         </div>
       </div>
+
+      {emitters.length > 0 && (
+        <div className="panel">
+          <div className="px-4 pt-4 pb-2 eyebrow">Top emitters · last 15 min · spam is a signal too</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm font-mono">
+              <tbody>
+                {emitters.slice(0, 8).map((e) => (
+                  <tr key={e.wallet} className="border-t border-line hover:bg-deck2">
+                    <td className="pl-4 pr-0 py-2 w-8">
+                      <Link to="/wallets/$address" params={{ address: e.wallet }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
+                    </td>
+                    <td className="px-4 py-2 text-ink">{e.label ?? truncAddr(e.wallet)}</td>
+                    <td className="px-4 py-2 text-warn font-bold">{e.events} ev</td>
+                    <td className="px-4 py-2 text-dim">{e.medianHoldMinutes !== null ? `hold ${e.medianHoldMinutes}m` : 'unanalyzed'}</td>
+                    <td className="px-4 py-2">
+                      <span className="flex gap-1">{(e.flags ?? []).map((f) => <FlagChip key={f} flag={f as import('@million/shared').WalletFlag} />)}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {e.subscribed && (
+                        <button className="text-xs text-dim hover:text-loss" title="Unsubscribe — stop this wallet flooding the feed" onClick={() => setSubscribed.mutate({ address: e.wallet, subscribed: false })}>
+                          unsub ✕
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 eyebrow">Events · newest first · refreshes every 5s</div>

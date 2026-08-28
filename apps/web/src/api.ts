@@ -429,3 +429,16 @@ import type { CohortRow } from '@million/shared';
 export function useCohorts() {
   return useQuery({ queryKey: ['cohorts'], queryFn: () => request<CohortRow[]>('/wallets/cohorts'), staleTime: 5 * 60_000 });
 }
+
+export interface EmitterRow {
+  wallet: string;
+  label: string | null;
+  events: number;
+  subscribed: boolean;
+  flags: string[] | null;
+  medianHoldMinutes: number | null;
+}
+
+export function useEmitters() {
+  return useQuery({ queryKey: ['emitters'], queryFn: () => request<EmitterRow[]>('/live/emitters'), refetchInterval: 30_000 });
+}

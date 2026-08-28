@@ -41,6 +41,29 @@ export class LiveController {
     return { received: txs.length };
   }
 
+  /** Who is flooding the feed — event counts per wallet in the retention window. */
+  @Get('emitters')
+  async emitters() {
+    const rows = await this.prisma.liveEvent.groupBy({ by: ['wallet'], _count: { wallet: true }, orderBy: { _count: { wallet: 'desc' } }, take: 15 });
+    const wallets = await this.prisma.wallet.findMany({
+      where: { address: { in: rows.map((r) => r.wallet) } },
+      select: { address: true, label: true, metrics: true, subscribed: true },
+    });
+    const byAddr = new Map(wallets.map((w) => [w.address, w]));
+    return rows.map((r) => {
+      const w = byAddr.get(r.wallet);
+      const m = w?.metrics ? (JSON.parse(w.metrics) as import('@million/shared').WalletMetrics) : null;
+      return {
+        wallet: r.wallet,
+        label: w?.label ?? null,
+        events: r._count.wallet,
+        subscribed: w?.subscribed ?? false,
+        flags: m?.flags ?? null,
+        medianHoldMinutes: m?.medianHoldMinutes ?? null,
+      };
+    });
+  }
+
   @Get('events')
   async events(@Query(new ZodPipe(ListSchema)) query: { limit: number }): Promise<LiveEventRow[]> {
     const rows = await this.prisma.liveEvent.findMany({ orderBy: { id: 'desc' }, take: query.limit });
