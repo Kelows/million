@@ -41,18 +41,31 @@ export class TokenCheckService {
     const reuseDeployer = prevAgeMs < 24 * 3_600_000 && conclusive('deployer-history') && conclusive('deployer-funding');
     const reuseRug = prevAgeMs < 6 * 3_600_000 && conclusive('rugcheck');
 
-    const [asset, pair, rug, sellSim] = await Promise.all([
-      staticSafe ? Promise.resolve(null) : this.helius.getAssetInfo(mint).catch(() => null),
-      this.dexscreener.fetchBestPair(mint),
-      reuseRug ? Promise.resolve(null) : this.rugcheck.fetchSummary(mint),
-      this.jupiter.sellSimulation(mint).catch(() => null),
-    ]);
-    // LP vault exclusion: the pools' token accounts must not count as "holders"
-    const vaultLists = await Promise.all(
-      (pair?.pairAddresses ?? []).map((p) => this.helius.getTokenAccountsByOwner(p, mint).catch(() => [])),
-    );
-    const vaults = new Set(vaultLists.flat());
-    const holders = await this.helius.getTopHolders(mint, vaults).catch(() => null);
+    // Latency is signal fidelity: this runs cold on every launch-tier trigger,
+    // so the chains run CONCURRENTLY — total time is the slowest chain, not the
+    // sum. (pair→vaults→holders→deep-sim) ∥ (rug→funding) ∥ asset ∥ jupiter.
+    const assetP = staticSafe ? Promise.resolve(null) : this.helius.getAssetInfo(mint).catch(() => null);
+    const rugP = reuseRug ? Promise.resolve(null) : this.rugcheck.fetchSummary(mint);
+    const sellSimP = this.jupiter.sellSimulation(mint).catch(() => null);
+    const holdersChain = (async () => {
+      const pair = await this.dexscreener.fetchBestPair(mint);
+      // LP vault exclusion: the pools' token accounts must not count as "holders"
+      const vaultLists = await Promise.all(
+        (pair?.pairAddresses ?? []).map((p) => this.helius.getTokenAccountsByOwner(p, mint).catch(() => [])),
+      );
+      const vaults = new Set(vaultLists.flat());
+      const holders = await this.helius.getTopHolders(mint, vaults).catch(() => null);
+      return { pair, vaults, holders };
+    })();
+    const prevDeepEarly = prevCheck('sell-sim-deep');
+    const deepP =
+      prevDeepEarly && prevDeepEarly.status !== 'unknown'
+        ? Promise.resolve(undefined) // cached — the check block reuses it
+        : holdersChain.then(({ vaults }) => this.deepSellSim(mint, vaults)).catch(() => null);
+    const fundingP = rugP.then((r) => (!reuseDeployer && r?.creator ? this.deployerFunding(r.creator).catch(() => null) : null));
+
+    const [asset, rug, sellSim, { pair, vaults, holders }] = await Promise.all([assetP, rugP, sellSimP, holdersChain]);
+    void vaults;
 
     const checks: TokenCheck[] = [];
     const push = (id: string, label: string, status: CheckStatus, value: string | null, detail: string) =>
@@ -252,7 +265,7 @@ export class TokenCheckService {
     if (prevDeep && prevDeep.status !== 'unknown') {
       checks.push(prevDeep);
     } else {
-      const deep = await this.deepSellSim(mint, vaults).catch(() => null);
+      const deep = (await deepP) ?? null;
       if (deep === null) {
         push('sell-sim-deep', 'Sell simulation (on-chain)', 'unknown', null, 'Could not build a holder sell transaction to simulate — no sizeable holder or no route yet.');
       } else if (deep.inconclusive) {
@@ -269,7 +282,7 @@ export class TokenCheckService {
       const c = prevCheck('deployer-funding');
       if (c) checks.push(c);
     } else if (!reuseDeployer && rug?.creator) {
-      const funding = await this.deployerFunding(rug.creator).catch(() => null);
+      const funding = await fundingP;
       if (!funding || funding.funder === null) {
         push('deployer-funding', 'Deployer funding', 'unknown', null, 'No sizeable SOL inflow found in the deployer recent history.');
       } else {

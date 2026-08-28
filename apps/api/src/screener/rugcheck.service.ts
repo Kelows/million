@@ -15,7 +15,7 @@ export class RugcheckService {
     // full report: same risks/score as the summary endpoint, plus the creator's launch history
     const res = await fetch(`https://api.rugcheck.xyz/v1/tokens/${mint}/report`, {
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(10_000),
     }).catch(() => null);
     if (!res?.ok) return null;
     type Raw = {
