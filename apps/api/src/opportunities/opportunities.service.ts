@@ -97,13 +97,14 @@ export class OpportunitiesService {
   /** Called by the live feed for every ingested buy. Cheap checks first, gauntlet last. */
   async evaluate(wallet: string, mint: string, buySol: number, ts: Date, eventId: number, whalePriceUsd: number | null = null): Promise<void> {
     const config = await this.getConfig();
-    if (buySol < config.minBuySol) return;
+    const skip = (why: string) => console.log(`[opps] skip ${mint.slice(0, 6)}… (${wallet.slice(0, 6)}…, ${buySol.toFixed(1)}◎): ${why}`);
+    if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
       const trigRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
-      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED')) return;
+      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED')) return skip('trigger wallet is SNIPER_SPEED');
     }
-    if (isExcludedToken(mint)) return; // majors/stables are never opportunities
+    if (isExcludedToken(mint)) return; // majors/stables — silent, uninteresting
 
     // consensus voting happens BEFORE the per-wallet novelty gates: a top-up or
     // repeat buy can't fire a direct copy, but it still counts toward breadth
@@ -114,7 +115,7 @@ export class OpportunitiesService {
       where: { wallet, mint, kind: 'buy', id: { lt: eventId } },
       select: { id: true },
     });
-    if (priorLive) return;
+    if (priorLive) return skip('prior live buy in window — continuation, not news');
     // cycler guard: a wallet that SOLD this mint minutes ago isn't entering, it's
     // ping-ponging — copying a seconds-scale scalp cycle means buying their
     // impact spike and selling into their dump. Their profit, our fee.
@@ -122,21 +123,21 @@ export class OpportunitiesService {
       where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - 10 * 60_000) } },
       select: { id: true },
     });
-    if (recentSell) return;
+    if (recentSell) return skip('sold this mint <10min ago — mid scalp cycle');
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
     // copyability gate: the one measured trigger below threshold went 0-for-3 as
     // predicted — a whale whose edge dies inside our latency is unfollowable no
     // matter the score. Unmeasured wallets pass; coverage grows with each run.
     if (walletRow?.copyability) {
       const cop = JSON.parse(walletRow.copyability) as { edgeRetentionPct: number | null };
-      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) return;
+      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) return skip(`copyability ${Math.round(cop.edgeRetentionPct)}% < ${config.minEdgeRetentionPct}%`);
     }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
-      if ((m.flags ?? []).includes('BOT_INFRA')) return; // infra "buys" are inventory moves, never signal
+      if ((m.flags ?? []).includes('BOT_INFRA')) return skip('trigger wallet is BOT_INFRA'); // inventory moves, never signal
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
-      if (m.tokens.some((t) => t.mint === mint && t.open)) return;
+      if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
     }
 
     await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd);
@@ -177,7 +178,10 @@ export class OpportunitiesService {
       where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_MINUTES * 60_000) } },
       select: { id: true },
     });
-    if (recent) return;
+    if (recent) {
+      console.log(`[opps] skip ${mint.slice(0, 6)}… (${signal}): opportunity already fired for this mint <1h ago`);
+      return;
+    }
 
     // the gauntlet decides — thresholds come from the crawler config (one source of truth)
     const crawlerRow = await this.prisma.crawlerConfig.findUnique({ where: { id: 1 } });
@@ -185,7 +189,11 @@ export class OpportunitiesService {
     const report = await this.tokenCheck.check(mint, thresholds).catch(() => null);
     if (!report) return;
     const allowed = report.verdict === 'pass' || (config.allowWarn && report.verdict === 'warn');
-    if (!allowed) return;
+    if (!allowed) {
+      const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',');
+      console.log(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
+      return;
+    }
 
     await this.prisma.opportunity.create({
       data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts, signal },
