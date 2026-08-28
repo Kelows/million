@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useCheckToken, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
+import { useCheckToken, useFamousTokens, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -10,7 +10,7 @@ import { fmtAgo } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
-import type { TrackedToken } from '@million/shared';
+import type { FamousTokenRow, TrackedToken } from '@million/shared';
 import { Pagination } from '../components/Pagination';
 
 const SOL_ADDR_G = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
@@ -99,6 +99,8 @@ export function Tokens() {
         </div>
         {parseError && <p className="text-xs text-loss">{parseError}</p>}
       </div>
+
+      <FamousPanel />
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 flex items-center gap-4 flex-wrap">
@@ -195,6 +197,68 @@ export function Tokens() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function FamousTable({ title, hint, rows, solLabel, pnlTone }: { title: string; hint: string; rows: FamousTokenRow[]; solLabel: string; pnlTone: boolean }) {
+  return (
+    <div className="panel">
+      <div className="px-4 pt-4 pb-2 eyebrow">{title}</div>
+      {rows.length === 0 ? (
+        <p className="px-4 pb-4 text-sm text-dim">Nothing yet — appears as wallet analyses accumulate.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead>
+              <tr className="text-left text-dim text-xs">
+                <th className="px-4 py-2 font-normal">token</th>
+                <th className="px-4 py-2 font-normal text-right">owners</th>
+                <th className="px-4 py-2 font-normal text-right">{solLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.mint} className="border-t border-line hover:bg-deck2">
+                  <td className="px-4 py-2">
+                    <Link to="/tokens/$mint" params={{ mint: r.mint }} className="text-neon hover:underline">
+                      <TokenName mint={r.mint} symbol={r.symbol} />
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
+                  <td className={`px-4 py-2 text-right ${pnlTone ? (r.sol >= 0 ? 'text-profit' : 'text-loss') : 'text-bright'}`}>
+                    {pnlTone && r.sol > 0 ? '+' : ''}{r.sol} ◎
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="px-4 py-3 text-xs text-dim">{hint}</p>
+    </div>
+  );
+}
+
+function FamousPanel() {
+  const { data } = useFamousTokens();
+  if (!data || (data.held.length === 0 && data.earned.length === 0)) return null;
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <FamousTable
+        title="Held across the roster"
+        hint="Distinct owners with an open position ≥ 0.5 ◎ at cost — clustered wallets count once, infra excluded. The roster's live consensus."
+        rows={data.held}
+        solLabel="entry ◎"
+        pnlTone={false}
+      />
+      <FamousTable
+        title="Where the roster printed"
+        hint="Realized PnL summed across owners that closed trades here. History, not a signal — but it shows which hunting grounds actually paid."
+        rows={data.earned}
+        solLabel="realized ◎"
+        pnlTone={true}
+      />
     </div>
   );
 }

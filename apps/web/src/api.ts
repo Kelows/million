@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CopyabilityJobStatus, CopyabilityWalletRow, WalletImport, WalletRecord } from '@million/shared';
+import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -465,4 +465,8 @@ export function useRunCopyability() {
       request<{ started: boolean }>('/copyability/run', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['copyability-status'] }),
   });
+}
+
+export function useFamousTokens() {
+  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous') });
 }

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { Token } from '@prisma/client';
 import {
   isExcludedToken,
+  type FamousTokenRow,
+  type FamousTokens,
   type TokenCheckThresholds,
   type TokenDetailData,
   type TokenReport,
@@ -133,6 +135,44 @@ export class TokensService {
     await this.prisma.token
       .update({ where: { mint }, data: { tracked: false } })
       .catch(() => undefined); // untracking an unknown token is a no-op
+  }
+
+  /**
+   * Tokens ranked by roster attention: what distinct owners hold right now
+   * (live consensus) and where they realized the most PnL (proven winners).
+   * One owner with five wallets counts once — address-counting flatters clusters.
+   */
+  async famous(): Promise<FamousTokens> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { metrics: { not: null }, purgedAt: null },
+      select: { address: true, ownerId: true, metrics: true },
+    });
+    const held = new Map<string, FamousTokenRow & { keys: Set<string> }>();
+    const earned = new Map<string, FamousTokenRow & { keys: Set<string> }>();
+    const bump = (map: typeof held, mint: string, symbol: string | null, ownerKey: string, sol: number) => {
+      const row = map.get(mint) ?? { mint, symbol, owners: 0, sol: 0, keys: new Set<string>() };
+      row.symbol = row.symbol ?? symbol;
+      row.keys.add(ownerKey);
+      row.owners = row.keys.size;
+      row.sol += sol;
+      map.set(mint, row);
+    };
+    for (const w of rows) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      if ((m.flags ?? []).includes('BOT_INFRA')) continue; // infra "holdings" are inventory, not conviction
+      const ownerKey = w.ownerId != null ? `o${w.ownerId}` : w.address;
+      for (const t of m.tokens) {
+        if (isExcludedToken(t.mint)) continue;
+        if (t.open && (t.entrySol ?? t.solIn) >= 0.5) bump(held, t.mint, t.symbol, ownerKey, t.entrySol ?? t.solIn);
+        const pnl = t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200);
+        if (t.sells > 0 && pnl !== 0) bump(earned, t.mint, t.symbol, ownerKey, pnl);
+      }
+    }
+    const strip = (r: FamousTokenRow & { keys: Set<string> }): FamousTokenRow => ({ mint: r.mint, symbol: r.symbol, owners: r.owners, sol: Math.round(r.sol * 100) / 100 });
+    return {
+      held: [...held.values()].sort((a, b) => b.owners - a.owners || b.sol - a.sol).slice(0, 15).map(strip),
+      earned: [...earned.values()].sort((a, b) => b.sol - a.sol).slice(0, 15).map(strip),
+    };
   }
 
   /** Which roster wallets hold or traded this token, from their cached analyses. */

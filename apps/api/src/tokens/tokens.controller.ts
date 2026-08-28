@@ -56,6 +56,11 @@ export class TokensController {
     return this.tokens.getRecheckStatus();
   }
 
+  @Get('famous')
+  famous() {
+    return this.tokens.famous();
+  }
+
   @Get(':mint')
   detail(@Param('mint', new ZodPipe(SolAddressSchema)) mint: string) {
     return this.tokens.detail(mint);

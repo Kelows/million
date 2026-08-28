@@ -561,3 +561,17 @@ export interface CopyabilityJobStatus {
   total: number;
   current: string | null; // address in flight
 }
+
+// ── famous tokens: what the roster is in, and where it won ──
+
+export interface FamousTokenRow {
+  mint: string;
+  symbol: string | null;
+  owners: number; // distinct owners (clustered wallets count once)
+  sol: number; // held: open entry SOL at cost · earned: realized PnL SOL
+}
+
+export interface FamousTokens {
+  held: FamousTokenRow[]; // open positions right now — the roster's live consensus
+  earned: FamousTokenRow[]; // realized PnL leaders — where the roster actually printed
+}
