@@ -130,7 +130,7 @@ export class TokenCheckService {
     if (holders) {
       push(
         'top10-holders', `Top-10 accounts ≤ ${fmtPct(t.maxTop10Pct)}`,
-        holders.top10Pct <= t.maxTop10Pct ? 'pass' : 'warn',
+        holders.top10Pct <= t.maxTop10Pct ? 'pass' : 'fail',
         fmtPct(holders.top10Pct),
         holders.excludedVaults > 0
           ? `Largest single account holds ${fmtPct(holders.largestPct)}. ${holders.excludedVaults} LP vault account${holders.excludedVaults === 1 ? '' : 's'} excluded from the math.`
