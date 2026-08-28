@@ -211,7 +211,11 @@ export class TokensService {
       const m = JSON.parse(w.metrics as string) as WalletMetrics;
       const t = m.tokens.find((tok) => tok.mint === mint);
       if (!t) continue;
-      if (t.open) holders.push({ address: w.address, label: w.label, entrySol: t.entrySol ?? t.solIn });
+      const sp = m.solPriceUsd ?? 200;
+      // remaining basis, never total-in: pre-entrySol metrics get in-minus-out
+      // (clamped at 0 — a profitable exit-heavy wallet needs re-analysis for truth)
+      const stillIn = t.entrySol ?? Math.max(0, t.solIn + (t.usdIn ?? 0) / sp - (t.solOut + (t.usdOut ?? 0) / sp));
+      if (t.open) holders.push({ address: w.address, label: w.label, entrySol: stillIn });
       else if (t.sells > 0) traders.push({ address: w.address, label: w.label, realizedPnlSol: t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200) });
     }
     holders.sort((a, b) => (b.entrySol ?? 0) - (a.entrySol ?? 0));

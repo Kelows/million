@@ -71,7 +71,7 @@ export function TokenDetail() {
                 <Link to="/wallets/$address" params={{ address: h.address }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
               </td>
               <td className="px-4 py-2">{h.label ?? <Addr address={h.address} />}</td>
-              <td className="px-4 py-2 text-right text-warn">{h.entrySol !== null ? `${h.entrySol.toFixed(1)} ◎ in` : '—'}</td>
+              <td className="px-4 py-2 text-right text-warn">{h.entrySol !== null ? `${h.entrySol.toFixed(1)} ◎ still in` : '—'}</td>
             </tr>
           ))}
         </IntelTable>
