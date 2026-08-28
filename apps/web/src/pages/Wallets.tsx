@@ -221,7 +221,7 @@ export function Wallets() {
       <div className="panel p-4 flex flex-col gap-3">
         <span className="eyebrow">Import</span>
         <textarea
-          rows={5}
+          rows={3}
           placeholder='Paste the whale JSON here — arrays, objects, or plain addresses all work'
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
