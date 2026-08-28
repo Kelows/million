@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingStats } from '@million/shared';
 import { PrismaService } from '../prisma.service';
+import { HeliusService } from '../analysis/helius.service';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
 const TICK_MS = 60_000;
@@ -19,6 +20,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(TRADE_EXECUTOR) private readonly executor: TradeExecutor,
+    private readonly helius: HeliusService,
   ) {}
 
   onModuleInit() {
@@ -44,11 +46,21 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
-    // conviction sizing: a % of the whale's own entry, clamped to the fixed size as cap
-    const sizeSol =
-      config.sizingMode === 'whale-pct' && whaleBuySol
-        ? Math.min(config.positionSol, Math.max(0.01, Math.round(whaleBuySol * config.copyPct) / 100))
-        : config.positionSol;
+    // conviction sizing, three flavors:
+    //  fixed      — every position the same size
+    //  whale-pct  — % of the whale's raw entry (unnormalized)
+    //  whale-frac — the whale's entry as a share of THEIR bankroll, applied to OURS
+    //               (normalized conviction: 100 SOL from a 10k whale is a flier,
+    //                from a 120 SOL wallet it's an all-in — capped at 25%)
+    let sizeSol = config.positionSol;
+    if (config.sizingMode === 'whale-pct' && whaleBuySol) {
+      sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(whaleBuySol * config.copyPct) / 100));
+    } else if (config.sizingMode === 'whale-frac' && whaleBuySol) {
+      const balance = await this.helius.getBalanceSol(wallet).catch(() => null);
+      const bankrollAtEntry = (balance ?? 0) + whaleBuySol;
+      const fraction = bankrollAtEntry > 0 ? Math.min(0.25, whaleBuySol / bankrollAtEntry) : 0.05;
+      sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(config.bankrollSol * fraction * 100) / 100));
+    }
     const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
     if (open.length >= config.maxOpenPositions) {
       console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);

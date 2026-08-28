@@ -440,7 +440,8 @@ export const OpportunityConfigSchema = z.object({
   allowWarn: z.boolean().default(true), // WARN verdicts count as opportunities too
   // staged for the (paper-first) auto trader — stored now, acted on later
   positionSol: z.coerce.number().nonnegative().default(0.1), // fixed size, and the hard cap in whale-pct mode
-  sizingMode: z.enum(['fixed', 'whale-pct']).default('fixed'),
+  sizingMode: z.enum(['fixed', 'whale-pct', 'whale-frac']).default('fixed'), // whale-frac = their buy as a share of THEIR bankroll, applied to ours
+  bankrollSol: z.coerce.number().nonnegative().default(5), // our notional bankroll for whale-frac sizing
   copyPct: z.coerce.number().min(0.1).max(100).default(5), // % of the whale's own entry, clamped to positionSol
   takeProfitPct: z.coerce.number().min(1).default(100),
   stopLossPct: z.coerce.number().min(1).max(100).default(50),

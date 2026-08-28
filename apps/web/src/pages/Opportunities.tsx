@@ -213,22 +213,29 @@ export function Opportunities() {
                 <input type="number" min={0} step={0.1} value={config.positionSol} onChange={(e) => setConfig({ ...config, positionSol: Number(e.target.value) })} className="w-24 text-right" />
               </label>
               <div className="flex items-center gap-2 text-sm">
-                {(['fixed', 'whale-pct'] as const).map((mode) => (
+                {(['fixed', 'whale-pct', 'whale-frac'] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setConfig({ ...config, sizingMode: mode })}
-                    title={mode === 'whale-pct' ? 'Size each entry as a % of the whale\u2019s own buy — their conviction sizes yours, capped at max position' : 'Every position the same size'}
+                    title={mode === 'whale-frac' ? 'Normalized conviction: their buy as a share of THEIR bankroll (balance at entry, capped 25%), applied to your bankroll below' : mode === 'whale-pct' ? 'Raw % of the whale\u2019s own buy — unnormalized' : 'Every position the same size'}
                     className={`px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-widest border cursor-pointer ${
                       config.sizingMode === mode ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
                     }`}
                   >
-                    {mode === 'fixed' ? 'fixed size' : '% of whale'}
+                    {mode === 'fixed' ? 'fixed size' : mode === 'whale-pct' ? '% of whale' : 'normalized'}
                   </button>
                 ))}
                 {config.sizingMode === 'whale-pct' && (
                   <label className="flex items-center gap-1 text-xs text-dim">
                     <input type="number" min={0.1} max={100} step={1} value={config.copyPct} onChange={(e) => setConfig({ ...config, copyPct: Number(e.target.value) })} className="w-16 text-right" />
                     % of their entry
+                  </label>
+                )}
+                {config.sizingMode === 'whale-frac' && (
+                  <label className="flex items-center gap-1 text-xs text-dim">
+                    our bankroll
+                    <input type="number" min={0} step={1} value={config.bankrollSol} onChange={(e) => setConfig({ ...config, bankrollSol: Number(e.target.value) })} className="w-16 text-right" />
+                    ◎ × their fraction (cap 25%)
                   </label>
                 )}
               </div>

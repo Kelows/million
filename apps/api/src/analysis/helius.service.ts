@@ -72,6 +72,12 @@ export class HeliusService {
     return (await res.json()) as HeliusTx[];
   }
 
+  /** SOL balance of an address, in SOL. */
+  async getBalanceSol(address: string): Promise<number | null> {
+    const result = await this.rpc<{ value: number }>('getBalance', [address]).catch(() => null);
+    return result ? result.value / 1e9 : null;
+  }
+
   /** Lifetime tx count + first-tx time from the cheap signature index (capped walk). */
   async accountStats(address: string, maxCalls = 10): Promise<{ txs: number; capped: boolean; firstTxAt: string | null }> {
     let before: string | undefined;
