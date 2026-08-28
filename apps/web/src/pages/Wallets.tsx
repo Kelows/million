@@ -31,7 +31,8 @@ const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
 
 function rosterScore(w: WalletRecord): number | null {
   if (!w.metrics) return null;
-  return whaleScore(w.metrics.winRate, w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol, isBotWallet(w.metrics));
+  if (isBotWallet(w.metrics)) return null; // bots aren't scored — the flags say why
+  return whaleScore(w.metrics.winRate, w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol, false);
 }
 
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
@@ -226,6 +227,7 @@ export function Wallets() {
                       <td className="px-4 py-2 text-ink">{w.label ?? <span className="text-dim">—</span>}</td>
                       <td className="px-4 py-2">
                         {(() => {
+                          if (w.metrics && isBotWallet(w.metrics)) return <span className="text-dim" title="Bot-flagged wallets are not scored — see flags">N/A</span>;
                           const score = rosterScore(w);
                           if (score === null) return <span className="text-dim">—</span>;
                           return <span className={`font-bold ${score >= 50 ? 'text-profit' : score >= 0 ? 'text-ink' : 'text-loss'}`}>{score}</span>;

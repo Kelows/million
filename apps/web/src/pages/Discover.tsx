@@ -11,10 +11,14 @@ import { whaleScore as sharedWhaleScore, type WhaleCandidate } from '@million/sh
 
 /** The whale-finding insight: size buys are mostly bots — quality of the buyer is the signal.
  * Bots are hard-penalized; otherwise win rate carries most weight, realized PnL the rest. */
+function isBotCandidate(c: WhaleCandidate): boolean {
+  return (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
+}
+
 function whaleScore(c: WhaleCandidate): number | null {
   if (!c.preview) return null;
-  const botLike = (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
-  return sharedWhaleScore(c.preview.winRate, c.preview.realizedPnlSol, botLike);
+  if (isBotCandidate(c)) return null; // not scored — flags carry the verdict
+  return sharedWhaleScore(c.preview.winRate, c.preview.realizedPnlSol, false);
 }
 
 const DISCOVER_COLUMNS: SortColumn<WhaleCandidate>[] = [
@@ -188,6 +192,7 @@ export function Discover() {
                         <td className="px-4 py-2"><Addr address={c.address} /></td>
                         <td className="px-4 py-2">
                           {(() => {
+                            if (c.preview && isBotCandidate(c)) return <span className="text-dim" title="Bot-flagged — not scored, see flags">N/A</span>;
                             const score = whaleScore(c);
                             if (score === null) return <span className="text-dim">—</span>;
                             return <span className={`font-bold ${score >= 50 ? 'text-profit' : score >= 0 ? 'text-ink' : 'text-loss'}`}>{score}</span>;
