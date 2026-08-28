@@ -8,10 +8,24 @@ import { STATUS_STYLE } from '../components/TokenReportView';
 import { MoversModal } from '../components/MoversModal';
 import { fmtAgo } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
+import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { SortHeader } from '../components/SortHeader';
+import type { TrackedToken } from '@million/shared';
 import { Pagination } from '../components/Pagination';
 
 const SOL_ADDR_G = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
 const fmtUsd = (n: number | null) => (n === null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`);
+
+const VERDICT_RANK: Record<string, number> = { pass: 0, warn: 1, unknown: 2, fail: 3 };
+
+const TOKEN_COLUMNS: SortColumn<TrackedToken>[] = [
+  { key: 'token', get: (t) => t.symbol },
+  { key: 'verdict', get: (t) => (t.verdict ? VERDICT_RANK[t.verdict] : null) },
+  { key: 'liq', get: (t) => t.liquidityUsd },
+  { key: 'mcap', get: (t) => t.marketCapUsd },
+  { key: 'checked', get: (t) => (t.lastCheckedAt ? new Date(t.lastCheckedAt).getTime() : null) },
+  { key: 'source', get: (t) => (t.tracked ? (t.source ?? 'tracked') : 'seen in analyses') },
+];
 
 export function Tokens() {
   const { data: tokens = [] } = useTokens();
@@ -42,7 +56,8 @@ export function Tokens() {
       (!trackedOnly || t.tracked) &&
       (!query || t.mint.toLowerCase().includes(query) || t.symbol?.toLowerCase().includes(query) || t.name?.toLowerCase().includes(query)),
   );
-  const pag = usePagination(filtered, 25);
+  const sort = useTableSort(filtered, TOKEN_COLUMNS);
+  const pag = usePagination(sort.sorted, 25);
   const junkCount = tokens.filter((t) => t.verdict !== null && (t.verdict === 'fail' || (t.liquidityUsd ?? 0) <= 0)).length;
 
   const runCheck = async (mint: string) => {
@@ -120,12 +135,12 @@ export function Tokens() {
               <thead>
                 <tr className="text-left text-dim text-xs">
                   <th className="pl-4 pr-0 py-2 w-8"></th>
-                  <th className="px-4 py-2 font-normal">token</th>
-                  <th className="px-4 py-2 font-normal">verdict</th>
-                  <th className="px-4 py-2 font-normal text-right">liq</th>
-                  <th className="px-4 py-2 font-normal text-right">mcap</th>
-                  <th className="px-4 py-2 font-normal">checked</th>
-                  <th className="px-4 py-2 font-normal">source</th>
+                  <SortHeader label="token" colKey="token" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                  <SortHeader label="verdict" colKey="verdict" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                  <SortHeader label="liq" colKey="liq" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                  <SortHeader label="mcap" colKey="mcap" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                  <SortHeader label="checked" colKey="checked" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                  <SortHeader label="source" colKey="source" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
                   <th className="px-4 py-2 font-normal"></th>
                 </tr>
               </thead>
