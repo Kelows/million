@@ -4,6 +4,7 @@ import { StatTile } from '../components/StatTile';
 import { Addr } from '../components/Addr';
 import { fmtAgo, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
+import { Info } from '../components/Info';
 import { FLAG_OPTIONS } from '../components/FlagChip';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
@@ -62,7 +63,10 @@ export function Dashboard() {
       ) : (
         <div className="panel">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-            <span className="eyebrow">Wallets to watch · WR &gt; {Math.round(WATCH_CRITERIA.minWinRate * 100)}%, ≥ {WATCH_CRITERIA.minClosedTokens} closed, open ≥ {loadMinOpenSol()} SOL (excl. stables & dust) · by realized PnL</span>
+            <span className="eyebrow">
+              Wallets to watch
+              <Info text={`Base bar: win rate > ${Math.round(WATCH_CRITERIA.minWinRate * 100)}%, at least ${WATCH_CRITERIA.minClosedTokens} closed tokens, and an open position of ${loadMinOpenSol()}+ SOL (stables & dust excluded). Sorted by realized PnL. The Filters button refines further on top of this.`} />
+            </span>
             <span className="flex items-center gap-3">
               <FilterModal fields={WATCH_FILTERS} state={filters} onChange={setFilters} />
               <Link to="/wallets" className="text-xs text-neon hover:underline">full roster →</Link>
