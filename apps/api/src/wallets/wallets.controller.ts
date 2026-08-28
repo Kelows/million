@@ -74,6 +74,17 @@ export class WalletsController {
     return result;
   }
 
+  @Post('wallets/analyze-pending')
+  @HttpCode(200)
+  analyzePending() {
+    return this.wallets.startAnalyzePending();
+  }
+
+  @Get('wallets/jobs/analyze-pending')
+  analyzePendingStatus() {
+    return this.wallets.getAnalyzePendingStatus();
+  }
+
   @Post('wallets/purge-junk')
   @HttpCode(200)
   purgeJunk(

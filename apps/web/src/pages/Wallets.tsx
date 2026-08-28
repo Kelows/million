@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useWallets } from '../api';
+import { useAnalyzePendingJob, useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useStartAnalyzePending, useWallets } from '../api';
 import { createPortal } from 'react-dom';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
@@ -100,6 +100,8 @@ export function Wallets() {
   const analyze = useAnalyzeWallet();
   const removeWallet = useRemoveWallet();
   const purgeJunk = usePurgeJunk();
+  const pendingJob = useAnalyzePendingJob();
+  const startPending = useStartAnalyzePending();
   const [raw, setRaw] = useState('');
   const [source, setSource] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -332,9 +334,16 @@ export function Wallets() {
               group owners
             </label>
           </span>
-          {pending.length > 0 && (
-            <button className="btn" disabled={!heliusOk || analyzing.size > 0} onClick={() => runAnalysis(pending.map((w) => w.address))}>
-              {analyzing.size > 0 ? `Analyzing ${analyzing.size} left…` : `Analyze all pending (${pending.length})`}
+          {(pending.length > 0 || pendingJob.data?.running) && (
+            <button
+              className="btn"
+              disabled={!heliusOk || pendingJob.data?.running || startPending.isPending}
+              title="Runs on the server — keeps going if you leave the page"
+              onClick={() => startPending.mutate()}
+            >
+              {pendingJob.data?.running
+                ? `Analyzing ${pendingJob.data.done}/${pendingJob.data.total}…`
+                : `Analyze all pending (${pending.length})`}
             </button>
           )}
         </div>

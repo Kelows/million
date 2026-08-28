@@ -7,6 +7,7 @@ import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { TokenMetaService } from '../analysis/token-meta.service';
 import { OwnersService } from '../analysis/owners.service';
+import { EventsBus } from '../common/events.bus';
 import { computeMetrics } from '../analysis/metrics';
 
 @Injectable()
@@ -18,7 +19,10 @@ export class WalletsService {
     private readonly dexscreener: DexScreenerService,
     private readonly owners: OwnersService,
     private readonly config: ConfigService,
+    private readonly bus: EventsBus,
   ) {}
+
+  private pendingJob = { running: false, done: 0, total: 0 };
 
   async import(payload: WalletImport): Promise<{ imported: number; skipped: number }> {
     const source = payload.source ?? null;
@@ -135,6 +139,35 @@ export class WalletsService {
       .map((w) => w.address);
     if (junk.length) await this.prisma.wallet.updateMany({ where: { address: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
+  }
+
+  /** Server-side batch: analyze everything pending, survives the browser leaving. */
+  startAnalyzePending(): { started: boolean } {
+    if (this.pendingJob.running) return { started: false };
+    this.pendingJob = { running: true, done: 0, total: 0 };
+    void (async () => {
+      try {
+        const pending = await this.prisma.wallet.findMany({
+          where: { purgedAt: null, metrics: null, status: { in: ['idle', 'error'] } },
+          select: { address: true },
+        });
+        this.pendingJob.total = pending.length;
+        for (const { address } of pending) {
+          await this.analyze(address).catch(() => undefined);
+          this.pendingJob.done++;
+          this.bus.emit('wallet_analyzed');
+          await new Promise((r) => setTimeout(r, 300)); // gentle on rate limits
+        }
+      } finally {
+        this.pendingJob.running = false;
+        this.bus.emit('wallet_analyzed');
+      }
+    })();
+    return { started: true };
+  }
+
+  getAnalyzePendingStatus() {
+    return this.pendingJob;
   }
 
   async setLabel(address: string, label: string | null): Promise<WalletRecord> {

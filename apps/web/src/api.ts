@@ -359,6 +359,9 @@ export function useEventStream() {
           qc.invalidateQueries({ queryKey: ['trading'] });
         } else if (type === 'crawler_run') {
           qc.invalidateQueries({ queryKey: ['crawler'] });
+        } else if (type === 'wallet_analyzed') {
+          qc.invalidateQueries({ queryKey: ['wallets'] });
+          qc.invalidateQueries({ queryKey: ['analyze-pending'] });
         }
       } catch {
         /* malformed frame — ignore */
@@ -374,5 +377,27 @@ export function useSetLabel() {
     mutationFn: ({ address, label }: { address: string; label: string | null }) =>
       request<WalletRecord>(`/wallets/${address}/label`, { method: 'PUT', body: JSON.stringify({ label }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}
+
+export interface AnalyzePendingJob {
+  running: boolean;
+  done: number;
+  total: number;
+}
+
+export function useAnalyzePendingJob() {
+  return useQuery({
+    queryKey: ['analyze-pending'],
+    queryFn: () => request<AnalyzePendingJob>('/wallets/jobs/analyze-pending'),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useStartAnalyzePending() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ started: boolean }>('/wallets/analyze-pending', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['analyze-pending'] }),
   });
 }
