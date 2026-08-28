@@ -13,7 +13,12 @@ import { TradingService } from '../trading/trading.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
 
-const DEDUPE_HOURS = 24;
+// Anti-spam, not anti-signal: measured on the roster's real tapes, 43% of whale
+// entries are RE-entries and 93/95 of them come within 24h of the close (median
+// 12 min) — a day-long mint dedupe was silently discarding half the signal and
+// all of the cross-wallet consensus. One hour bounds gauntlet load; the 15-min
+// live-event recency gate already filters machine-speed flip churn.
+const DEDUPE_MINUTES = 60;
 
 /**
  * An opportunity: a subbed wallet buys a pair that is NEW for that wallet
@@ -108,12 +113,14 @@ export class OpportunitiesService {
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
-      if (m.tokens.some((t) => t.mint === mint && t.buys > 0)) return; // known position, not news
+      // still holding = a top-up, not news. A CLOSED position re-entered is the
+      // whale's next trade — for active roster wallets that's 43% of all entries.
+      if (m.tokens.some((t) => t.mint === mint && t.open)) return;
     }
 
-    // dedupe: one opportunity per token per day, whoever triggers it
+    // dedupe: one opportunity per token per hour, whoever triggers it
     const recent = await this.prisma.opportunity.findFirst({
-      where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_HOURS * 3_600_000) } },
+      where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_MINUTES * 60_000) } },
       select: { id: true },
     });
     if (recent) return;
