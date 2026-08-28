@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CrawlerConfigSchema,
+  isBotWallet,
   isJunkWallet,
   whaleScore,
   type CrawlerConfig,
@@ -255,8 +256,17 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
               await new Promise((r) => setTimeout(r, 400)); // breathe between analyses — bursts trip rate limits
               await this.wallets.analyze(c.address).catch((e) => say(`  absorb-analyze ${c.address.slice(0, 8)} failed: ${e.message}`));
               credits -= analyzePages;
+              // the FULL analysis is the arbiter — the preview only bought a ticket
+              const row = await this.prisma.wallet.findUnique({ where: { address: c.address }, select: { metrics: true } });
+              const m = row?.metrics ? (JSON.parse(row.metrics) as import('@million/shared').WalletMetrics) : null;
+              const finalScore = m && !isBotWallet(m) ? whaleScore(m.winRate, m.realizedPnlTotalSol ?? m.realizedPnlSol, false) : null;
+              if (m && (finalScore === null || finalScore < config.minWhaleScore)) {
+                await this.prisma.wallet.update({ where: { address: c.address }, data: { purgedAt: new Date() } }).catch(() => undefined);
+                say(`  rejected ${c.address.slice(0, 8)} after full analysis (score ${finalScore ?? 'N/A'} < ${config.minWhaleScore}) — remembered, won't re-absorb`);
+                continue;
+              }
               stats.walletsAbsorbed++;
-              say(`  absorbed ${c.address.slice(0, 8)} (WR ${c.preview?.winRate ?? '?'})`);
+              say(`  absorbed ${c.address.slice(0, 8)} (full score ${finalScore ?? '?'}, WR ${m?.winRate ?? '?'})`);
             }
           }
         }
