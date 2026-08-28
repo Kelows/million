@@ -239,14 +239,13 @@ export function Opportunities() {
                     % of their entry
                   </label>
                 )}
-                {config.sizingMode === 'whale-frac' && (
-                  <label className="flex items-center gap-1 text-xs text-dim">
-                    our bankroll
-                    <input type="number" min={0} step={1} value={config.bankrollSol} onChange={(e) => setConfig({ ...config, bankrollSol: Number(e.target.value) })} className="w-16 text-right" />
-                    ◎ × their fraction (cap 25%)
-                  </label>
-                )}
               </div>
+              {config.sizingMode === 'whale-frac' && (
+                <label className="flex items-center justify-between gap-4 text-sm mt-3">
+                  <span className="text-dim">Our bankroll <span className="text-xs">— ◎ × their fraction (cap 25%)</span></span>
+                  <input type="number" min={0} step={1} value={config.bankrollSol} onChange={(e) => setConfig({ ...config, bankrollSol: Number(e.target.value) })} className="w-24 text-right" />
+                </label>
+              )}
               <label className="flex items-center justify-between gap-4 text-sm">
                 <span>Take profit %</span>
                 <input type="number" min={1} step={10} value={config.takeProfitPct} onChange={(e) => setConfig({ ...config, takeProfitPct: Number(e.target.value) })} className="w-24 text-right" />
