@@ -43,6 +43,8 @@ export interface TokenBreakdown {
   realizedPnlUsd?: number;
   entrySol?: number; // total entry cost expressed in SOL (usd leg converted at analysis-time price)
   holdMinutes: number | null; // first buy -> last sell
+  firstBuyAt?: string | null; // ISO — when the position was opened
+  lastActivityAt?: string | null; // ISO — most recent buy or sell; fresh vs dead
   open: boolean; // still holding a position
 }
 

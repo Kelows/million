@@ -19,6 +19,8 @@ const TOKEN_COLUMNS: SortColumn<TokenBreakdown>[] = [
   { key: 'solOut', get: (t) => t.solOut },
   { key: 'realized', get: (t) => t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / 200 },
   { key: 'hold', get: (t) => t.holdMinutes },
+  { key: 'opened', get: (t) => (t.firstBuyAt ? new Date(t.firstBuyAt).getTime() : null) },
+  { key: 'activity', get: (t) => (t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : null) },
   { key: 'state', get: (t) => (t.open ? 1 : 0) },
 ];
 
@@ -182,6 +184,8 @@ export function WalletDetail() {
                     <SortHeader label="SOL out" colKey="solOut" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
                     <SortHeader label="realized" colKey="realized" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
                     <SortHeader label="hold" colKey="hold" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
+                    <SortHeader label="opened" colKey="opened" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="When the position was first bought. For open positions this is the holding time." />
+                    <SortHeader label="last activity" colKey="activity" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="Most recent buy or sell of this token. Recent = the position is alive; long ago = probably a dead bag." />
                     <SortHeader label="state" colKey="state" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
                   </tr>
                 </thead>
@@ -206,6 +210,15 @@ export function WalletDetail() {
                         )}
                       </td>
                       <td className="px-4 py-2">{fmtHold(t.holdMinutes)}</td>
+                      <td className="px-4 py-2 text-dim whitespace-nowrap" title={t.firstBuyAt ?? ''}>{fmtAgo(t.firstBuyAt ?? null)}</td>
+                      <td className="px-4 py-2 whitespace-nowrap" title={t.lastActivityAt ?? ''}>
+                        {(() => {
+                          if (!t.lastActivityAt) return <span className="text-dim">—</span>;
+                          const hours = (Date.now() - new Date(t.lastActivityAt).getTime()) / 3_600_000;
+                          const cls = t.open ? (hours < 24 ? 'text-profit' : hours < 24 * 7 ? 'text-warn' : 'text-dim') : 'text-dim';
+                          return <span className={cls}>{fmtAgo(t.lastActivityAt)}</span>;
+                        })()}
+                      </td>
                       <td className="px-4 py-2 text-xs">{t.open ? <span className="text-warn">open</span> : <span className="text-dim">closed</span>}</td>
                     </tr>
                   ))}

@@ -29,6 +29,7 @@ interface Position {
   realSol: number;
   realUsd: number;
   firstBuyTs: number | null;
+  lastBuyTs: number | null;
   lastSellTs: number | null;
 }
 
@@ -51,7 +52,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   const getPos = (mint: string): Position => {
     let p = positions.get(mint);
     if (!p) {
-      p = { mint, qty: 0, costSol: 0, costUsd: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, realUsd: 0, firstBuyTs: null, lastSellTs: null };
+      p = { mint, qty: 0, costSol: 0, costUsd: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, realUsd: 0, firstBuyTs: null, lastBuyTs: null, lastSellTs: null };
       positions.set(mint, p);
     }
     return p;
@@ -84,6 +85,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
         p.solIn += cs;
         p.usdIn += cu;
         if (p.firstBuyTs === null) p.firstBuyTs = tx.timestamp;
+        p.lastBuyTs = tx.timestamp;
         traded = true;
       } else if (delta < 0 && (sol > SOL_EPS || usd > USD_EPS)) {
         // sell: token out, quote in
@@ -133,6 +135,11 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       holdMinutes:
         p.firstBuyTs !== null && p.lastSellTs !== null && p.lastSellTs >= p.firstBuyTs
           ? Math.round((p.lastSellTs - p.firstBuyTs) / 60)
+          : null,
+      firstBuyAt: p.firstBuyTs !== null ? new Date(p.firstBuyTs * 1000).toISOString() : null,
+      lastActivityAt:
+        p.lastBuyTs !== null || p.lastSellTs !== null
+          ? new Date(Math.max(p.lastBuyTs ?? 0, p.lastSellTs ?? 0) * 1000).toISOString()
           : null,
       // open = still holding a meaningful position; partial exits stay open (whales sell half and ride)
       open: p.qty > 1e-9 && p.costSol + p.costUsd / solPriceUsd > 0.02,
