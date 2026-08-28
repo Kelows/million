@@ -499,7 +499,7 @@ export function useShadowStats() {
 export function useDecisionLog() {
   return useQuery({
     queryKey: ['trading', 'decision-log'],
-    queryFn: () => request<{ ts: string; line: string }[]>('/trading/log'),
+    queryFn: () => request<{ ts: string; line: string }[]>('/trading/log?n=15'),
     refetchInterval: 10_000,
   });
 }

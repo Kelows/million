@@ -225,7 +225,7 @@ function DecisionLogPanel() {
   return (
     <div className="panel p-4">
       <div className="eyebrow mb-2">Decision log — every gate verdict, newest first</div>
-      <pre className="text-xs text-dim font-mono whitespace-pre-wrap bg-void border border-line p-3 overflow-x-auto max-h-80 overflow-y-auto">
+      <pre className="text-xs text-dim font-mono whitespace-pre-wrap bg-void border border-line p-3 overflow-x-auto">
         {lines.map((l) => `${l.ts.slice(11, 19)}  ${l.line}`).join('\n')}
       </pre>
     </div>

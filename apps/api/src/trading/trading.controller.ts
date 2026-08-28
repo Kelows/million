@@ -1,4 +1,4 @@
-import { Controller, HttpCode, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Controller, HttpCode, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { TradingService } from './trading.service';
 import { ShadowService } from './shadow.service';
 import { DecisionLog } from '../common/decision-log';
@@ -12,8 +12,8 @@ export class TradingController {
   ) {}
 
   @Get('log')
-  log() {
-    return this.decisions.tail(150);
+  log(@Query('n') n?: string) {
+    return this.decisions.tail(Math.min(150, Math.max(1, Number(n) || 150)));
   }
 
   @Get('shadow')
