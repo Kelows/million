@@ -13,6 +13,7 @@ import { TradingService } from '../trading/trading.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
 import { ShadowService } from '../trading/shadow.service';
+import { DecisionLog } from '../common/decision-log';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 
 // Anti-spam, not anti-signal: measured on the roster's real tapes, 43% of whale
@@ -39,6 +40,7 @@ export class OpportunitiesService {
     private readonly bus: EventsBus,
     private readonly shadow: ShadowService,
     private readonly dexscreener: DexScreenerService,
+    private readonly decisions: DecisionLog,
   ) {}
 
   async getConfig(): Promise<OpportunityConfig> {
@@ -95,13 +97,14 @@ export class OpportunitiesService {
     await this.prisma.opportunity.create({
       data: { kind: 'wallet', mint: null, wallet: recipient, funder, verdict: 'unknown', buySol: Math.round(fundedSol * 100) / 100, ts },
     }).catch(() => undefined);
+    this.decisions.push(`[opps] ROTATION ${funder.slice(0, 6)}… funded fresh wallet ${recipient.slice(0, 6)}… with ${fundedSol.toFixed(1)}◎ — absorbed`);
     this.bus.emit('opportunity');
   }
 
   /** Called by the live feed for every ingested buy. Cheap checks first, gauntlet last. */
   async evaluate(wallet: string, mint: string, buySol: number, ts: Date, eventId: number, whalePriceUsd: number | null = null): Promise<void> {
     const config = await this.getConfig();
-    const skip = (why: string) => console.log(`[opps] skip ${mint.slice(0, 6)}… (${wallet.slice(0, 6)}…, ${buySol.toFixed(1)}◎): ${why}`);
+    const skip = (why: string) => this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${wallet.slice(0, 6)}…, ${buySol.toFixed(1)}◎): ${why}`);
     if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
@@ -208,7 +211,7 @@ export class OpportunitiesService {
       select: { id: true },
     });
     if (recent) {
-      console.log(`[opps] skip ${mint.slice(0, 6)}… (${signal}): opportunity already fired for this mint <1h ago`);
+      this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): opportunity already fired for this mint <1h ago`);
       return;
     }
 
@@ -220,7 +223,7 @@ export class OpportunitiesService {
     const allowed = report.verdict === 'pass' || (config.allowWarn && report.verdict === 'warn');
     if (!allowed) {
       const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',');
-      console.log(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
+      this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
       return;
     }
 
@@ -231,7 +234,7 @@ export class OpportunitiesService {
       const impactPct = ((buySol * solUsd) / report.liquidityUsd) * 100;
       if (impactPct > 5) {
         this.shadow.record(mint, report.symbol, wallet, 'impact');
-        console.log(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
+        this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
         return;
       }
     }
@@ -239,6 +242,7 @@ export class OpportunitiesService {
     await this.prisma.opportunity.create({
       data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts, signal },
     });
+    this.decisions.push(`[opps] FIRED ${report.symbol ?? mint.slice(0, 6)} (${signal}) — ${buySol.toFixed(1)}◎ by ${wallet.slice(0, 6)}…, verdict ${report.verdict}`);
     this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
     void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol, signal).catch(() => undefined);

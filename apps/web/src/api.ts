@@ -495,3 +495,11 @@ export function useUnsubscribeAll() {
 export function useShadowStats() {
   return useQuery({ queryKey: ['trading', 'shadow'], queryFn: () => request<ShadowGuardStat[]>('/trading/shadow'), refetchInterval: 60_000 });
 }
+
+export function useDecisionLog() {
+  return useQuery({
+    queryKey: ['trading', 'decision-log'],
+    queryFn: () => request<{ ts: string; line: string }[]>('/trading/log'),
+    refetchInterval: 10_000,
+  });
+}

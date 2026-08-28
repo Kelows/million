@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
 import { ShadowService } from './shadow.service';
+import { DecisionLog } from '../common/decision-log';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
 const TICK_MS = 60_000;
@@ -25,6 +26,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     private readonly helius: HeliusService,
     private readonly bus: EventsBus,
     private readonly shadow: ShadowService,
+    private readonly decisions: DecisionLog,
   ) {}
 
   // last ~30 tick quotes per open position: realized volatility for the dynamic
@@ -56,19 +58,19 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
     if (config.tradeSignals !== 'both' && signal !== config.tradeSignals) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: ${signal} signals not traded (tradeSignals=${config.tradeSignals})`);
+      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: ${signal} signals not traded (tradeSignals=${config.tradeSignals})`);
       return;
     }
     // two-key launch: the live executor refuses entries until autoTrade is ALSO
     // flipped in the UI — an env var alone must never spend real money. Exits
     // (tick/mirror) stay unaffected: an open live position must always be closable.
     if (this.executor.mode === 'live' && !config.autoTrade) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: live executor armed but autoTrade is OFF`);
+      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: live executor armed but autoTrade is OFF`);
       return;
     }
     const halt = await this.haltState(config);
     if (halt.halted) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: CIRCUIT BREAKER — ${halt.reason}`);
+      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: CIRCUIT BREAKER — ${halt.reason}`);
       return;
     }
     // conviction sizing, three flavors:
@@ -96,13 +98,13 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
     if (open.length >= config.maxOpenPositions) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);
+      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);
       return;
     }
     // FIX: portfolio exposure cap — ten positions in one meta is one bet wearing ten hats
     const exposure = open.reduce((s, p) => s + p.sizeSol, 0);
     if (exposure + sizeSol > config.maxTotalExposureSol) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: exposure cap (${config.maxTotalExposureSol}◎) reached`);
+      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: exposure cap (${config.maxTotalExposureSol}◎) reached`);
       return;
     }
     const dupe = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'open' } });
@@ -114,7 +116,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     if (config.exitMode === 'rules') {
       const lastClosed = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'closed' }, orderBy: { closedAt: 'desc' }, select: { closedAt: true, pnlSol: true } });
       if (lastClosed?.closedAt && (lastClosed.pnlSol ?? 0) < 0 && Date.now() - lastClosed.closedAt.getTime() < 3_600_000) {
-        console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: lost here under an hour ago (rules-mode churn guard)`);
+        this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: lost here under an hour ago (rules-mode churn guard)`);
         return;
       }
     }
@@ -131,7 +133,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       const limit = gap < 0 ? 0.3 : 0.25;
       if (Math.abs(gap) > limit) {
         this.shadow.record(mint, symbol, wallet, gap < 0 ? 'fill-deflation' : 'fill-chase');
-        console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${(gap * 100).toFixed(0)}% from whale's price — ${gap < 0 ? 'impact deflation' : 'chasing the move'}`);
+        this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${(gap * 100).toFixed(0)}% from whale's price — ${gap < 0 ? 'impact deflation' : 'chasing the move'}`);
         return;
       }
       const fidelity = Math.max(0.2, 1 - Math.abs(gap) / limit); // floor: a binary cliff at the boundary wastes information
@@ -140,6 +142,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.paperPosition.create({
       data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal },
     });
+    this.decisions.push(`[trading] OPENED ${symbol ?? mint.slice(0, 8)} — ${sizeSol}◎ (${signal}) @ $${fill.priceUsd.toPrecision(3)}`);
     this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode, signal });
   }
 
@@ -170,7 +173,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
       } else if (p.peakPriceUsd === null) {
         await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: price } });
-        console.log(`[trading] ${p.symbol ?? mint.slice(0, 8)}: whale exited in profit — trailing ${config.trailStopPct}% instead of mirroring`);
+        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: whale exited in profit — trailing ${config.trailStopPct}% instead of mirroring`);
       }
     }
   }
@@ -246,6 +249,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         pnlSol: Math.round(p.sizeSol * (pnlPct / 100) * 1000) / 1000,
       },
     });
+    this.decisions.push(`[trading] CLOSED ${p.symbol ?? p.mint.slice(0, 8)} — ${Math.round(p.sizeSol * (pnlPct / 100) * 1000) / 1000}◎ (${Math.round(pnlPct * 100) / 100}%) via ${reason}`);
     this.bus.emit('paper_trade', {
       kind: 'closed',
       symbol: p.symbol,

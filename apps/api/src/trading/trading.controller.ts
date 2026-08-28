@@ -1,13 +1,20 @@
 import { Controller, HttpCode, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { TradingService } from './trading.service';
 import { ShadowService } from './shadow.service';
+import { DecisionLog } from '../common/decision-log';
 
 @Controller('trading')
 export class TradingController {
   constructor(
     private readonly trading: TradingService,
     private readonly shadow: ShadowService,
+    private readonly decisions: DecisionLog,
   ) {}
+
+  @Get('log')
+  log() {
+    return this.decisions.tail(150);
+  }
 
   @Get('shadow')
   shadowStats() {
