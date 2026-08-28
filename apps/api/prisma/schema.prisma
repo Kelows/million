@@ -75,11 +75,13 @@ model LiveEvent {
 
 model Opportunity {
   id        Int      @id @default(autoincrement())
-  mint      String
+  kind      String   @default("token") // token | wallet (owner rotation)
+  mint      String?
   symbol    String?
-  wallet    String
+  wallet    String // token: the buyer · rotation: the NEW wallet
+  funder    String? // rotation: the subscribed wallet that funded it
   verdict   String
-  buySol    Float
+  buySol    Float // rotation: SOL funded
   ts        DateTime
   createdAt DateTime @default(now())
 

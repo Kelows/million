@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { TokenCheckService } from '../screener/token-check.service';
 import { TradingService } from '../trading/trading.service';
+import { HeliusService } from '../analysis/helius.service';
 
 const DEDUPE_HOURS = 24;
 
@@ -26,6 +27,7 @@ export class OpportunitiesService {
     private readonly prisma: PrismaService,
     private readonly tokenCheck: TokenCheckService,
     private readonly trading: TradingService,
+    private readonly helius: HeliusService,
   ) {}
 
   async getConfig(): Promise<OpportunityConfig> {
@@ -45,20 +47,42 @@ export class OpportunitiesService {
   async list(limit = 50): Promise<OpportunityRow[]> {
     const rows = await this.prisma.opportunity.findMany({ orderBy: { id: 'desc' }, take: limit });
     const wallets = await this.prisma.wallet.findMany({
-      where: { address: { in: [...new Set(rows.map((r) => r.wallet))] } },
+      where: { address: { in: [...new Set(rows.flatMap((r) => [r.wallet, r.funder].filter((x): x is string => Boolean(x))))] } },
       select: { address: true, label: true },
     });
     const labels = new Map(wallets.map((w) => [w.address, w.label]));
     return rows.map((r) => ({
       id: r.id,
+      kind: (r.kind as OpportunityRow['kind']) ?? 'token',
       mint: r.mint,
       symbol: r.symbol,
       wallet: r.wallet,
       walletLabel: labels.get(r.wallet) ?? null,
+      funder: r.funder,
+      funderLabel: r.funder ? (labels.get(r.funder) ?? null) : null,
       verdict: r.verdict as OpportunityRow['verdict'],
       buySol: r.buySol,
       ts: r.ts.toISOString(),
     }));
+  }
+
+  /** Owner rotation: a subscribed wallet funds a FRESH unknown wallet — absorb it,
+   * inherit the subscription, and surface it as a wallet-kind opportunity. */
+  async evaluateRotation(funder: string, recipient: string, fundedSol: number, ts: Date): Promise<void> {
+    const config = await this.getConfig();
+    if (!config.followRotations || fundedSol < config.minFundSol) return;
+    const known = await this.prisma.wallet.findUnique({ where: { address: recipient } });
+    if (known) return; // already tracked (or already rejected)
+    // freshness: a rotation target has a thin history; hubs/exchanges have thousands
+    const sigs = await this.helius.signatureIndex(recipient, 0, 1).catch(() => null);
+    if (!sigs || sigs.length > 50) return;
+    const funderRow = await this.prisma.wallet.findUnique({ where: { address: funder }, select: { subscribed: true, label: true } });
+    await this.prisma.wallet.create({
+      data: { address: recipient, source: 'owner-rotation', subscribed: funderRow?.subscribed ?? false },
+    }).catch(() => undefined);
+    await this.prisma.opportunity.create({
+      data: { kind: 'wallet', mint: null, wallet: recipient, funder, verdict: 'unknown', buySol: Math.round(fundedSol * 100) / 100, ts },
+    }).catch(() => undefined);
   }
 
   /** Called by the live feed for every ingested buy. Cheap checks first, gauntlet last. */

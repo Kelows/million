@@ -111,7 +111,9 @@ export interface DiscoveryParams {
   buckets: number;
 }
 
-/** Runs only when params are set by an explicit Scan — knob changes never auto-fire a scan. */
+/** Runs only when params are set by an explicit Scan — knob changes never auto-fire a scan.
+ * Results cache for 30 min and the fetch survives navigation, so a scan keeps
+ * working while you browse and is still there when you come back. */
 export function useDiscovery(params: DiscoveryParams | null) {
   return useQuery({
     queryKey: ['discovery', params],
@@ -120,7 +122,8 @@ export function useDiscovery(params: DiscoveryParams | null) {
         `/discovery/token/${params!.mint}?minSol=${params!.minSol}&mode=${params!.mode}&sinceDays=${params!.sinceDays}&buckets=${params!.buckets}`,
       ),
     enabled: params !== null,
-    staleTime: 60_000,
+    staleTime: 30 * 60_000,
+    gcTime: 60 * 60_000,
     retry: 0,
   });
 }

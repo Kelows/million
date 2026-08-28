@@ -440,18 +440,23 @@ export const OpportunityConfigSchema = z.object({
   slippagePct: z.coerce.number().min(0).max(50).default(2), // assumed cost per side
   maxHoldHours: z.coerce.number().min(1).max(720).default(48), // timeout exit
   maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
+  followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub
+  minFundSol: z.coerce.number().nonnegative().default(1),
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
 export interface OpportunityRow {
   id: number;
-  mint: string;
+  kind: 'token' | 'wallet';
+  mint: string | null;
   symbol: string | null;
-  wallet: string;
+  wallet: string; // token: the buyer · rotation: the NEW wallet
   walletLabel: string | null;
+  funder: string | null; // rotation only
+  funderLabel: string | null;
   verdict: CheckStatus;
   buySol: number;
-  ts: string; // ISO — when the triggering buy landed
+  ts: string; // ISO
 }
 
 /** A token that pumped recently — the blank-state seeding material. */

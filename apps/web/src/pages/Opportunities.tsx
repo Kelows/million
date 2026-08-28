@@ -106,24 +106,45 @@ export function Opportunities() {
           </p>
         ) : (
           <ul>
-            {opportunities.map((o) => (
-              <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
-                <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
-                <span className="inline-flex items-center gap-2">
-                  <Link to="/tokens/$mint" params={{ mint: o.mint }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
-                  {o.symbol && <TokenName mint={o.mint} symbol={o.symbol} />}
-                  <Addr address={o.mint} kind="token" />
-                </span>
-                <span className="text-xs text-dim">
-                  entered by{' '}
-                  <Link to="/wallets/$address" params={{ address: o.wallet }} className="text-neon hover:underline">
-                    {o.walletLabel ?? truncAddr(o.wallet)}
-                  </Link>{' '}
-                  · {o.buySol} ◎ · <span title={o.ts}>{fmtAgo(o.ts)}</span>
-                </span>
-                <Link to="/discover" search={{ mint: o.mint }} className="text-xs text-neon hover:underline ml-auto">find whales →</Link>
-              </li>
-            ))}
+            {opportunities.map((o) =>
+              o.kind === 'wallet' ? (
+                <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-neon">ROTATION</span>
+                  <span className="inline-flex items-center gap-2">
+                    <Link to="/wallets/$address" params={{ address: o.wallet }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
+                    <span className="text-bright font-semibold">new wallet</span>
+                    <Addr address={o.wallet} />
+                  </span>
+                  <span className="text-xs text-dim">
+                    funded {o.buySol} ◎ by{' '}
+                    {o.funder ? (
+                      <Link to="/wallets/$address" params={{ address: o.funder }} className="text-neon hover:underline">
+                        {o.funderLabel ?? truncAddr(o.funder)}
+                      </Link>
+                    ) : '?'}{' '}
+                    · sub inherited · <span title={o.ts}>{fmtAgo(o.ts)}</span>
+                  </span>
+                  <Link to="/funding" search={{ address: o.wallet }} className="text-xs text-neon hover:underline ml-auto">trace →</Link>
+                </li>
+              ) : (
+                <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
+                  <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <Link to="/tokens/$mint" params={{ mint: o.mint! }} className="text-dim hover:text-neon inline-flex"><EyeIcon /></Link>
+                    {o.symbol && o.mint && <TokenName mint={o.mint} symbol={o.symbol} />}
+                    {o.mint && <Addr address={o.mint} kind="token" />}
+                  </span>
+                  <span className="text-xs text-dim">
+                    entered by{' '}
+                    <Link to="/wallets/$address" params={{ address: o.wallet }} className="text-neon hover:underline">
+                      {o.walletLabel ?? truncAddr(o.wallet)}
+                    </Link>{' '}
+                    · {o.buySol} ◎ · <span title={o.ts}>{fmtAgo(o.ts)}</span>
+                  </span>
+                  {o.mint && <Link to="/discover" search={{ mint: o.mint }} className="text-xs text-neon hover:underline ml-auto">find whales →</Link>}
+                </li>
+              ),
+            )}
           </ul>
         )}
       </div>

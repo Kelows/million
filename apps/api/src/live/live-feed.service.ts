@@ -39,8 +39,11 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (!this.env.get('HELIUS_API_KEY')) return;
-    if (this.webhookMode) void this.syncWebhook();
-    else this.connect();
+    if (this.webhookMode) {
+      void this.syncWebhook();
+      // drift guard: rotations and edits keep the address set moving
+      setInterval(() => void this.syncWebhook(), 5 * 60_000);
+    } else this.connect();
   }
 
   /** Create/update the Helius webhook so it carries exactly the subscribed set. No cap. */
@@ -237,6 +240,18 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event && kind === 'buy' && mint) {
       const buySol = Math.max(0, -sol) + Math.max(0, -usd) / 180; // rough stable leg conversion
       void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id).catch(() => undefined);
+    }
+    // owner rotation: outgoing SOL to fresh wallets is how actors spawn new addresses
+    if (event) {
+      const outbound = new Map<string, number>();
+      for (const t of tx.nativeTransfers ?? []) {
+        if (t.fromUserAccount === wallet && t.toUserAccount && t.toUserAccount !== wallet) {
+          outbound.set(t.toUserAccount, (outbound.get(t.toUserAccount) ?? 0) + t.amount / 1e9);
+        }
+      }
+      for (const [recipient, fundedSol] of outbound) {
+        if (fundedSol >= 0.5) void this.opportunities.evaluateRotation(wallet, recipient, fundedSol, ts).catch(() => undefined);
+      }
     }
   }
 }

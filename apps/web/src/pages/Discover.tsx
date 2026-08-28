@@ -43,8 +43,22 @@ export function Discover() {
   const [buckets, setBuckets] = useState(24);
   const [inputError, setInputError] = useState<string | null>(null);
   // scans fire only on explicit submit — arriving via a link prefills the mint
-  // but never auto-scans, so you can flip to deep mode first
-  const [params, setParams] = useState<DiscoveryParams | null>(null);
+  // but never auto-scans. The last scan is remembered across navigation.
+  const [params, setParamsRaw] = useState<DiscoveryParams | null>(() => {
+    if (initial) return null; // an explicit link takes precedence over the remembered session
+    try {
+      const raw = sessionStorage.getItem('million.discover.last');
+      return raw ? (JSON.parse(raw) as DiscoveryParams) : null;
+    } catch {
+      return null;
+    }
+  });
+  const setParams = (p: DiscoveryParams | null) => {
+    setParamsRaw(p);
+    try {
+      if (p) sessionStorage.setItem('million.discover.last', JSON.stringify(p));
+    } catch { /* convenience only */ }
+  };
   const { data: report, isFetching, error } = useDiscovery(params);
   const [showInfra, setShowInfra] = useState(false);
   const isFlagged = (c: WhaleCandidate) => (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
