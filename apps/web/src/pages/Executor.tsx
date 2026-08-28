@@ -6,6 +6,8 @@ import { TokenName } from '../components/TokenName';
 import { StatTile } from '../components/StatTile';
 import { fmtAgo, truncAddr } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
+import { useTableSort, type SortColumn } from '../lib/useTableSort';
+import { SortHeader } from '../components/SortHeader';
 import { Pagination } from '../components/Pagination';
 
 const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit', trail: 'trailing stop' };
@@ -86,6 +88,17 @@ export function Executor() {
   );
 }
 
+const POSITION_COLUMNS = (open: boolean): SortColumn<PaperPositionRow>[] => [
+  { key: 'token', get: (p) => p.symbol },
+  { key: 'from', get: (p) => p.wallet },
+  { key: 'size', get: (p) => p.sizeSol },
+  { key: 'entry', get: (p) => p.entryPriceUsd },
+  { key: 'now', get: (p) => (open ? (p.currentPriceUsd ?? null) : (p.exitPriceUsd ?? null)) },
+  { key: 'pnl', get: (p) => (open ? (p.unrealizedPct ?? null) : (p.pnlPct ?? null)) },
+  { key: 'when', get: (p) => new Date(open ? p.openedAt : (p.closedAt ?? p.openedAt)).getTime() },
+  { key: 'reason', get: (p) => p.exitReason },
+];
+
 function PositionsTable({ title, rows, empty, onClose, closing }: {
   title: string;
   rows: PaperPositionRow[];
@@ -93,7 +106,8 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
   onClose?: (id: number) => void;
   closing?: boolean;
 }) {
-  const pag = usePagination(rows, 15);
+  const sort = useTableSort(rows, POSITION_COLUMNS(Boolean(onClose)), 'when');
+  const pag = usePagination(sort.sorted, 15);
   return (
     <div className="panel">
       <div className="px-4 pt-4 pb-2 eyebrow">{title}</div>
@@ -103,15 +117,15 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-              <tr className="text-left text-dim text-xs">
-                <th className="px-4 py-2 font-normal">token</th>
-                <th className="px-4 py-2 font-normal">from</th>
-                <th className="px-4 py-2 font-normal text-right">size</th>
-                <th className="px-4 py-2 font-normal text-right">entry $</th>
-                <th className="px-4 py-2 font-normal text-right">{onClose ? 'now $' : 'exit $'}</th>
-                <th className="px-4 py-2 font-normal text-right">PnL</th>
-                <th className="px-4 py-2 font-normal">{onClose ? 'opened' : 'closed'}</th>
-                <th className="px-4 py-2 font-normal">{onClose ? '' : 'reason'}</th>
+              <tr className="text-dim text-xs">
+                <SortHeader label="token" colKey="token" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                <SortHeader label="from" colKey="from" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                <SortHeader label="size" colKey="size" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="entry $" colKey="entry" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label={onClose ? 'now $' : 'exit $'} colKey="now" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="PnL" colKey="pnl" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label={onClose ? 'opened' : 'closed'} colKey="when" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
+                {onClose ? <th className="px-4 py-2 font-normal"></th> : <SortHeader label="reason" colKey="reason" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />}
               </tr>
             </thead>
             <tbody>
