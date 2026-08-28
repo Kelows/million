@@ -216,7 +216,7 @@ export function WalletDetail() {
             <StatTile
               label="Realized PnL"
               value={fmtSol(totalPnlSol(m) ?? 0)}
-              sub={`${m.realizedPnlUsd ? `incl. $${Math.round(m.realizedPnlUsd).toLocaleString('en-US')} in stable legs · ` : ''}${m.truncated ? `recent ${m.analyzedTxCount} txs (truncated)` : `${m.analyzedTxCount} txs`}`}
+              sub={`${m.realizedPnlUsd ? `incl. $${Math.round(m.realizedPnlUsd).toLocaleString('en-US')} stable legs · ` : ''}${m.lifetimeTxs ? `${m.analyzedTxCount} of ${m.lifetimeTxs.toLocaleString('en-US')}${m.lifetimeCapped ? '+' : ''} lifetime txs` : m.truncated ? `recent ${m.analyzedTxCount} txs (truncated)` : `${m.analyzedTxCount} txs`}${m.accountFirstTxAt ? ` · since ${new Date(m.accountFirstTxAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}`}
               tone={(totalPnlSol(m) ?? 0) >= 0 ? 'profit' : 'loss'}
               hint="Average-cost realized PnL. SOL, USDC and USDT all count as quote currencies; stable legs are converted at the SOL price fetched at analysis time. Token→token swaps and positions opened before the window are excluded."
             />

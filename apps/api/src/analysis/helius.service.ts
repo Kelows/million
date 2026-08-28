@@ -72,6 +72,27 @@ export class HeliusService {
     return (await res.json()) as HeliusTx[];
   }
 
+  /** Lifetime tx count + first-tx time from the cheap signature index (capped walk). */
+  async accountStats(address: string, maxCalls = 10): Promise<{ txs: number; capped: boolean; firstTxAt: string | null }> {
+    let before: string | undefined;
+    let total = 0;
+    let oldest: number | null = null;
+    for (let i = 0; i < maxCalls; i++) {
+      type SigRow = { signature: string; blockTime?: number | null };
+      const page = await this.rpc<SigRow[]>('getSignaturesForAddress', [
+        address,
+        before ? { limit: 1000, before } : { limit: 1000 },
+      ]).catch(() => null);
+      if (!page?.length) return { txs: total, capped: false, firstTxAt: oldest ? new Date(oldest * 1000).toISOString() : null };
+      total += page.length;
+      const last = page[page.length - 1];
+      if (last.blockTime) oldest = last.blockTime;
+      if (page.length < 1000) return { txs: total, capped: false, firstTxAt: oldest ? new Date(oldest * 1000).toISOString() : null };
+      before = last.signature;
+    }
+    return { txs: total, capped: true, firstTxAt: oldest ? new Date(oldest * 1000).toISOString() : null };
+  }
+
   /** Current slot height. */
   getSlot(): Promise<number> {
     return this.rpc<number>('getSlot', []);

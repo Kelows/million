@@ -61,6 +61,9 @@ export interface WalletMetrics {
   realizedPnlTotalSol?: number; // sol legs + usd legs converted at analysis-time SOL price
   solPriceUsd?: number;
   medianHoldMinutes: number | null;
+  lifetimeTxs?: number | null; // from the signature index; null = unknown
+  lifetimeCapped?: boolean; // true = account has MORE than we counted
+  accountFirstTxAt?: string | null; // account age, independent of the analysis window
   firstSeen: string | null; // ISO
   lastSeen: string | null; // ISO
   flags: WalletFlag[];

@@ -102,15 +102,21 @@ export class WalletsService {
     await this.prisma.wallet.update({ where: { address }, data: { status: 'analyzing', error: null } });
     try {
       const maxPages = Number(this.config.get('ANALYSIS_MAX_PAGES') ?? 5);
-      const [{ txs, truncated }, solPrice] = await Promise.all([
+      const [{ txs, truncated }, solPrice, stats] = await Promise.all([
         this.helius.fetchHistory(address, maxPages),
         this.dexscreener.fetchSolPriceUsd(),
+        this.helius.accountStats(address).catch(() => null),
       ]);
       if (txs.length === 0 && truncated) {
         // rate-limited into emptiness — an empty 'done' analysis poisons scores silently
         throw new ServiceUnavailableException('rate limited while fetching history — re-run analysis');
       }
       const metrics = computeMetrics(address, txs, truncated, solPrice);
+      if (stats) {
+        metrics.lifetimeTxs = stats.txs;
+        metrics.lifetimeCapped = stats.capped;
+        metrics.accountFirstTxAt = stats.firstTxAt;
+      }
       const symbols = await this.tokenMeta.getSymbols(metrics.tokens.map((t) => t.mint)).catch(() => new Map<string, string>());
       for (const t of metrics.tokens) t.symbol = symbols.get(t.mint) ?? null;
       // owner evidence rides along for free — same txs we just fetched
