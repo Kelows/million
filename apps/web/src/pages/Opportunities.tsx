@@ -213,7 +213,7 @@ export function Opportunities() {
             </label>
             <div className="flex items-center gap-2 mt-3 text-sm">
               <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
-              {(['rules', 'mirror'] as const).map((mode) => (
+              {(['rules', 'mirror', 'mirror-trail'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setConfig({ ...config, exitMode: mode })}
@@ -224,7 +224,7 @@ export function Opportunities() {
                     config.exitMode === mode ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
                   }`}
                 >
-                  {mode === 'rules' ? 'our rules' : 'mirror the wallet'}
+                  {mode === 'rules' ? 'our rules' : mode === 'mirror' ? 'mirror (pure copy)' : 'mirror + trail winners'}
                 </button>
               ))}
             </div>

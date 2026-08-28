@@ -119,9 +119,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
    */
   async onTriggerSell(wallet: string, mint: string): Promise<void> {
     const config = await this.config();
-    if (config.exitMode !== 'mirror') return;
+    if (config.exitMode === 'rules') return;
     const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint, wallet } });
     for (const p of positions) {
+      // pure mirror: the whale's judgment is the strategy — their exit is our exit, win or lose
+      if (config.exitMode === 'mirror') {
+        await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
+        continue;
+      }
+      // mirror-trail: their exit cuts losers instantly; a winner arms a trailing stop instead
       const price = await this.executor.quote(p.mint);
       const inProfit = price !== null && price > p.entryPriceUsd;
       if (!inProfit) {
@@ -158,7 +164,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
             continue;
           }
         }
-        if (config.exitMode !== 'mirror' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
+        if (config.exitMode === 'rules' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
         else if (changePct <= -config.stopLossPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'sl');
         else if (Date.now() - p.openedAt.getTime() > config.maxHoldHours * 3_600_000)
           await this.closeWithFill(p.id, p.mint, p.sizeSol, 'timeout');

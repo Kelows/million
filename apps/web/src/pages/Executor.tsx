@@ -3,7 +3,7 @@ import type { PaperPositionRow } from '@million/shared';
 import { useClosePosition, useResumeTrading, useTrading } from '../api';
 import { Addr } from '../components/Addr';
 import { TokenName } from '../components/TokenName';
-import { StatTile } from '../components/StatTile';
+import { TradingTiles } from '../components/TradingTiles';
 import { fmtAgo, truncAddr } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
@@ -48,31 +48,7 @@ export function Executor() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <StatTile
-          label="Expectancy / trade"
-          value={s?.expectancySolPerTrade !== null && s?.expectancySolPerTrade !== undefined ? `${s.expectancySolPerTrade > 0 ? '+' : ''}${s.expectancySolPerTrade} ◎` : '—'}
-          sub="the number that decides everything"
-          tone={s?.expectancySolPerTrade != null ? (s.expectancySolPerTrade > 0 ? 'profit' : 'loss') : 'default'}
-          hint="Total realized PnL divided by closed trades. Positive over a real sample (weeks) is the only thing that justifies flipping auto-trade on."
-        />
-        <StatTile label="Realized PnL" value={s ? `${s.totalPnlSol > 0 ? '+' : ''}${s.totalPnlSol} ◎` : '—'} sub={`${s?.closedCount ?? 0} closed`} tone={s && s.totalPnlSol !== 0 ? (s.totalPnlSol > 0 ? 'profit' : 'loss') : 'default'} />
-        <StatTile label="Win rate" value={s?.winRate != null ? `${Math.round(s.winRate * 100)}%` : '—'} sub={`${s?.wins ?? 0} wins`} />
-        <StatTile label="Avg trade" value={s?.avgPnlPct != null ? `${s.avgPnlPct > 0 ? '+' : ''}${s.avgPnlPct}%` : '—'} sub="mean closed PnL %" />
-        <StatTile label="Open" value={String(s?.openCount ?? 0)} sub="positions being monitored" />
-        {(() => {
-          const open = data?.open ?? [];
-          const pnl = Math.round(open.reduce((sum, p) => sum + (p.unrealizedPct != null ? (p.sizeSol * p.unrealizedPct) / 100 : 0), 0) * 1000) / 1000;
-          return (
-            <StatTile
-              label="Open PnL"
-              value={open.length ? `${pnl > 0 ? '+' : ''}${pnl} ◎` : '—'}
-              sub="unrealized, mark to market"
-              tone={pnl > 0 ? 'profit' : pnl < 0 ? 'loss' : 'default'}
-            />
-          );
-        })()}
-      </div>
+      {s && <TradingTiles stats={s} open={data?.open ?? []} />}
 
       {(data?.open.length ?? 0) === 0 && (data?.closed.length ?? 0) === 0 && (
         <div className="panel p-10 text-center">

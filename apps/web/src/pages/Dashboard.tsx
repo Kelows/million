@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useWallets } from '../api';
 import { StatTile } from '../components/StatTile';
+import { TradingTiles } from '../components/TradingTiles';
 import { Addr } from '../components/Addr';
 import { fmtAgo, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
@@ -147,16 +148,8 @@ function TradingPanel() {
         </span>
         <Link to="/executor" className="text-xs text-neon hover:underline">all trades →</Link>
       </div>
-      <div className="px-4 pb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Open" value={String(s.openCount)} sub={`${open.reduce((t, p) => t + p.sizeSol, 0).toFixed(1)} ◎ deployed`} />
-        <StatTile label="Open PnL" value={`${ur > 0 ? '+' : ''}${ur} ◎`} sub="unrealized, mark to market" tone={ur > 0 ? 'profit' : ur < 0 ? 'loss' : 'default'} />
-        <StatTile label="Realized PnL" value={`${s.totalPnlSol > 0 ? '+' : ''}${s.totalPnlSol} ◎`} sub={`${s.closedCount} closed · ${s.winRate != null ? Math.round(s.winRate * 100) + '% win' : 'no closes yet'}`} tone={s.totalPnlSol > 0 ? 'profit' : s.totalPnlSol < 0 ? 'loss' : 'default'} />
-        <StatTile
-          label="Expectancy / trade"
-          value={s.expectancySolPerTrade != null ? `${s.expectancySolPerTrade > 0 ? '+' : ''}${s.expectancySolPerTrade} ◎` : '—'}
-          sub="gates live auto-trade"
-          tone={s.expectancySolPerTrade != null ? (s.expectancySolPerTrade > 0 ? 'profit' : 'loss') : 'default'}
-        />
+      <div className="px-4 pb-4">
+        <TradingTiles stats={s} open={open} />
       </div>
       {top.length > 0 && (
         <div className="overflow-x-auto border-t border-line">
