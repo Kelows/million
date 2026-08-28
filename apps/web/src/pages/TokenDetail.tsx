@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useCheckToken, useTokenDetail } from '../api';
 import { Addr, classicUrl } from '../components/Addr';
@@ -10,15 +9,6 @@ export function TokenDetail() {
   const { mint } = useParams({ from: '/tokens/$mint' });
   const { data, isLoading, error } = useTokenDetail(mint);
   const check = useCheckToken();
-  const [autoRan, setAutoRan] = useState(false);
-
-  // arriving on an unchecked token: run the gauntlet once, automatically
-  useEffect(() => {
-    if (!data || data.report || autoRan || check.isPending) return;
-    setAutoRan(true);
-    check.mutate(mint);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, autoRan, mint]);
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (error || !data) {
