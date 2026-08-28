@@ -243,7 +243,7 @@ function FamousTable({ title, hint, rows, solLabel, pnlTone }: { title: string; 
 const HELD_COLUMNS: SortColumn<FamousTokenRow>[] = [
   { key: 'token', get: (r) => r.symbol },
   { key: 'owners', get: (r) => r.owners },
-  { key: 'entry', get: (r) => r.sol },
+  { key: 'stillin', get: (r) => r.sol },
   { key: 'realized', get: (r) => r.realizedSol ?? null },
   { key: 'score', get: (r) => r.score ?? null },
 ];
@@ -262,7 +262,8 @@ function HeldTable({ rows }: { rows: FamousTokenRow[] }) {
               <tr className="text-dim text-xs">
                 <SortHeader label="token" colKey="token" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
                 <SortHeader label="owners" colKey="owners" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
-                <SortHeader label="entry ◎" colKey="entry" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
+                <SortHeader label="still in ◎" colKey="stillin" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right
+                  hint="Remaining cost basis of what each owner still holds — every sell already subtracted. Not what they put in originally: what's still on the table." />
                 <SortHeader label="realized ◎" colKey="realized" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
                 <SortHeader label="score" colKey="score" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right
                   hint="Conviction: owners × √entry, discounted by profit the roster already took here. High = broadly held and still fresh — positioned, not yet milked. Low despite big holdings = the echo bag of a play that already paid." />
@@ -287,7 +288,7 @@ function HeldTable({ rows }: { rows: FamousTokenRow[] }) {
         </div>
       )}
       <p className="px-4 py-3 text-xs text-dim">
-        Open positions ≥ 0.5 ◎ at cost, distinct owners, infra excluded. Sorted by conviction: heavily held AND not yet cashed out ranks first.
+        Remaining cost basis ≥ 0.5 ◎ (sells subtracted), distinct owners, infra excluded. Sorted by conviction: heavily held AND not yet cashed out ranks first.
       </p>
     </div>
   );

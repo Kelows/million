@@ -297,6 +297,20 @@ export class HeliusService {
     return result?.value ?? null;
   }
 
+  /** Every token balance of a wallet in two calls (SPL + Token-2022) — live truth for "still holding?". */
+  async allTokenBalances(owner: string): Promise<Map<string, number>> {
+    type Accounts = { value?: { account?: { data?: { parsed?: { info?: { mint?: string; tokenAmount?: { uiAmount?: number | null } } } } } }[] };
+    const out = new Map<string, number>();
+    for (const programId of ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb']) {
+      const res = await this.rpc<Accounts>('getTokenAccountsByOwner', [owner, { programId }, { encoding: 'jsonParsed' }]).catch(() => null);
+      for (const a of res?.value ?? []) {
+        const info = a.account?.data?.parsed?.info;
+        if (info?.mint) out.set(info.mint, (out.get(info.mint) ?? 0) + (info.tokenAmount?.uiAmount ?? 0));
+      }
+    }
+    return out;
+  }
+
   /** Batch token metadata via DAS getAssetBatch — one call per 1000 mints, same API key. */
   async fetchTokenMeta(mints: string[]): Promise<Map<string, TokenMeta>> {
     const out = new Map<string, TokenMeta>();

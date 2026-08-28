@@ -170,9 +170,15 @@ export class TokensService {
       const m = JSON.parse(w.metrics as string) as WalletMetrics;
       if ((m.flags ?? []).includes('BOT_INFRA')) continue; // infra "holdings" are inventory, not conviction
       const ownerKey = w.ownerId != null ? `o${w.ownerId}` : w.address;
+      const sp = m.solPriceUsd ?? 200;
       for (const t of m.tokens) {
         if (isExcludedToken(t.mint)) continue;
-        if (t.open && (t.entrySol ?? t.solIn) >= 0.5) bump(held, t.mint, t.symbol, ownerKey, t.entrySol ?? t.solIn);
+        // what's STILL in, at cost — entrySol is the remaining basis from the
+        // average-cost ledger; older metrics without it get in-minus-out as the
+        // proxy. Total solIn would count money they already took back out.
+        const stillIn =
+          t.entrySol ?? Math.max(0, t.solIn + (t.usdIn ?? 0) / sp - (t.solOut + (t.usdOut ?? 0) / sp));
+        if (t.open && stillIn >= 0.5) bump(held, t.mint, t.symbol, ownerKey, stillIn);
         const pnl = t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200);
         if (t.sells > 0 && pnl !== 0) bump(earned, t.mint, t.symbol, ownerKey, pnl);
       }
