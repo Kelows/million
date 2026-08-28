@@ -3,6 +3,7 @@ import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow,
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
+import { ShadowService } from './shadow.service';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
 const TICK_MS = 60_000;
@@ -23,6 +24,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     @Inject(TRADE_EXECUTOR) private readonly executor: TradeExecutor,
     private readonly helius: HeliusService,
     private readonly bus: EventsBus,
+    private readonly shadow: ShadowService,
   ) {}
 
   // last ~30 tick quotes per open position: realized volatility for the dynamic
@@ -118,12 +120,22 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     const fill = await this.executor.buy(mint, sizeSol);
     if (!fill) return;
-    // fill fidelity: if our achievable price is far from the whale's recorded
-    // fill, we are demonstrably not getting their trade — on thin pools their
-    // own impact IS the spike, and we'd be buying its deflation
-    if (whaleEntryPriceUsd && Math.abs(fill.priceUsd / whaleEntryPriceUsd - 1) > 0.4) {
-      console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${((fill.priceUsd / whaleEntryPriceUsd - 1) * 100).toFixed(0)}% from whale's price — not their trade anymore`);
-      return;
+    // NOTE for the live executor: fidelity sizing must move BEFORE buy() there
+    // (quote first, size, then execute) — paper fills are quotes, so post-hoc is safe.
+    // fill fidelity, asymmetric — the two tails fail differently. Below their
+    // fill = buying the deflation of their own impact spike (hard skip at -30%).
+    // Above = the move already ran without us; buying a local top (skip at +25%).
+    // Inside the band, edge decays continuously with the gap — so does size.
+    if (whaleEntryPriceUsd) {
+      const gap = fill.priceUsd / whaleEntryPriceUsd - 1;
+      const limit = gap < 0 ? 0.3 : 0.25;
+      if (Math.abs(gap) > limit) {
+        this.shadow.record(mint, symbol, wallet, gap < 0 ? 'fill-deflation' : 'fill-chase');
+        console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${(gap * 100).toFixed(0)}% from whale's price — ${gap < 0 ? 'impact deflation' : 'chasing the move'}`);
+        return;
+      }
+      const fidelity = Math.max(0.2, 1 - Math.abs(gap) / limit); // floor: a binary cliff at the boundary wastes information
+      if (fidelity < 1) sizeSol = Math.max(0.01, Math.round(sizeSol * fidelity * 100) / 100);
     }
     await this.prisma.paperPosition.create({
       data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal },

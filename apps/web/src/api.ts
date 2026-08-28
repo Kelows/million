@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
+import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -490,4 +490,8 @@ export function useUnsubscribeAll() {
       qc.invalidateQueries({ queryKey: ['live-status'] });
     },
   });
+}
+
+export function useShadowStats() {
+  return useQuery({ queryKey: ['trading', 'shadow'], queryFn: () => request<ShadowGuardStat[]>('/trading/shadow'), refetchInterval: 60_000 });
 }

@@ -131,3 +131,19 @@ model PaperPosition {
   peakPriceUsd      Float? // set when a whale exit arms the trailing stop on a winner
   signal            String   @default("copy") // which entry logic opened this — expectancy splits by it
 }
+
+model ShadowPosition {
+  id            Int       @id @default(autoincrement())
+  mint          String
+  symbol        String?
+  wallet        String
+  reason        String // which guard skipped it — the counterfactual being measured
+  entryPriceUsd Float
+  sizeSol       Float // what we would plausibly have risked
+  openedAt      DateTime  @default(now())
+  status        String    @default("open")
+  closedAt      DateTime?
+  exitPriceUsd  Float?
+  pnlPct        Float?
+  pnlSol        Float?
+}

@@ -218,6 +218,10 @@ export function Opportunities() {
               <input type="number" min={0} max={10} step={1} value={config.consensusOwners} onChange={(e) => setConfig({ ...config, consensusOwners: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Min median hold (min)<Info text="Trigger wallet's median hold must exceed this. Copy retention is mathematically ≤0 when their holds are shorter than our latency horizon — scalpers' edge cannot be copied, only donated to. 0 = off." /></span>
+              <input type="number" min={0} max={1440} step={5} value={config.minMedianHoldMinutes} onChange={(e) => setConfig({ ...config, minMedianHoldMinutes: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
               <span className="text-dim">Min trigger copyability %<Info text="Skip signals from wallets whose measured edge retention is below this. Unmeasured wallets pass — run Copyability on the subscribed set to grow coverage." /></span>
               <input type="number" min={0} max={100} step={5} value={config.minEdgeRetentionPct} onChange={(e) => setConfig({ ...config, minEdgeRetentionPct: Number(e.target.value) })} className="w-24 text-right" />
             </label>

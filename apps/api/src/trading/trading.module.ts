@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma.service';
 import { TRADE_EXECUTOR } from './executor.interface';
 import { LocalExecutor } from './local.executor';
 import { PaperExecutor } from './paper.executor';
+import { ShadowService } from './shadow.service';
 import { TradingController } from './trading.controller';
 import { TradingService } from './trading.service';
 
@@ -18,6 +19,7 @@ import { TradingService } from './trading.service';
     PrismaService,
     PaperExecutor,
     LocalExecutor,
+    ShadowService,
     // THE seam. EXECUTOR=local signs real transactions with the local keypair;
     // anything else (or nothing) stays paper. Live entries additionally require
     // the autoTrade toggle — the env var alone must never be enough.
@@ -31,6 +33,6 @@ import { TradingService } from './trading.service';
       },
     },
   ],
-  exports: [TradingService],
+  exports: [TradingService, ShadowService],
 })
 export class TradingModule {}

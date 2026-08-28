@@ -12,6 +12,8 @@ import { TokenCheckService } from '../screener/token-check.service';
 import { TradingService } from '../trading/trading.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
+import { ShadowService } from '../trading/shadow.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 
 // Anti-spam, not anti-signal: measured on the roster's real tapes, 43% of whale
 // entries are RE-entries and 93/95 of them come within 24h of the close (median
@@ -35,6 +37,8 @@ export class OpportunitiesService {
     private readonly trading: TradingService,
     private readonly helius: HeliusService,
     private readonly bus: EventsBus,
+    private readonly shadow: ShadowService,
+    private readonly dexscreener: DexScreenerService,
   ) {}
 
   async getConfig(): Promise<OpportunityConfig> {
@@ -102,7 +106,10 @@ export class OpportunitiesService {
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
       const trigRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
-      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED')) return skip('trigger wallet is SNIPER_SPEED');
+      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED')) {
+        this.shadow.record(mint, null, wallet, 'sniper-flag');
+        return skip('trigger wallet is SNIPER_SPEED');
+      }
     }
     if (isExcludedToken(mint)) return; // majors/stables — silent, uninteresting
 
@@ -123,18 +130,30 @@ export class OpportunitiesService {
       where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - 10 * 60_000) } },
       select: { id: true },
     });
-    if (recentSell) return skip('sold this mint <10min ago — mid scalp cycle');
+    if (recentSell) {
+      this.shadow.record(mint, null, wallet, 'cycler');
+      return skip('sold this mint <10min ago — mid scalp cycle');
+    }
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
     // copyability gate: the one measured trigger below threshold went 0-for-3 as
     // predicted — a whale whose edge dies inside our latency is unfollowable no
     // matter the score. Unmeasured wallets pass; coverage grows with each run.
     if (walletRow?.copyability) {
       const cop = JSON.parse(walletRow.copyability) as { edgeRetentionPct: number | null };
-      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) return skip(`copyability ${Math.round(cop.edgeRetentionPct)}% < ${config.minEdgeRetentionPct}%`);
+      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) {
+        this.shadow.record(mint, null, wallet, 'copyability');
+        return skip(`copyability ${Math.round(cop.edgeRetentionPct)}% < ${config.minEdgeRetentionPct}%`);
+      }
     }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
       if ((m.flags ?? []).includes('BOT_INFRA')) return skip('trigger wallet is BOT_INFRA'); // inventory moves, never signal
+      // retention(δ/H) is ≤0 when the wallet's holds are shorter than our latency
+      // horizon — H is a property of the trader, so gate on their median hold
+      if (config.minMedianHoldMinutes > 0 && m.medianHoldMinutes !== null && m.medianHoldMinutes < config.minMedianHoldMinutes) {
+        this.shadow.record(mint, null, wallet, 'median-hold');
+        return skip(`median hold ${Math.round(m.medianHoldMinutes)}m < ${config.minMedianHoldMinutes}m`);
+      }
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
       if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
@@ -193,6 +212,18 @@ export class OpportunitiesService {
       const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',');
       console.log(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
       return;
+    }
+
+    // impact gate: a buy that IS a meaningful share of the pool means the whale's
+    // fill was mostly their own footprint — impact-alpha is zero-sum against copiers
+    if (report.liquidityUsd && report.liquidityUsd > 0) {
+      const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+      const impactPct = ((buySol * solUsd) / report.liquidityUsd) * 100;
+      if (impactPct > 5) {
+        this.shadow.record(mint, report.symbol, wallet, 'impact');
+        console.log(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
+        return;
+      }
     }
 
     await this.prisma.opportunity.create({

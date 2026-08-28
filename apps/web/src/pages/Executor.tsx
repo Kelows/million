@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { PaperPositionRow } from '@million/shared';
-import { useClosePosition, useResumeTrading, useTrading } from '../api';
+import { useClosePosition, useResumeTrading, useShadowStats, useTrading } from '../api';
 import { Addr } from '../components/Addr';
 import { TokenName } from '../components/TokenName';
 import { TradingTiles } from '../components/TradingTiles';
@@ -71,6 +71,8 @@ export function Executor() {
         onClose={(id) => close.mutate(id)}
         closing={close.isPending}
       />
+      <ShadowPanel />
+
       <PositionsTable
         title={`Closed · ${data?.closed.length ?? 0}`}
         rows={data?.closed ?? []}
@@ -168,6 +170,49 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
           <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
         </div>
       )}
+    </div>
+  );
+}
+
+function ShadowPanel() {
+  const { data: stats = [] } = useShadowStats();
+  if (stats.length === 0) return null;
+  return (
+    <div className="panel">
+      <div className="px-4 pt-4 pb-2 eyebrow">Guard shadow book — what the skipped trades did</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm font-mono">
+          <thead>
+            <tr className="text-left text-dim text-xs">
+              <th className="px-4 py-2 font-normal">guard</th>
+              <th className="px-4 py-2 font-normal text-right">watching</th>
+              <th className="px-4 py-2 font-normal text-right">resolved</th>
+              <th className="px-4 py-2 font-normal text-right">skipped trades avg</th>
+              <th className="px-4 py-2 font-normal text-right">avoided ◎</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.map((g) => (
+              <tr key={g.reason} className="border-t border-line">
+                <td className="px-4 py-2 text-bright">{g.reason}</td>
+                <td className="px-4 py-2 text-right text-dim">{g.open}</td>
+                <td className="px-4 py-2 text-right text-dim">{g.closed}</td>
+                <td className={`px-4 py-2 text-right ${g.avgPnlPct == null ? 'text-dim' : g.avgPnlPct < 0 ? 'text-profit' : 'text-loss'}`}>
+                  {g.avgPnlPct == null ? '—' : `${g.avgPnlPct > 0 ? '+' : ''}${g.avgPnlPct}%`}
+                </td>
+                <td className={`px-4 py-2 text-right font-bold ${g.avoidedSol > 0 ? 'text-profit' : g.avoidedSol < 0 ? 'text-loss' : 'text-dim'}`}>
+                  {g.avoidedSol > 0 ? '+' : ''}{g.avoidedSol}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-4 py-3 text-xs text-dim">
+        Every skipped signal becomes a phantom position, marked to market 6h later. A guard whose skipped trades average
+        red is earning its keep; one whose phantoms keep winning deserves loosening. Out-of-sample audit — the guards
+        were born from past trades, this judges them on future ones.
+      </p>
     </div>
   );
 }
