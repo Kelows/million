@@ -367,3 +367,12 @@ export function useEventStream() {
     return () => es.close();
   }, [qc]);
 }
+
+export function useSetLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ address, label }: { address: string; label: string | null }) =>
+      request<WalletRecord>(`/wallets/${address}/label`, { method: 'PUT', body: JSON.stringify({ label }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}

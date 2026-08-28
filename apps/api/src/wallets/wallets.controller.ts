@@ -40,6 +40,14 @@ export class WalletsController {
     return this.wallets.analyze(address);
   }
 
+  @Put('wallets/:address/label')
+  setLabel(
+    @Param('address') address: string,
+    @Body(new ZodPipe(z.object({ label: z.string().trim().max(64).nullable() }))) body: { label: string | null },
+  ) {
+    return this.wallets.setLabel(address, body.label || null);
+  }
+
   @Put('wallets/:address/subscribe')
   async subscribe(
     @Param('address') address: string,

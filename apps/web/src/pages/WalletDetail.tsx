@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getRouteApi, Link, useNavigate, useParams } from '@tanstack/react-router';
-import { useAnalyzeWallet, useImportWallets, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
+import { useAnalyzeWallet, useImportWallets, useSetLabel, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
@@ -52,6 +52,9 @@ export function WalletDetail() {
   }, [tokenSort.sortKey, tokenSort.dir]);
   const pag = usePagination(tokenSort.sorted, 25);
   const setSubscribed = useSetSubscribed();
+  const setLabel = useSetLabel();
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState('');
   const subscribeOwner = useSubscribeOwner();
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
@@ -81,7 +84,38 @@ export function WalletDetail() {
         <div>
           <Link to="/wallets" className="text-xs text-dim hover:text-ink">← roster</Link>
           <h1 className="text-xl font-bold text-bright tracking-wide mt-1 flex items-center gap-3 flex-wrap">
-            {wallet.label ?? truncAddr(wallet.address)}
+            {editingLabel ? (
+              <input
+                autoFocus
+                value={labelDraft}
+                placeholder="label this wallet"
+                className="text-base font-normal w-56"
+                onChange={(e) => setLabelDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setLabel.mutate({ address: wallet.address, label: labelDraft.trim() || null });
+                    setEditingLabel(false);
+                  }
+                  if (e.key === 'Escape') setEditingLabel(false);
+                }}
+                onBlur={() => setEditingLabel(false)}
+              />
+            ) : (
+              <>
+                {wallet.label ?? truncAddr(wallet.address)}
+                <button
+                  type="button"
+                  title={wallet.label ? 'Edit label' : 'Label this wallet'}
+                  className="text-dim hover:text-neon text-sm font-normal"
+                  onClick={() => {
+                    setLabelDraft(wallet.label ?? '');
+                    setEditingLabel(true);
+                  }}
+                >
+                  ✎
+                </button>
+              </>
+            )}
             {(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} size="md" />)}
           </h1>
           <div className="mt-1 text-sm"><Addr address={wallet.address} full /></div>

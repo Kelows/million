@@ -137,6 +137,13 @@ export class WalletsService {
     return { purged: junk.length };
   }
 
+  async setLabel(address: string, label: string | null): Promise<WalletRecord> {
+    const updated = await this.prisma.wallet.update({ where: { address }, data: { label } }).catch(() => {
+      throw new NotFoundException(`wallet ${address} is not in the roster`);
+    });
+    return this.toRecord(updated);
+  }
+
   async setSubscribed(address: string, subscribed: boolean): Promise<WalletRecord> {
     const updated = await this.prisma.wallet.update({ where: { address }, data: { subscribed } }).catch(() => {
       throw new NotFoundException(`wallet ${address} is not in the roster`);
