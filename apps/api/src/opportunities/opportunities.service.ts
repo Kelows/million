@@ -105,14 +105,20 @@ export class OpportunitiesService {
   async evaluate(wallet: string, mint: string, buySol: number, ts: Date, eventId: number, whalePriceUsd: number | null = null): Promise<void> {
     const config = await this.getConfig();
     const skip = (why: string) => this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${wallet.slice(0, 6)}…, ${buySol.toFixed(1)}◎): ${why}`);
+    // Audited guards DEFER rather than return: a phantom must mean "this would
+    // have been a real trade", so the signal keeps walking the gates (gauntlet
+    // included) and the shadow is only recorded if everything else passed.
+    // First blocker owns the attribution.
+    let blockedBy: string | null = null;
+    const block = (reason: string, why: string) => {
+      if (!blockedBy) { blockedBy = reason; skip(why); }
+    };
     if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
       const trigRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
-      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED')) {
-        this.shadow.record(mint, null, wallet, 'sniper-flag');
-        return skip('trigger wallet is SNIPER_SPEED');
-      }
+      if (trigRow?.metrics && (JSON.parse(trigRow.metrics) as WalletMetrics).flags.includes('SNIPER_SPEED'))
+        block('sniper-flag', 'trigger wallet is SNIPER_SPEED');
     }
     if (isExcludedToken(mint)) return; // majors/stables — silent, uninteresting
 
@@ -133,36 +139,29 @@ export class OpportunitiesService {
       where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - 10 * 60_000) } },
       select: { id: true },
     });
-    if (recentSell) {
-      this.shadow.record(mint, null, wallet, 'cycler');
-      return skip('sold this mint <10min ago — mid scalp cycle');
-    }
+    if (recentSell) block('cycler', 'sold this mint <10min ago — mid scalp cycle');
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
     // copyability gate: the one measured trigger below threshold went 0-for-3 as
     // predicted — a whale whose edge dies inside our latency is unfollowable no
     // matter the score. Unmeasured wallets pass; coverage grows with each run.
     if (walletRow?.copyability) {
       const cop = JSON.parse(walletRow.copyability) as { edgeRetentionPct: number | null };
-      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) {
-        this.shadow.record(mint, null, wallet, 'copyability');
-        return skip(`copyability ${Math.round(cop.edgeRetentionPct)}% < ${config.minEdgeRetentionPct}%`);
-      }
+      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct)
+        block('copyability', `copyability ${Math.round(cop.edgeRetentionPct)}% < ${config.minEdgeRetentionPct}%`);
     }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
       if ((m.flags ?? []).includes('BOT_INFRA')) return skip('trigger wallet is BOT_INFRA'); // inventory moves, never signal
       // retention(δ/H) is ≤0 when the wallet's holds are shorter than our latency
       // horizon — H is a property of the trader, so gate on their median hold
-      if (config.minMedianHoldMinutes > 0 && m.medianHoldMinutes !== null && m.medianHoldMinutes < config.minMedianHoldMinutes) {
-        this.shadow.record(mint, null, wallet, 'median-hold');
-        return skip(`median hold ${Math.round(m.medianHoldMinutes)}m < ${config.minMedianHoldMinutes}m`);
-      }
+      if (config.minMedianHoldMinutes > 0 && m.medianHoldMinutes !== null && m.medianHoldMinutes < config.minMedianHoldMinutes)
+        block('median-hold', `median hold ${Math.round(m.medianHoldMinutes)}m < ${config.minMedianHoldMinutes}m`);
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
       if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
     }
 
-    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd);
+    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy);
   }
 
   /**
@@ -204,6 +203,7 @@ export class OpportunitiesService {
     signal: 'copy' | 'consensus',
     config: OpportunityConfig,
     whalePriceUsd: number | null,
+    blockedBy: string | null = null,
   ): Promise<void> {
     // fresh-entry gate (preset knob): the trigger must be the roster's FIRST
     // owner into this mint. If our whales already hold it, the story is
@@ -218,10 +218,9 @@ export class OpportunitiesService {
         const m = JSON.parse(w.metrics as string) as WalletMetrics;
         return m.tokens.some((t) => t.mint === mint && t.open);
       });
-      if (held) {
-        this.shadow.record(mint, null, wallet, 'roster-fresh');
+      if (held && !blockedBy) {
+        blockedBy = 'roster-fresh';
         this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): roster already holds this — not a fresh discovery`);
-        return;
       }
     }
 
@@ -252,11 +251,17 @@ export class OpportunitiesService {
     if (report.liquidityUsd && report.liquidityUsd > 0) {
       const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
       const impactPct = ((buySol * solUsd) / report.liquidityUsd) * 100;
-      if (impactPct > 5) {
-        this.shadow.record(mint, report.symbol, wallet, 'impact');
+      if (impactPct > 5 && !blockedBy) {
+        blockedBy = 'impact';
         this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
-        return;
       }
+    }
+
+    // the honest counterfactual: everything else passed, so this WOULD have
+    // traded — the phantom is now a fair test of the guard that stopped it
+    if (blockedBy) {
+      this.shadow.record(mint, report.symbol, wallet, blockedBy);
+      return;
     }
 
     await this.prisma.opportunity.create({

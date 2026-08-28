@@ -211,9 +211,10 @@ function ShadowPanel() {
         </table>
       </div>
       <p className="px-4 py-3 text-xs text-dim">
-        Every skipped signal becomes a phantom position, marked to market 6h later. A guard whose skipped trades average
-        red is earning its keep; one whose phantoms keep winning deserves loosening. Out-of-sample audit — the guards
-        were born from past trades, this judges them on future ones.
+        Every skipped signal that would OTHERWISE have traded becomes a phantom position, marked to market 6h later —
+        the signal walks every remaining gate (gauntlet included) before the phantom is recorded, so a guard is never
+        credited for junk another gate would have caught. A guard whose skipped trades average red is earning its keep;
+        one whose phantoms keep winning deserves loosening.
       </p>
     </div>
   );
