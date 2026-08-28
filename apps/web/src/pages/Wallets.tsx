@@ -505,14 +505,16 @@ export function Wallets() {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
-                        <button
-                          className={`btn mr-2 py-1! px-2! text-[0.6rem]! ${w.subscribed ? 'text-void! bg-neon!' : ''}`}
-                          disabled={setSubscribed.isPending}
-                          title={w.subscribed ? 'Streaming to the Live feed — click to unsubscribe' : 'Stream this wallet to the Live feed'}
-                          onClick={() => setSubscribed.mutate({ address: w.address, subscribed: !w.subscribed })}
-                        >
-                          {w.subscribed ? 'sub ●' : 'sub'}
-                        </button>
+                        {(w.metrics || w.subscribed) && (
+                          <button
+                            className={`btn mr-2 py-1! px-2! text-[0.6rem]! ${w.subscribed ? 'text-void! bg-neon!' : ''}`}
+                            disabled={setSubscribed.isPending}
+                            title={w.subscribed ? 'Streaming to the Live feed — click to unsubscribe' : 'Stream this wallet to the Live feed'}
+                            onClick={() => setSubscribed.mutate({ address: w.address, subscribed: !w.subscribed })}
+                          >
+                            {w.subscribed ? 'sub ●' : 'sub'}
+                          </button>
+                        )}
                         <button
                           className="btn mr-2 py-1! px-2! text-[0.6rem]!"
                           disabled={!heliusOk || busy}
