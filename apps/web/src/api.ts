@@ -96,7 +96,8 @@ export function useFundingChains(address: string | null, minSol: number) {
     queryKey: ['funding', address, minSol],
     queryFn: () => request<FundingReport>(`/funding/${address}?minSol=${minSol}`),
     enabled: address !== null,
-    staleTime: 60_000,
+    staleTime: 30 * 60_000, // traces survive navigation — come back and it's still here
+    gcTime: 60 * 60_000,
     retry: 0,
   });
 }

@@ -18,9 +18,24 @@ const DEFAULT_MIN_SOL = 0.5;
 export function Funding() {
   const { address: addressParam } = getRouteApi('/funding').useSearch();
   const initial = addressParam && SOL_ADDR.test(addressParam) ? addressParam : null;
-  const [input, setInput] = useState(initial ?? '');
-  const [address, setAddress] = useState<string | null>(initial);
-  const [minSol, setMinSol] = useState(DEFAULT_MIN_SOL);
+  // the last trace is remembered across navigation; an explicit link wins
+  const remembered = (() => {
+    try {
+      const raw = sessionStorage.getItem('million.funding.last');
+      return raw ? (JSON.parse(raw) as { address: string; minSol: number }) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const [input, setInput] = useState(initial ?? remembered?.address ?? '');
+  const [address, setAddressRaw] = useState<string | null>(initial ?? remembered?.address ?? null);
+  const [minSol, setMinSol] = useState(remembered?.minSol ?? DEFAULT_MIN_SOL);
+  const setAddress = (a: string | null) => {
+    setAddressRaw(a);
+    try {
+      if (a) sessionStorage.setItem('million.funding.last', JSON.stringify({ address: a, minSol }));
+    } catch { /* convenience only */ }
+  };
   const [inputError, setInputError] = useState<string | null>(null);
   const { data: report, isFetching, error } = useFundingChains(address, minSol);
   const importWallets = useImportWallets();
