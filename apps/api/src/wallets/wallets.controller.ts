@@ -29,6 +29,11 @@ export class WalletsController {
     return this.wallets.list();
   }
 
+  @Get('wallets/cohorts')
+  cohorts() {
+    return this.wallets.cohorts();
+  }
+
   @Get('wallets/:address')
   get(@Param('address') address: string) {
     return this.wallets.get(address);
@@ -72,11 +77,6 @@ export class WalletsController {
     const result = await this.wallets.setOwnerSubscribed(address, body.subscribed);
     void this.live.resync();
     return result;
-  }
-
-  @Get('wallets/cohorts')
-  cohorts() {
-    return this.wallets.cohorts();
   }
 
   @Post('wallets/analyze-pending')
