@@ -274,17 +274,21 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
               await new Promise((r) => setTimeout(r, 400)); // breathe between analyses — bursts trip rate limits
               await this.wallets.analyze(c.address).catch((e) => say(`  absorb-analyze ${c.address.slice(0, 8)} failed: ${e.message}`));
               credits -= analyzePages;
-              // the FULL analysis is the arbiter — the preview only bought a ticket
+              // the FULL analysis is the arbiter — the preview only bought a ticket.
+              // Same exclusions as the preview filter: infra/farmed out, SNIPERS ALLOWED
+              // (uncopyable but watchable — they score normally).
               const row = await this.prisma.wallet.findUnique({ where: { address: c.address }, select: { metrics: true } });
               const m = row?.metrics ? (JSON.parse(row.metrics) as import('@million/shared').WalletMetrics) : null;
-              const finalScore = m && !isBotWallet(m) ? whaleScore(m.winRate, m.realizedPnlTotalSol ?? m.realizedPnlSol, false) : null;
-              if (m && (finalScore === null || finalScore < config.minWhaleScore)) {
+              const junkFlag = m?.flags.find((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS') ?? null;
+              const finalScore = m && !junkFlag ? whaleScore(m.winRate, m.realizedPnlTotalSol ?? m.realizedPnlSol, false) : null;
+              if (m && (junkFlag || finalScore === null || finalScore < config.minWhaleScore)) {
                 await this.prisma.wallet.update({ where: { address: c.address }, data: { purgedAt: new Date() } }).catch(() => undefined);
-                say(`  rejected ${c.address.slice(0, 8)} after full analysis (score ${finalScore ?? 'N/A'} < ${config.minWhaleScore}) — remembered, won't re-absorb`);
+                say(`  rejected ${c.address.slice(0, 8)} after full analysis (${junkFlag ?? `score ${finalScore} < ${config.minWhaleScore}`}) — remembered, won't re-absorb`);
                 continue;
               }
               stats.walletsAbsorbed++;
-              say(`  absorbed ${c.address.slice(0, 8)} (full score ${finalScore ?? '?'}, WR ${m?.winRate ?? '?'})`);
+              const sniper = m?.flags.includes('SNIPER_SPEED') ? ' [sniper]' : '';
+              say(`  absorbed ${c.address.slice(0, 8)} (full score ${finalScore ?? '?'}, WR ${m?.winRate ?? '?'})${sniper}`);
             }
           }
         }
