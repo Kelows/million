@@ -35,6 +35,53 @@ function rosterScore(w: WalletRecord): number | null {
   return whaleScore(w.metrics.winRate, w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol, false);
 }
 
+/** Grouped roster: an owner cluster collapses into one sortable row. */
+export type RosterRow =
+  | { kind: 'wallet'; w: WalletRecord }
+  | { kind: 'owner'; ownerId: number; members: WalletRecord[] };
+
+function groupAgg(members: WalletRecord[]) {
+  let pnl = 0;
+  let wins = 0;
+  let closed = 0;
+  const openMints = new Set<string>();
+  let lastSeen = 0;
+  let anyClean = false;
+  for (const w of members) {
+    const m = w.metrics;
+    if (!m) continue;
+    pnl += m.realizedPnlTotalSol ?? m.realizedPnlSol;
+    if (!isBotWallet(m)) {
+      anyClean = true;
+      closed += m.closedTokens;
+      if (m.winRate !== null) wins += Math.round(m.winRate * m.closedTokens);
+    }
+    for (const t of openPositions(m.tokens, loadMinOpenSol())) openMints.add(t.mint);
+    if (m.lastSeen) lastSeen = Math.max(lastSeen, new Date(m.lastSeen).getTime());
+  }
+  const winRate = closed ? wins / closed : null;
+  return {
+    pnl,
+    winRate,
+    open: openMints.size,
+    lastSeen: lastSeen || null,
+    score: anyClean ? whaleScore(winRate, pnl, false) : null,
+  };
+}
+
+const rowGet = {
+  label: (r: RosterRow) => (r.kind === 'wallet' ? r.w.label : (r.members.find((m) => m.label)?.label ?? null)),
+  score: (r: RosterRow) => (r.kind === 'wallet' ? rosterScore(r.w) : groupAgg(r.members).score),
+  winRate: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.winRate ?? null) : groupAgg(r.members).winRate),
+  pnl: (r: RosterRow) => (r.kind === 'wallet' ? totalPnlSol(r.w.metrics) : groupAgg(r.members).pnl),
+  hold: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.medianHoldMinutes ?? null) : null),
+  open: (r: RosterRow) => (r.kind === 'wallet' ? openCount(r.w) : groupAgg(r.members).open),
+  lastSeen: (r: RosterRow) =>
+    r.kind === 'wallet' ? (r.w.metrics?.lastSeen ? new Date(r.w.metrics.lastSeen).getTime() : null) : groupAgg(r.members).lastSeen,
+};
+
+const ROW_COLUMNS: SortColumn<RosterRow>[] = Object.entries(rowGet).map(([key, get]) => ({ key, get }));
+
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
   { key: 'score', get: (w) => rosterScore(w) },
@@ -59,6 +106,10 @@ export function Wallets() {
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useStoredFilters('million.filters.roster');
   const [search, setSearch] = useState('');
+  const [groupOwners, setGroupOwners] = useState(() => {
+    try { return localStorage.getItem('million.groupOwners') !== 'off'; } catch { return true; }
+  });
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const heliusOk = health.data?.heliusConfigured ?? false;
 
@@ -102,8 +153,34 @@ export function Wallets() {
     ? wallets.filter((w) => w.address.toLowerCase().includes(query) || w.label?.toLowerCase().includes(query))
     : wallets;
   const filtered = applyFilters(searched, ROSTER_FILTERS, filters);
-  const { sorted, sortKey, dir, toggle } = useTableSort(filtered, ROSTER_COLUMNS);
+  const rows: RosterRow[] = (() => {
+    if (!groupOwners) return filtered.map((w) => ({ kind: 'wallet' as const, w }));
+    const byOwner = new Map<number, WalletRecord[]>();
+    const singles: RosterRow[] = [];
+    for (const w of filtered) {
+      if (w.ownerId) {
+        const list = byOwner.get(w.ownerId) ?? [];
+        list.push(w);
+        byOwner.set(w.ownerId, list);
+      } else singles.push({ kind: 'wallet', w });
+    }
+    const groups: RosterRow[] = [];
+    for (const [ownerId, members] of byOwner) {
+      if (members.length > 1) groups.push({ kind: 'owner', ownerId, members });
+      else singles.push({ kind: 'wallet', w: members[0] });
+    }
+    return [...groups, ...singles];
+  })();
+  const { sorted, sortKey, dir, toggle } = useTableSort(rows, ROW_COLUMNS);
   const pag = usePagination(sorted, 25);
+
+  const toggleGroup = (ownerId: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(ownerId)) next.delete(ownerId);
+      else next.add(ownerId);
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-6">
@@ -179,6 +256,18 @@ export function Wallets() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-56 py-1! text-xs"
             />
+            <label className="flex items-center gap-2 text-xs text-dim cursor-pointer">
+              <input
+                type="checkbox"
+                className="checkbox"
+                checked={groupOwners}
+                onChange={(e) => {
+                  setGroupOwners(e.target.checked);
+                  try { localStorage.setItem('million.groupOwners', e.target.checked ? 'on' : 'off'); } catch { /* ok */ }
+                }}
+              />
+              group owners
+            </label>
           </span>
           {pending.length > 0 && (
             <button className="btn" disabled={!heliusOk || analyzing.size > 0} onClick={() => runAnalysis(pending.map((w) => w.address))}>
@@ -209,11 +298,49 @@ export function Wallets() {
                 </tr>
               </thead>
               <tbody>
-                {pag.rows.map((w) => {
-                  const busy = analyzing.has(w.address) || w.status === 'analyzing';
-                  return (
-                    <tr key={w.address} className="border-t border-line hover:bg-deck2">
-                      <td className="pl-4 pr-0 py-2">
+                {pag.rows.flatMap((row) => {
+                  if (row.kind === 'owner') {
+                    const agg = groupAgg(row.members);
+                    const isOpen = expanded.has(row.ownerId);
+                    const walletRows = isOpen ? row.members : [];
+                    return [
+                      <tr key={`owner-${row.ownerId}`} className="border-t border-line hover:bg-deck2 cursor-pointer" onClick={() => toggleGroup(row.ownerId)}>
+                        <td className="pl-4 pr-0 py-2 text-neon">{isOpen ? '▾' : '▸'}</td>
+                        <td className="px-4 py-2 text-bright font-semibold" colSpan={2}>
+                          Owner · {row.members.length} wallets
+                          {rowGet.label(row) && <span className="text-dim font-normal ml-2">({rowGet.label(row)})</span>}
+                        </td>
+                        <td className="px-4 py-2">
+                          {agg.score === null ? <span className="text-dim">—</span> : (
+                            <span className={`font-bold ${agg.score >= 50 ? 'text-profit' : agg.score >= 0 ? 'text-ink' : 'text-loss'}`}>{agg.score}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">{fmtPct(agg.winRate)}</td>
+                        <td className={`px-4 py-2 text-right ${agg.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>{fmtSol(agg.pnl)}</td>
+                        <td className="px-4 py-2 text-dim">—</td>
+                        <td className="px-4 py-2 text-warn">{agg.open || <span className="text-dim">0</span>}</td>
+                        <td className="px-4 py-2 text-dim whitespace-nowrap">{fmtAgo(agg.lastSeen ? new Date(agg.lastSeen).toISOString() : null)}</td>
+                        <td className="px-4 py-2 text-xs text-dim" colSpan={2}>pooled · click to {isOpen ? 'collapse' : 'expand'}</td>
+                      </tr>,
+                      ...walletRows.map((w) => renderWalletRow(w, true)),
+                    ];
+                  }
+                  return [renderWalletRow(row.w, false)];
+                })}
+              </tbody>
+            </table>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  function renderWalletRow(w: WalletRecord, indent: boolean) {
+    const busy = analyzing.has(w.address) || w.status === 'analyzing';
+    return (
+                    <tr key={w.address} className={`border-t border-line hover:bg-deck2 ${indent ? 'bg-void/40' : ''}`}>
+                      <td className={`${indent ? 'pl-8' : 'pl-4'} pr-0 py-2`}>
                         <Link
                           to="/wallets/$address"
                           params={{ address: w.address }}
@@ -273,14 +400,6 @@ export function Wallets() {
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
+  }
 }
