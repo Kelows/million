@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useAnalyzeWallet, useImportWallets, useSetSubscribed, useWallet } from '../api';
+import { useAnalyzeWallet, useImportWallets, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
@@ -44,6 +44,7 @@ export function WalletDetail() {
   const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, 'realized');
   const pag = usePagination(tokenSort.sorted, 25);
   const setSubscribed = useSetSubscribed();
+  const subscribeOwner = useSubscribeOwner();
 
   if (isLoading) return <p className="text-dim text-sm">Loading…</p>;
   if (notInRoster || (autoRun && !wallet)) {
@@ -85,18 +86,45 @@ export function WalletDetail() {
               orchestrator: <Addr address={m.topFeePayer.address} /> pays fees on {Math.round(m.topFeePayer.share * 100)}% of txs
             </div>
           )}
-          {(wallet.ownerSiblings?.length ?? 0) > 0 && (
-            <div className="text-xs mt-2">
-              <span className="text-warn font-semibold uppercase tracking-wider text-[0.6rem]">same owner</span>{' '}
-              <span className="text-dim">·</span>{' '}
-              {wallet.ownerSiblings!.map((s, i) => (
-                <span key={s.address}>
-                  {i > 0 && <span className="text-dim">, </span>}
-                  <Link to="/wallets/$address" params={{ address: s.address }} className="text-neon hover:underline">
-                    {s.label ?? truncAddr(s.address)}
-                  </Link>
+          {(wallet.ownerSiblings?.length ?? 0) > 0 && wallet.ownerAggregate && (
+            <div className="panel p-3 mt-3 max-w-xl">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <span className="eyebrow">Owner · {wallet.ownerAggregate.members} wallets</span>
+                <button
+                  className={`btn py-1! px-2! text-[0.6rem]! ${wallet.ownerAggregate.subscribedCount === wallet.ownerAggregate.members ? 'bg-neon! text-void!' : ''}`}
+                  disabled={subscribeOwner.isPending}
+                  title="Subscribe every wallet of this owner to the live feed (each uses one of the 25 slots)"
+                  onClick={() =>
+                    subscribeOwner.mutate({
+                      address: wallet.address,
+                      subscribed: wallet.ownerAggregate!.subscribedCount !== wallet.ownerAggregate!.members,
+                    })
+                  }
+                >
+                  {wallet.ownerAggregate.subscribedCount === wallet.ownerAggregate.members
+                    ? `Subbed all ●`
+                    : `Sub owner (${wallet.ownerAggregate.members})`}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs font-mono">
+                <span className={wallet.ownerAggregate.combinedPnlSol >= 0 ? 'text-profit' : 'text-loss'}>
+                  {fmtSol(wallet.ownerAggregate.combinedPnlSol)} combined
                 </span>
-              ))}
+                <span className="text-ink">WR {fmtPct(wallet.ownerAggregate.winRate)} pooled</span>
+                <span className="text-dim">{wallet.ownerAggregate.closedTokens} closed</span>
+                <span className="text-warn">{wallet.ownerAggregate.openTokens} open tokens</span>
+                <span className="text-dim">{wallet.ownerAggregate.subscribedCount}/{wallet.ownerAggregate.members} subbed</span>
+              </div>
+              <div className="text-xs mt-2">
+                {wallet.ownerSiblings!.map((s, i) => (
+                  <span key={s.address}>
+                    {i > 0 && <span className="text-dim">, </span>}
+                    <Link to="/wallets/$address" params={{ address: s.address }} className="text-neon hover:underline">
+                      {s.label ?? truncAddr(s.address)}
+                    </Link>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

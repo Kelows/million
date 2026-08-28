@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
-import { isJunkWallet, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
+import { isJunkWallet, openPositions, type OwnerAggregate, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -48,7 +48,46 @@ export class WalletsService {
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
     const record = this.toRecord(wallet);
     record.ownerSiblings = await this.owners.siblings(address);
+    if (wallet.ownerId && record.ownerSiblings.length > 0) {
+      record.ownerAggregate = await this.ownerAggregate(wallet.ownerId);
+    }
     return record;
+  }
+
+  /** Pooled stats across every member of an owner cluster — from cached metrics, no API cost. */
+  private async ownerAggregate(ownerId: number): Promise<OwnerAggregate> {
+    const members = await this.prisma.wallet.findMany({ where: { ownerId, purgedAt: null } });
+    let pnl = 0;
+    let wins = 0;
+    let closed = 0;
+    const openMints = new Set<string>();
+    let subscribedCount = 0;
+    for (const w of members) {
+      if (w.subscribed) subscribedCount++;
+      if (!w.metrics) continue;
+      const m = JSON.parse(w.metrics) as WalletMetrics;
+      pnl += m.realizedPnlTotalSol ?? m.realizedPnlSol;
+      closed += m.closedTokens;
+      if (m.winRate !== null) wins += Math.round(m.winRate * m.closedTokens);
+      for (const t of openPositions(m.tokens, 0)) openMints.add(t.mint);
+    }
+    return {
+      members: members.length,
+      combinedPnlSol: Math.round(pnl * 100) / 100,
+      winRate: closed ? Math.round((wins / closed) * 100) / 100 : null,
+      closedTokens: closed,
+      openTokens: openMints.size,
+      subscribedCount,
+    };
+  }
+
+  /** Subscribe (or unsubscribe) every member of the owner cluster this wallet belongs to. */
+  async setOwnerSubscribed(address: string, subscribed: boolean): Promise<{ affected: number }> {
+    const me = await this.prisma.wallet.findUnique({ where: { address }, select: { ownerId: true } });
+    if (!me) throw new NotFoundException(`wallet ${address} is not in the roster`);
+    const where = me.ownerId ? { ownerId: me.ownerId, purgedAt: null } : { address };
+    const result = await this.prisma.wallet.updateMany({ where, data: { subscribed } });
+    return { affected: result.count };
   }
 
   async analyze(address: string): Promise<WalletRecord> {

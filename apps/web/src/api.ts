@@ -297,3 +297,15 @@ export function useMovers(params: MoversParams | null) {
     retry: 0,
   });
 }
+
+export function useSubscribeOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ address, subscribed }: { address: string; subscribed: boolean }) =>
+      request<{ affected: number }>(`/wallets/${address}/subscribe-owner`, { method: 'PUT', body: JSON.stringify({ subscribed }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallets'] });
+      qc.invalidateQueries({ queryKey: ['live-status'] });
+    },
+  });
+}

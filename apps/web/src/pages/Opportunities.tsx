@@ -1,12 +1,70 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from '@tanstack/react-router';
 import type { OpportunityConfig } from '@million/shared';
-import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig } from '../api';
+import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig, useSetSubscribed, useWallets } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
 import { fmtAgo, truncAddr } from '../lib/format';
+
+function SubbedWalletsButton({ count }: { count: number }) {
+  const [open, setOpen] = useState(false);
+  const { data: wallets = [] } = useWallets();
+  const setSubscribed = useSetSubscribed();
+  const subbed = wallets.filter((w) => w.subscribed);
+
+  return (
+    <>
+      <button type="button" className="text-dim mt-1 hover:text-neon cursor-pointer underline decoration-dotted" onClick={() => setOpen(true)}>
+        {count} wallets subbed
+      </button>
+      {open &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+            <div
+              className="panel panel-raised w-[30rem] max-w-full max-h-[75vh] p-5 flex flex-col gap-3"
+              role="dialog"
+              aria-label="Subscribed wallets"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <span className="eyebrow">Subscribed wallets · {subbed.length}/25</span>
+                <button type="button" className="text-dim hover:text-ink text-sm" onClick={() => setOpen(false)}>✕</button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {subbed.length === 0 ? (
+                  <p className="text-sm text-dim py-6 text-center">No wallets subbed — Sub them from their detail page.</p>
+                ) : (
+                  <ul>
+                    {subbed.map((w) => (
+                      <li key={w.address} className="border-t border-line py-2 flex items-center gap-3 text-sm font-mono">
+                        <Link to="/wallets/$address" params={{ address: w.address }} className="text-dim hover:text-neon inline-flex" onClick={() => setOpen(false)}>
+                          <EyeIcon />
+                        </Link>
+                        <span className="text-ink flex-1 truncate">{w.label ?? truncAddr(w.address)}</span>
+                        <span className="text-dim text-xs">{w.metrics?.winRate !== null && w.metrics ? `WR ${Math.round((w.metrics.winRate ?? 0) * 100)}%` : ''}</span>
+                        <button
+                          className="text-xs text-dim hover:text-loss"
+                          title="Unsubscribe"
+                          disabled={setSubscribed.isPending}
+                          onClick={() => setSubscribed.mutate({ address: w.address, subscribed: false })}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 export function Opportunities() {
   const { data: status } = useLiveStatus();
@@ -35,7 +93,7 @@ export function Opportunities() {
           <div className={`font-bold ${status?.connected ? 'text-profit' : 'text-loss'}`}>
             {status?.connected ? '● FEED CONNECTED' : '○ FEED DOWN'}
           </div>
-          <div className="text-dim mt-1">{status?.subscribedWallets ?? 0} wallets subbed</div>
+          <SubbedWalletsButton count={status?.subscribedWallets ?? 0} />
         </div>
       </div>
 

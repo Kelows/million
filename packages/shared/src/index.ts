@@ -87,6 +87,17 @@ export interface WalletRecord {
   ownerId: number | null;
   /** other roster addresses assigned to the same owner (detail endpoint only) */
   ownerSiblings?: { address: string; label: string | null }[];
+  /** aggregate across all owner members (detail endpoint only, when clustered) */
+  ownerAggregate?: OwnerAggregate;
+}
+
+export interface OwnerAggregate {
+  members: number;
+  combinedPnlSol: number;
+  winRate: number | null; // pooled wins / pooled closed
+  closedTokens: number;
+  openTokens: number; // union of open non-excluded mints
+  subscribedCount: number;
 }
 
 // ── token legitimacy screening ────────────────────────────────────────────────
