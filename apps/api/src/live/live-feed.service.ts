@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { OpportunitiesService } from '../opportunities/opportunities.service';
 import { TradingService } from '../trading/trading.service';
 import { EventsBus } from '../common/events.bus';
-import { txDeltas } from '../analysis/metrics';
+import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
 
 const MAX_SUBSCRIPTIONS = 25; // standard websocket comfort zone on the free tier
@@ -290,7 +290,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processTx(wallet: string, tx: HeliusTx) {
-    const { sol, usd, tokens } = txDeltas(wallet, tx);
+    const { sol, usd, tokens } = orchestratedDeltas(wallet, tx); // fee-payer fleets: executor deltas credit the subscribed orchestrator
     // classify from this wallet's perspective; one event per non-quote token moved
     let kind: 'buy' | 'sell' | 'other' = 'other';
     let mint: string | null = null;
