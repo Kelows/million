@@ -200,7 +200,7 @@ export function Opportunities() {
               <input type="number" min={0} max={100} step={5} value={config.minEdgeRetentionPct} onChange={(e) => setConfig({ ...config, minEdgeRetentionPct: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Trailing stop % (winners)<Info text="Asymmetric mirror: a whale exit cuts losers instantly but arms this trailing stop on winners instead of selling flat — mirror exits capped every winner at +14% in the first sample." /></span>
+              <span className="text-dim">Trailing stop % (winners)<Info text="mirror-trail mode: a whale exit cuts losers instantly but arms a trailing stop on winners. The leash is volatility-scaled per token (3× its recent 1-min swings, clamped 8–30%) — this value is the cold-start fallback until ~8 minutes of price history accumulates. Breakeven ratchet on top: once a winner reaches +25%, the stop never drops below entry+2%." /></span>
               <input type="number" min={1} max={50} step={1} value={config.trailStopPct} onChange={(e) => setConfig({ ...config, trailStopPct: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">

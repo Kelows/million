@@ -25,6 +25,10 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     private readonly bus: EventsBus,
   ) {}
 
+  // last ~30 tick quotes per open position: realized volatility for the dynamic
+  // trail, computed from prices we were fetching anyway — zero extra calls
+  private readonly priceHistory = new Map<number, number[]>();
+
   onModuleInit() {
     this.timer = setInterval(() => void this.tick(), TICK_MS);
   }
@@ -147,8 +151,17 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' } });
       if (!open.length) return;
       const config = await this.config();
+      for (const id of [...this.priceHistory.keys()]) {
+        if (!open.some((p) => p.id === id)) this.priceHistory.delete(id); // closed — drop the buffer
+      }
       for (const p of open) {
         const price = await this.executor.quote(p.mint);
+        if (price !== null) {
+          const hist = this.priceHistory.get(p.id) ?? [];
+          hist.push(price);
+          if (hist.length > 30) hist.shift();
+          this.priceHistory.set(p.id, hist);
+        }
         if (price === null) {
           // unquotable = likely dead pool; close at total loss rather than pretend
           if (Date.now() - p.openedAt.getTime() > 3_600_000) await this.close(p.id, 'dead', 0);
@@ -156,10 +169,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         }
         const changePct = (price / p.entryPriceUsd - 1) * 100;
         if (p.peakPriceUsd !== null) {
-          // armed trailing stop: ratchet the peak, exit on the giveback
+          // armed trailing stop: ratchet the peak, exit on the giveback.
+          // The leash is volatility-scaled — a coin wicking 6%/min gets room a
+          // calm one doesn't — with the configured pct as cold-start fallback,
+          // and a breakeven ratchet: once a real winner (+25%), never red again.
           const peak = Math.max(p.peakPriceUsd, price);
           if (peak > p.peakPriceUsd) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
-          if (price <= peak * (1 - config.trailStopPct / 100)) {
+          const trailPct = this.dynamicTrailPct(p.id, config.trailStopPct);
+          const trailLine = peak * (1 - trailPct / 100);
+          const breakevenLine = peak >= p.entryPriceUsd * 1.25 ? p.entryPriceUsd * 1.02 : 0;
+          if (price <= Math.max(trailLine, breakevenLine)) {
             await this.closeWithFill(p.id, p.mint, p.sizeSol, 'trail');
             continue;
           }
@@ -211,6 +230,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     const p = await this.prisma.paperPosition.findUnique({ where: { id } });
     if (!p || p.status !== 'open') throw new NotFoundException('no such open position');
     await this.closeWithFill(p.id, p.mint, p.sizeSol, 'manual');
+  }
+
+  /** Volatility-scaled trail width: clamp(3σ of 1-min returns, 8%, 30%); fallback until the buffer warms. */
+  private dynamicTrailPct(positionId: number, fallbackPct: number): number {
+    const hist = this.priceHistory.get(positionId) ?? [];
+    if (hist.length < 8) return fallbackPct;
+    const returns = hist.slice(1).map((v, i) => v / hist[i] - 1);
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const sigma = Math.sqrt(returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length) * 100;
+    return Math.min(30, Math.max(8, 3 * sigma));
   }
 
   /**
