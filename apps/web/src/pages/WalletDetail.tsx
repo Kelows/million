@@ -45,7 +45,7 @@ export function WalletDetail() {
   // hook must run on every render path, so it sits above the early returns
   const urlSearch = getRouteApi('/wallets/$address').useSearch();
   const navigate = useNavigate();
-  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, urlSearch.sort ?? 'realized', urlSearch.dir ?? 'desc');
+  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, urlSearch.sort ?? 'activity', urlSearch.dir ?? 'desc');
   useEffect(() => {
     void navigate({ to: '/wallets/$address', params: { address }, search: { sort: tokenSort.sortKey ?? undefined, dir: tokenSort.dir }, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
