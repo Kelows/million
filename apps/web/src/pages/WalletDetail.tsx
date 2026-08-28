@@ -80,15 +80,15 @@ export function WalletDetail() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <Link to="/wallets" className="text-xs text-dim hover:text-ink">← roster</Link>
-          <h1 className="text-xl font-bold text-bright tracking-wide mt-1">
+          <h1 className="text-xl font-bold text-bright tracking-wide mt-1 flex items-center gap-3 flex-wrap">
             {wallet.label ?? truncAddr(wallet.address)}
+            {(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} size="md" />)}
           </h1>
           <div className="mt-1 text-sm"><Addr address={wallet.address} full /></div>
           <div className="mt-1 flex gap-3 text-xs">
             <a href={explorerUrl('wallet', wallet.address)} target="_blank" rel="noopener noreferrer" className="text-dim hover:text-neon">GMGN ↗</a>
             <a href={classicUrl('wallet', wallet.address)} target="_blank" rel="noopener noreferrer" className="text-dim hover:text-neon">Solscan ↗</a>
           </div>
-          <div className="flex gap-1 mt-2 flex-wrap">{(m?.flags ?? []).map((f) => <FlagChip key={f} flag={f} />)}</div>
           {m?.topFeePayer && (
             <div className="text-xs text-dim mt-2">
               orchestrator: <Addr address={m.topFeePayer.address} /> pays fees on {Math.round(m.topFeePayer.share * 100)}% of txs

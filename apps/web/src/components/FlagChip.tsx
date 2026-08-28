@@ -16,14 +16,14 @@ export const FLAG_OPTIONS = (Object.keys(FLAG_INFO) as WalletFlag[]).map((value)
   label: FLAG_INFO[value].label,
 }));
 
-export function FlagChip({ flag }: { flag: WalletFlag }) {
-  const info = FLAG_INFO[flag];
+export function FlagChip({ flag, size = 'sm' }: { flag: WalletFlag; size?: 'sm' | 'md' }) {
+  const info = FLAG_INFO[flag] ?? { label: flag.toLowerCase(), title: flag, warn: false };
   return (
     <span
       title={info.title}
-      className={`inline-block px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider border ${
-        info.warn ? 'border-warn text-warn' : 'border-line text-dim'
-      }`}
+      className={`inline-block font-semibold uppercase tracking-wider border ${
+        size === 'md' ? 'px-2 py-1 text-[0.7rem]' : 'px-1.5 py-0.5 text-[0.6rem]'
+      } ${info.warn ? 'border-warn text-warn' : 'border-line text-dim'}`}
     >
       {info.label}
     </span>
