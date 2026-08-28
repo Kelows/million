@@ -28,4 +28,10 @@ export class CrawlerController {
   runDeep() {
     return this.crawler.runDeep();
   }
+
+  @Post('stop-run')
+  @HttpCode(200)
+  stopRun() {
+    return this.crawler.stopRun();
+  }
 }

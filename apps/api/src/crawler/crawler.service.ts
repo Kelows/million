@@ -33,6 +33,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private nextRunAt: Date | null = null;
   private running = false;
   private deepRunning = false;
+  private stopRequested = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -45,6 +46,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit() {
+    // runs orphaned by a process restart would show "running…" forever
+    await this.prisma.crawlerRun
+      .updateMany({
+        where: { finishedAt: null },
+        data: { finishedAt: new Date(), data: JSON.stringify({ stats: null, log: ['interrupted — process restarted mid-run'] }) },
+      })
+      .catch(() => undefined);
     const config = await this.getConfig();
     if (config.enabled) this.schedule(60_000); // first run a minute after boot
   }
@@ -93,6 +101,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     return { started: true };
   }
 
+  /** Request a graceful stop: the current iteration finishes its in-flight step and aborts. */
+  stopRun(): { stopping: boolean } {
+    if (!this.running && !this.deepRunning) return { stopping: false };
+    this.stopRequested = true;
+    return { stopping: true };
+  }
+
   /** The long run: chain iterations back-to-back until deepRunCredits are spent
    * or a pass produces nothing — then stop. Never loops forever. */
   runDeep(): { started: boolean } {
@@ -103,6 +118,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         const config = await this.getConfig();
         let spent = 0;
         for (let pass = 0; pass < 20; pass++) {
+          if (this.stopRequested) break;
           const stats = await this.iterate();
           if (!stats) break;
           spent += stats.creditsUsed;
@@ -111,6 +127,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         }
       } finally {
         this.deepRunning = false;
+        this.stopRequested = false;
       }
     })();
     return { started: true };
@@ -126,6 +143,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return null;
     this.running = true;
     this.nextRunAt = null;
+    // stopRequested survives into deep-run pass boundaries; cleared when all activity ends
     const config = await this.getConfig();
     const analyzePages = Number(this.env.get('ANALYSIS_MAX_PAGES') ?? 5);
     const log: string[] = [];
@@ -148,7 +166,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           .filter((w) => !w.metrics || !isJunkWallet(JSON.parse(w.metrics) as import('@million/shared').WalletMetrics))
           .slice(0, config.maxWalletsReanalyzed);
         for (const w of stale) {
-          if (credits < analyzePages) break;
+          if (credits < analyzePages || this.stopRequested) break;
           await this.wallets.analyze(w.address).catch((e) => say(`  reanalyze ${w.address.slice(0, 8)} failed: ${e.message}`));
           credits -= analyzePages;
           stats.walletsReanalyzed++;
@@ -181,7 +199,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             take: COLD_START_TOKENS_PER_ITERATION,
           });
           for (const t of unmined) {
-            if (credits < 5) break;
+            if (credits < 5 || this.stopRequested) break;
             const report = await this.tokenCheck.check(t.mint, config.thresholds).catch(() => null);
             credits -= 2;
             if (!report) continue;
@@ -223,7 +241,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           );
           expandable.sort((a, b) => (scanTimes.get(a.mint) ?? 0) - (scanTimes.get(b.mint) ?? 0));
           for (const gem of expandable) {
-            if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed) break;
+            if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed || this.stopRequested) break;
             // first sighting of a gem: mine its WHOLE LIFE of buyers, not the last minutes
             const useDeep = config.deepScanNewGems && !(scanTimes.get(gem.mint) ?? 0);
             const scanCost = useDeep ? config.deepScanBuckets * 3 + 25 : 16;
@@ -251,7 +269,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} clean >= score ${config.minWhaleScore}`);
             if (!config.autoAbsorb) continue;
             for (const c of clean) {
-              if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages) break;
+              if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages || this.stopRequested) break;
               await this.wallets.import({ wallets: [c.address], source: 'crawler' });
               await new Promise((r) => setTimeout(r, 400)); // breathe between analyses — bursts trip rate limits
               await this.wallets.analyze(c.address).catch((e) => say(`  absorb-analyze ${c.address.slice(0, 8)} failed: ${e.message}`));
@@ -275,7 +293,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       const clusters = await this.owners.rebuild().catch(() => null);
       if (clusters) say(`owner graph: ${clusters.owners} multi-wallet owners, ${clusters.clustered} wallets clustered`);
       stats.creditsUsed = config.creditsPerIteration - credits;
-      say(`done · ${stats.creditsUsed} credits used`);
+      say(this.stopRequested ? `stopped by user · ${stats.creditsUsed} credits used` : `done · ${stats.creditsUsed} credits used`);
     } catch (err) {
       say(`iteration error: ${err instanceof Error ? err.message : 'unknown'}`);
     } finally {
@@ -286,6 +304,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       const staleRuns = await this.prisma.crawlerRun.findMany({ orderBy: { id: 'desc' }, skip: KEEP_RUNS, select: { id: true } });
       if (staleRuns.length) await this.prisma.crawlerRun.deleteMany({ where: { id: { in: staleRuns.map((r) => r.id) } } });
       this.running = false;
+      if (!this.deepRunning) this.stopRequested = false;
       const latest = await this.getConfig();
       if (latest.enabled) this.schedule(latest.intervalMinutes * 60_000);
     }

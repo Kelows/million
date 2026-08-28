@@ -214,8 +214,11 @@ export function useSetCrawlerConfig() {
 export function useRunCrawlerOnce() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (mode: 'once' | 'deep') =>
-      request<{ started: boolean }>(`/crawler/run-${mode === 'deep' ? 'deep' : 'once'}`, { method: 'POST' }),
+    mutationFn: (mode: 'once' | 'deep' | 'stop') =>
+      request<{ started?: boolean; stopping?: boolean }>(
+        mode === 'stop' ? '/crawler/stop-run' : `/crawler/run-${mode === 'deep' ? 'deep' : 'once'}`,
+        { method: 'POST' },
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['crawler'] }),
   });
 }

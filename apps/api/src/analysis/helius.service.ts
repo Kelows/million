@@ -67,8 +67,8 @@ export class HeliusService {
     url.searchParams.set('api-key', this.key());
     url.searchParams.set('limit', '100');
     url.searchParams.set('before', before);
-    const res = await fetch(url);
-    if (!res.ok) return [];
+    const res = await fetch(url, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
+    if (!res?.ok) return [];
     return (await res.json()) as HeliusTx[];
   }
 
@@ -133,12 +133,12 @@ export class HeliusService {
       url.searchParams.set('limit', '100');
       if (before) url.searchParams.set('before', before);
 
-      let res = await fetch(url);
+      let res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       if (res.status === 404) break; // no transaction history for this address
       // 429: retry with backoff — bursts (deep runs) must not poison analyses with empty data
       for (let attempt = 0; res.status === 429 && attempt < 3; attempt++) {
         await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
-        res = await fetch(url);
+        res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       }
       if (res.status === 429) {
         truncated = true; // still throttled after retries — give up on remaining pages
@@ -158,6 +158,7 @@ export class HeliusService {
 
   private async rpc<T>(method: string, params: unknown): Promise<T> {
     const res = await fetch(`${RPC}/?api-key=${this.key()}`, {
+      signal: AbortSignal.timeout(30_000),
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: method, method, params }),

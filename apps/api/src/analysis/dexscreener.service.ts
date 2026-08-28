@@ -29,7 +29,7 @@ export class DexScreenerService {
   }
 
   async fetchBestPair(mint: string): Promise<DexPair | null> {
-    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`).catch(() => null);
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
     if (!res?.ok) return null;
     type Raw = {
       pairs?: {

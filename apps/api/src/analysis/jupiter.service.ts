@@ -33,7 +33,7 @@ export class JupiterService {
   private async quote(inputMint: string, outputMint: string, amountRaw: number): Promise<number | null> {
     for (const host of HOSTS) {
       const url = `${host}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amountRaw)}&slippageBps=100&swapMode=ExactIn`;
-      const res = await fetch(url, { headers: { accept: 'application/json' } }).catch(() => null);
+      const res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
       if (!res) continue;
       if (res.status === 400 || res.status === 404) return null; // no route
       if (!res.ok) continue; // try next host

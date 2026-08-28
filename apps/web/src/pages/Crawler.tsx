@@ -107,6 +107,15 @@ export function Crawler() {
             >
               {status?.deepRunning ? 'deep running…' : `deep run (~${config.deepRunCredits.toLocaleString('en-US')} cr)`}
             </button>
+            {(status?.running || status?.deepRunning) && (
+              <button
+                className="btn btn-danger py-1! px-2! text-[0.6rem]!"
+                title="Finish the in-flight step, then abort the run"
+                onClick={() => runOnce.mutate('stop')}
+              >
+                stop run
+              </button>
+            )}
             {config.enabled ? (
               <button className="btn btn-danger py-1! px-2! text-[0.6rem]!" disabled={save.isPending} onClick={() => save.mutate({ ...config, enabled: false })}>
                 stop
