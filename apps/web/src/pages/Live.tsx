@@ -5,6 +5,8 @@ import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { FlagChip } from '../components/FlagChip';
 import { fmtAgo, truncAddr } from '../lib/format';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 const KIND_STYLE: Record<string, string> = {
   buy: 'text-profit',
@@ -15,6 +17,7 @@ const KIND_STYLE: Record<string, string> = {
 export function Live() {
   const { data: status } = useLiveStatus();
   const { data: events = [] } = useLiveEvents(150);
+  const pag = usePagination(events, 25);
   const { data: emitters = [] } = useEmitters();
   const setSubscribed = useSetSubscribed();
 
@@ -92,7 +95,7 @@ export function Live() {
                 </tr>
               </thead>
               <tbody>
-                {events.map((e) => (
+                {pag.rows.map((e) => (
                   <tr key={e.id} className="border-t border-line hover:bg-deck2">
                     <td className="px-4 py-2 text-dim whitespace-nowrap" title={e.ts}>{fmtAgo(e.ts)}</td>
                     <td className="px-4 py-2">
@@ -138,6 +141,7 @@ export function Live() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
           </div>
         )}
       </div>

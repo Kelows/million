@@ -8,6 +8,8 @@ import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
 import { fmtAgo, truncAddr } from '../lib/format';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 function SubbedWalletsButton({ count }: { count: number }) {
   const [open, setOpen] = useState(false);
@@ -70,6 +72,7 @@ export function Opportunities() {
   const { data: status } = useLiveStatus();
   const { data: opportunities = [] } = useOpportunities();
   const tokenSignals = opportunities.filter((o) => o.kind !== 'wallet');
+  const pag = usePagination(tokenSignals, 10);
   const rotations = opportunities.filter((o) => o.kind === 'wallet').slice(0, 5);
   const { data: savedConfig } = useOpportunityConfig();
   const save = useSetOpportunityConfig();
@@ -108,7 +111,7 @@ export function Opportunities() {
           </p>
         ) : (
           <ul>
-            {tokenSignals.map((o) => (
+            {pag.rows.map((o) => (
                 <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
                   <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
                   <span className="inline-flex items-center gap-2">
@@ -128,6 +131,7 @@ export function Opportunities() {
               ))}
           </ul>
         )}
+        <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
       </div>
 
       <div className="panel">

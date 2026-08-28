@@ -4,6 +4,8 @@ import { useCopyability, useCopyabilityStatus, useRunCopyability } from '../api'
 import { Info } from '../components/Info';
 import { fmtAgo, truncAddr } from '../lib/format';
 import type { CopyabilityWalletRow } from '@million/shared';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 const fmtRet = (v: number | null | undefined) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`);
 const retTone = (v: number | null | undefined) => (v == null ? 'text-dim' : v >= 0 ? 'text-profit' : 'text-loss');
@@ -22,6 +24,7 @@ export function Copyability() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const measured = rows.filter((r) => r.copyability);
+  const pag = usePagination(measured, 15);
   const running = status?.running ?? false;
 
   return (
@@ -73,11 +76,12 @@ export function Copyability() {
                 </tr>
               </thead>
               <tbody>
-                {measured.map((r) => (
+                {pag.rows.map((r) => (
                   <Row key={r.address} row={r} expanded={expanded === r.address} onToggle={() => setExpanded(expanded === r.address ? null : r.address)} />
                 ))}
               </tbody>
             </table>
+            <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
           </div>
         </div>
       )}

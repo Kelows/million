@@ -5,6 +5,8 @@ import { Addr } from '../components/Addr';
 import { TokenName } from '../components/TokenName';
 import { StatTile } from '../components/StatTile';
 import { fmtAgo, truncAddr } from '../lib/format';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit' };
 
@@ -91,6 +93,7 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
   onClose?: (id: number) => void;
   closing?: boolean;
 }) {
+  const pag = usePagination(rows, 15);
   return (
     <div className="panel">
       <div className="px-4 pt-4 pb-2 eyebrow">{title}</div>
@@ -112,7 +115,7 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => {
+              {pag.rows.map((p) => {
                 const pct = onClose ? p.unrealizedPct : p.pnlPct;
                 return (
                   <tr key={p.id} className="border-t border-line hover:bg-deck2">
@@ -151,6 +154,7 @@ function PositionsTable({ title, rows, empty, onClose, closing }: {
               })}
             </tbody>
           </table>
+          <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
         </div>
       )}
     </div>

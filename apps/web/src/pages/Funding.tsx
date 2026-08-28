@@ -5,6 +5,8 @@ import { useFundingChains, useImportWallets } from '../api';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -165,6 +167,7 @@ function FundingTable({
   onChain: (address: string) => void;
   adding: boolean;
 }) {
+  const pag = usePagination(links, 15);
   return (
     <div className="panel">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4">
@@ -193,7 +196,7 @@ function FundingTable({
               </tr>
             </thead>
             <tbody>
-              {links.map((l) => (
+              {pag.rows.map((l) => (
                 <tr key={`${l.direction}:${l.address}`} className="border-t border-line hover:bg-deck2">
                   <td className="pl-4 pr-0 py-2">
                     <Link
@@ -246,6 +249,7 @@ function FundingTable({
               ))}
             </tbody>
           </table>
+          <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
         </div>
       )}
     </div>

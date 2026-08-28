@@ -8,6 +8,8 @@ import { fmtAgo, fmtPct, fmtSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { SortHeader } from '../components/SortHeader';
 import { whaleScore as sharedWhaleScore, type WhaleCandidate } from '@million/shared';
+import { usePagination } from '../lib/usePagination';
+import { Pagination } from '../components/Pagination';
 
 /** The whale-finding insight: size buys are mostly bots — quality of the buyer is the signal.
  * Bots are hard-penalized; otherwise win rate carries most weight, realized PnL the rest. */
@@ -65,6 +67,7 @@ export function Discover() {
   const visible = (report?.candidates ?? []).filter((c) => showInfra || !isFlagged(c));
   const hiddenCount = (report?.candidates.length ?? 0) - visible.length;
   const sort = useTableSort(visible, DISCOVER_COLUMNS, 'score');
+  const pag = usePagination(sort.sorted, 15);
   const importWallets = useImportWallets();
   const mint = params?.mint ?? null;
 
@@ -195,7 +198,7 @@ export function Discover() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sort.sorted.map((c) => (
+                    {pag.rows.map((c) => (
                       <tr key={c.address} className="border-t border-line hover:bg-deck2">
                         <td className="pl-4 pr-0 py-2">
                           <Link to="/wallets/$address" params={{ address: c.address }} title="Open wallet detail (auto-analyzes if unknown)" className="text-dim hover:text-neon inline-flex">
@@ -245,6 +248,7 @@ export function Discover() {
                     ))}
                   </tbody>
                 </table>
+                <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
               </div>
             )}
           </div>
