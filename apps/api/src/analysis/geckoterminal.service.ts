@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 const GT = 'https://api.geckoterminal.com/api/v2';
-const MIN_GAP_MS = 2_100; // free tier ≈ 30 calls/min — stay under it
+const MIN_GAP_MS = 2_600; // free tier ≈ 30 calls/min — stay under it
+const RETRY_429_MS = 20_000; // the free quota refills per minute — wait it out, don't lose the token
 
 export type Candle = { ts: number; open: number; close: number }; // unix seconds, USD
 
@@ -16,9 +17,15 @@ export class GeckoTerminalService {
 
   /** Up to `limit` minute candles ending at `beforeTs` (unix seconds), sorted ascending. */
   async minuteCandles(pool: string, beforeTs: number, limit = 40): Promise<Candle[]> {
-    await this.throttle();
     const url = `${GT}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&before_timestamp=${beforeTs}&limit=${limit}&currency=usd&token=base`;
-    const res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await this.throttle();
+      res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+      if (res?.status !== 429) break;
+      // a 429 skip would silently misreport the wallet as unmeasurable — waiting is the honest option
+      await new Promise((r) => setTimeout(r, RETRY_429_MS * (attempt + 1)));
+    }
     if (!res?.ok) return [];
     const body = (await res.json().catch(() => null)) as { data?: { attributes?: { ohlcv_list?: number[][] } } } | null;
     const list = body?.data?.attributes?.ohlcv_list ?? [];
