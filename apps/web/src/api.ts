@@ -353,6 +353,7 @@ export function useEventStream() {
         if (type === 'live_event') {
           qc.invalidateQueries({ queryKey: ['live-events'] });
           qc.invalidateQueries({ queryKey: ['live-status'] });
+          qc.invalidateQueries({ queryKey: ['emitters'] });
         } else if (type === 'opportunity') {
           qc.invalidateQueries({ queryKey: ['opportunities'] });
           qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets
