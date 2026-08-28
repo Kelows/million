@@ -12,7 +12,7 @@ export interface TradeToast {
   mode: string;
 }
 
-const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit' };
+const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit', trail: 'trailing stop' };
 const TTL_MS = 8_000;
 
 /** App-wide trade notifications: the SSE bridge dispatches, this renders the stack. */

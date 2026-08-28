@@ -8,7 +8,7 @@ import { fmtAgo, truncAddr } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { Pagination } from '../components/Pagination';
 
-const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit' };
+const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit', trail: 'trailing stop' };
 
 export function Executor() {
   const { data } = useTrading();

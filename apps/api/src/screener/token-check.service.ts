@@ -209,6 +209,23 @@ export class TokenCheckService {
       );
     }
 
+    // ── LP lock: both -100% corpses in the first live sample died by liquidity
+    // walking away — a pool nobody burned or locked can be drained at will ──
+    if (!reuseRug) {
+      if (rug?.lpLockedPct == null) {
+        push('lp-lock', 'LP locked/burned', 'unknown', null, 'RugCheck has no LP lock data for this pool.');
+      } else {
+        push(
+          'lp-lock', 'LP locked/burned',
+          rug.lpLockedPct >= 80 ? 'pass' : rug.lpLockedPct >= 50 ? 'warn' : 'fail',
+          `${Math.round(rug.lpLockedPct)}%`,
+          rug.lpLockedPct >= 80
+            ? 'Liquidity is burned or locked — the pool cannot be pulled out from under holders.'
+            : 'A meaningful share of liquidity is unlocked — the deployer can drain the pool at any moment. This is how positions go to zero overnight.',
+        );
+      }
+    }
+
     // ── deep honeypot probe: the REAL sell transaction of a real holder, dry-run on-chain ──
     // Transfer hooks are baked into the mint at creation, so one conclusive result is cached for good.
     const prevDeep = prevCheck('sell-sim-deep');
@@ -249,8 +266,10 @@ export class TokenCheckService {
 
     // ── external: rugcheck ──
     if (reuseRug) {
-      const c = prevCheck('rugcheck');
-      if (c) checks.push(c);
+      for (const id of ['rugcheck', 'lp-lock']) {
+        const c = prevCheck(id);
+        if (c) checks.push(c);
+      }
     } else if (!rug) {
       push('rugcheck', 'RugCheck risk scan', 'unknown', null, 'RugCheck did not respond — check manually at rugcheck.xyz.');
     } else {

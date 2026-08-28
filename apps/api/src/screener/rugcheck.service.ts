@@ -5,6 +5,7 @@ export interface RugcheckSummary {
   risks: { name: string; level: string; description: string }[];
   creator: string | null;
   creatorTokens: { mint: string; marketCap: number | null; createdAt: string | null }[] | null;
+  lpLockedPct: number | null; // best pool's locked/burned share — the anti-rug fact the gauntlet was missing
 }
 
 /** RugCheck public API — read endpoints need no key. Fails soft: null means "source unavailable". */
@@ -23,9 +24,12 @@ export class RugcheckService {
       risks?: { name?: string; level?: string; description?: string }[];
       creator?: string;
       creatorTokens?: { mint?: string; marketCap?: number; createdAt?: string }[] | null;
+      markets?: { lp?: { lpLockedPct?: number | null } }[];
     };
     const body = (await res.json()) as Raw;
+    const lockPcts = (body.markets ?? []).map((m) => m.lp?.lpLockedPct).filter((v): v is number => typeof v === 'number');
     return {
+      lpLockedPct: lockPcts.length ? Math.max(...lockPcts) : null,
       score: body.score_normalised ?? body.score ?? null,
       risks: (body.risks ?? []).map((r) => ({
         name: r.name ?? 'unnamed risk',

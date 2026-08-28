@@ -111,11 +111,26 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Mirror exits: the wallet that triggered the position just sold this mint. */
+  /**
+   * Asymmetric mirror: the whale's exit cuts a LOSER instantly (they are our
+   * risk manager), but on a WINNER it arms a trailing stop instead — mirror
+   * exits capped every winner at +14% in the first sample while losers kept
+   * their full depth. Let the one fat right tail we have breathe.
+   */
   async onTriggerSell(wallet: string, mint: string): Promise<void> {
     const config = await this.config();
     if (config.exitMode !== 'mirror') return;
     const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint, wallet } });
-    for (const p of positions) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
+    for (const p of positions) {
+      const price = await this.executor.quote(p.mint);
+      const inProfit = price !== null && price > p.entryPriceUsd;
+      if (!inProfit) {
+        await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
+      } else if (p.peakPriceUsd === null) {
+        await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: price } });
+        console.log(`[trading] ${p.symbol ?? mint.slice(0, 8)}: whale exited in profit — trailing ${config.trailStopPct}% instead of mirroring`);
+      }
+    }
   }
 
   /** The monitor. Rules mode: TP/SL/timeout. Mirror mode: the whale is the TP; SL and timeout stay as brakes. */
@@ -134,6 +149,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const changePct = (price / p.entryPriceUsd - 1) * 100;
+        if (p.peakPriceUsd !== null) {
+          // armed trailing stop: ratchet the peak, exit on the giveback
+          const peak = Math.max(p.peakPriceUsd, price);
+          if (peak > p.peakPriceUsd) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
+          if (price <= peak * (1 - config.trailStopPct / 100)) {
+            await this.closeWithFill(p.id, p.mint, p.sizeSol, 'trail');
+            continue;
+          }
+        }
         if (config.exitMode !== 'mirror' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
         else if (changePct <= -config.stopLossPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'sl');
         else if (Date.now() - p.openedAt.getTime() > config.maxHoldHours * 3_600_000)

@@ -83,16 +83,16 @@ export class CopyabilityService {
     }
   }
 
-  /** Top-N by last on-chain activity — the wallets we'd actually copy tomorrow. Bots excluded. */
+  /** Subscribed wallets first (they trigger real entries — the gate needs THEM measured), then by activity. Bots excluded. */
   private async latestActive(top: number): Promise<string[]> {
     const wallets = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
-      select: { address: true, metrics: true },
+      select: { address: true, metrics: true, subscribed: true },
     });
     return wallets
-      .map((w) => ({ address: w.address, m: JSON.parse(w.metrics as string) as WalletMetrics }))
+      .map((w) => ({ address: w.address, subscribed: w.subscribed, m: JSON.parse(w.metrics as string) as WalletMetrics }))
       .filter((w) => !(w.m.flags ?? []).includes('BOT_INFRA'))
-      .sort((a, b) => (b.m.lastSeen ?? '').localeCompare(a.m.lastSeen ?? ''))
+      .sort((a, b) => Number(b.subscribed) - Number(a.subscribed) || (b.m.lastSeen ?? '').localeCompare(a.m.lastSeen ?? ''))
       .slice(0, top)
       .map((w) => w.address);
   }

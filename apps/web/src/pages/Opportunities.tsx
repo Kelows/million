@@ -7,6 +7,7 @@ import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
 import { STATUS_STYLE } from '../components/TokenReportView';
+import { Info } from '../components/Info';
 import { fmtAgo, truncAddr } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { Pagination } from '../components/Pagination';
@@ -193,6 +194,14 @@ export function Opportunities() {
             <label className="flex items-center justify-between gap-4 text-sm max-w-sm">
               <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
               <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Min trigger copyability %<Info text="Skip signals from wallets whose measured edge retention is below this. Unmeasured wallets pass — run Copyability on the subscribed set to grow coverage." /></span>
+              <input type="number" min={0} max={100} step={5} value={config.minEdgeRetentionPct} onChange={(e) => setConfig({ ...config, minEdgeRetentionPct: Number(e.target.value) })} className="w-24 text-right" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Trailing stop % (winners)<Info text="Asymmetric mirror: a whale exit cuts losers instantly but arms this trailing stop on winners instead of selling flat — mirror exits capped every winner at +14% in the first sample." /></span>
+              <input type="number" min={1} max={50} step={1} value={config.trailStopPct} onChange={(e) => setConfig({ ...config, trailStopPct: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="text-dim">Halt after consecutive losses</span>

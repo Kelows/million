@@ -110,7 +110,14 @@ export class OpportunitiesService {
       select: { id: true },
     });
     if (priorLive) return;
-    const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
+    const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
+    // copyability gate: the one measured trigger below threshold went 0-for-3 as
+    // predicted — a whale whose edge dies inside our latency is unfollowable no
+    // matter the score. Unmeasured wallets pass; coverage grows with each run.
+    if (walletRow?.copyability) {
+      const cop = JSON.parse(walletRow.copyability) as { edgeRetentionPct: number | null };
+      if (cop.edgeRetentionPct !== null && cop.edgeRetentionPct < config.minEdgeRetentionPct) return;
+    }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
       // still holding = a top-up, not news. A CLOSED position re-entered is the

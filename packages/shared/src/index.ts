@@ -436,8 +436,8 @@ export interface LiveStatus {
 // ── opportunities: the live, actionable signal ────────────────────────────────
 
 export const OpportunityConfigSchema = z.object({
-  minBuySol: z.coerce.number().nonnegative().default(1), // subbed wallet must spend at least this
-  allowWarn: z.boolean().default(true), // WARN verdicts count as opportunities too
+  minBuySol: z.coerce.number().nonnegative().default(5), // conviction filter: every sub-5◎ trigger in the first sample bled
+  allowWarn: z.boolean().default(false), // WARN entries went 1-for-7 in the first sample — the gauntlet was right
   // staged for the (paper-first) auto trader — stored now, acted on later
   positionSol: z.coerce.number().nonnegative().default(0.1), // fixed size, and the hard cap in whale-pct mode
   sizingMode: z.enum(['fixed', 'whale-pct', 'whale-frac']).default('fixed'), // whale-frac = their buy as a share of THEIR bankroll, applied to ours
@@ -459,6 +459,8 @@ export const OpportunityConfigSchema = z.object({
   maxConsecutiveLosses: z.coerce.number().int().min(1).max(50).default(5), // halt after this many losses in a row
   weeklyLossLimitPct: z.coerce.number().min(1).max(100).default(35), // halt when 7-day realized PnL < -this % of bankroll
   haltClearedAt: z.string().nullable().default(null), // manual resume timestamp — closes before it don't count
+  minEdgeRetentionPct: z.coerce.number().min(0).max(100).default(60), // skip triggers whose measured copyability is below this (unmeasured pass)
+  trailStopPct: z.coerce.number().min(1).max(50).default(15), // asymmetric mirror: winners trail this far off peak instead of exiting flat
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
 
