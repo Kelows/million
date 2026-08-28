@@ -174,6 +174,23 @@ export class TokenCheckService {
       );
     }
 
+    // ── deployer funding: exchange-like source (traceable) vs fresh-wallet chain (opaque) ──
+    if (rug?.creator) {
+      const funding = await this.deployerFunding(rug.creator).catch(() => null);
+      if (!funding || funding.funder === null) {
+        push('deployer-funding', 'Deployer funding', 'unknown', null, 'No sizeable SOL inflow found in the deployer recent history.');
+      } else {
+        push(
+          'deployer-funding', 'Deployer funding',
+          funding.funderBusy ? 'pass' : 'warn',
+          funding.funderBusy ? 'exchange-like source' : 'fresh-wallet chain',
+          funding.funderBusy
+            ? `Biggest funder ${funding.funder.slice(0, 4)}… is a high-activity wallet (likely CEX) — an identity trail exists behind the deployer.`
+            : `Biggest funder ${funding.funder.slice(0, 4)}… has a thin history — deliberate opacity is the pre-rug funding pattern. Heuristic, not proof.`,
+        );
+      }
+    }
+
     // ── external: rugcheck ──
     if (!rug) {
       push('rugcheck', 'RugCheck risk scan', 'unknown', null, 'RugCheck did not respond — check manually at rugcheck.xyz.');
@@ -214,5 +231,24 @@ export class TokenCheckService {
       verdict,
       fetchedAt: new Date().toISOString(),
     };
+  }
+
+  /** The deployer's biggest recent SOL funder, and whether that funder looks like
+   * a high-activity hub (exchange-ish, ~full signature page) or a thin fresh wallet. */
+  private async deployerFunding(creator: string): Promise<{ funder: string | null; funderBusy: boolean } | null> {
+    const { txs } = await this.helius.fetchTransfers(creator, 1);
+    const inflows = new Map<string, number>();
+    for (const tx of txs) {
+      for (const t of tx.nativeTransfers ?? []) {
+        if (t.toUserAccount === creator && t.fromUserAccount && t.fromUserAccount !== creator) {
+          const sol = t.amount / 1e9;
+          if (sol >= 0.5) inflows.set(t.fromUserAccount, (inflows.get(t.fromUserAccount) ?? 0) + sol);
+        }
+      }
+    }
+    const top = [...inflows.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!top) return { funder: null, funderBusy: false };
+    const sigs = await this.helius.signatureIndex(top[0], 0, 1);
+    return { funder: top[0], funderBusy: sigs.length >= 900 };
   }
 }
