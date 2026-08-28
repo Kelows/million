@@ -36,8 +36,10 @@ export class TokenCheckService {
       prevCheck('mint-authority')?.status === 'pass' &&
       prevCheck('freeze-authority')?.status === 'pass' &&
       Boolean(prevCheck('token-program'));
-    const reuseDeployer = prevAgeMs < 24 * 3_600_000 && Boolean(prevCheck('deployer-history'));
-    const reuseRug = prevAgeMs < 6 * 3_600_000 && Boolean(prevCheck('rugcheck'));
+    // only conclusive results are worth reusing — an 'unknown' means the fetch failed and deserves a retry
+    const conclusive = (id: string) => { const st = prevCheck(id)?.status; return st !== undefined && st !== 'unknown'; };
+    const reuseDeployer = prevAgeMs < 24 * 3_600_000 && conclusive('deployer-history') && conclusive('deployer-funding');
+    const reuseRug = prevAgeMs < 6 * 3_600_000 && conclusive('rugcheck');
 
     const [asset, pair, rug, sellSim] = await Promise.all([
       staticSafe ? Promise.resolve(null) : this.helius.getAssetInfo(mint).catch(() => null),

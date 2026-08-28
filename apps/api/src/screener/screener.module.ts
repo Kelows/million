@@ -5,10 +5,11 @@ import { RugcheckService } from './rugcheck.service';
 import { JupiterService } from '../analysis/jupiter.service';
 import { ScreenerController } from './screener.controller';
 import { TokenCheckService } from './token-check.service';
+import { PrismaService } from '../prisma.service';
 
 @Module({
   controllers: [ScreenerController],
   providers: [TokenCheckService, DexScreenerService, RugcheckService,
-    JupiterService, HeliusService],
+    JupiterService, HeliusService, PrismaService],
 })
 export class ScreenerModule {}
