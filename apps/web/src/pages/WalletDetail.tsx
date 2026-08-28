@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getRouteApi, Link, useNavigate, useParams } from '@tanstack/react-router';
-import { useAnalyzeWallet, useImportWallets, useSetLabel, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
+import { useAnalyzeWallet, useImportWallets, useRemoveWallet, useSetLabel, useSetSubscribed, useSubscribeOwner, useWallet } from '../api';
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
@@ -53,6 +53,7 @@ export function WalletDetail() {
   const pag = usePagination(tokenSort.sorted, 25);
   const setSubscribed = useSetSubscribed();
   const setLabel = useSetLabel();
+  const removeWallet = useRemoveWallet();
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState('');
   const subscribeOwner = useSubscribeOwner();
@@ -184,6 +185,18 @@ export function WalletDetail() {
           </Link>
           <button className="btn" disabled={wallet.status === 'analyzing' || analyze.isPending} onClick={() => analyze.mutate(wallet.address)}>
             {wallet.status === 'analyzing' || analyze.isPending ? 'Analyzing…' : m ? 'Re-run analysis' : 'Analyze'}
+          </button>
+          <button
+            className="btn btn-danger ml-2"
+            disabled={removeWallet.isPending}
+            title="Remove this wallet from the roster"
+            onClick={() => {
+              if (window.confirm(`Remove ${wallet.label ?? truncAddr(wallet.address)} from the roster?`)) {
+                removeWallet.mutate(wallet.address, { onSuccess: () => void navigate({ to: '/wallets' }) });
+              }
+            }}
+          >
+            Remove
           </button>
           <div className="text-xs text-dim mt-2" title={wallet.lastAnalyzedAt ?? ""}>last run {fmtAgo(wallet.lastAnalyzedAt)}</div>
         </div>
