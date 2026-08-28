@@ -5,7 +5,6 @@ import { loadMinOpenSol, saveMinOpenSol } from '../lib/settings';
 import { ThresholdFields } from '../components/ThresholdFields';
 
 const PLANNED_CHECKS = [
-  { name: 'Sell simulation', why: 'hard honeypot check — can a wallet actually sell?' },
   { name: 'Deployer history', why: 'serial-rugger detection from past launches' },
   { name: 'Bundle/sniper concentration', why: 'bundled first-block buys = hidden team supply' },
   { name: 'Holder growth curve', why: 'organic vs. botted accumulation' },
@@ -65,8 +64,9 @@ export function Screener() {
       <div className="panel p-4">
         <span className="eyebrow">Checks live in token check</span>
         <p className="text-sm text-dim mt-2">
-          Mint/freeze authority, metadata mutability, token program, liquidity, market cap, pair age, top-10
-          concentration, and the RugCheck risk scan already run on the <Link to="/token-check" className="text-neon hover:underline">token check</Link> page.
+          Mint/freeze authority, Token-2022 extensions, sell simulation (round-trip exit cost via Jupiter),
+          liquidity, market cap, pair age, LP-excluded top-10 concentration, deployer history and the RugCheck
+          risk scan already run on the <Link to="/token-check" className="text-neon hover:underline">token check</Link> page.
         </p>
       </div>
 

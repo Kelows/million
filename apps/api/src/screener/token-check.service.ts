@@ -3,6 +3,7 @@ import type { CheckStatus, TokenCheck, TokenCheckThresholds, TokenReport } from 
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { RugcheckService } from './rugcheck.service';
+import { JupiterService } from '../analysis/jupiter.service';
 
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
@@ -16,13 +17,15 @@ export class TokenCheckService {
     private readonly helius: HeliusService,
     private readonly dexscreener: DexScreenerService,
     private readonly rugcheck: RugcheckService,
+    private readonly jupiter: JupiterService,
   ) {}
 
   async check(mint: string, t: TokenCheckThresholds): Promise<TokenReport> {
-    const [asset, pair, rug] = await Promise.all([
+    const [asset, pair, rug, sellSim] = await Promise.all([
       this.helius.getAssetInfo(mint).catch(() => null),
       this.dexscreener.fetchBestPair(mint),
       this.rugcheck.fetchSummary(mint),
+      this.jupiter.sellSimulation(mint).catch(() => null),
     ]);
     // LP vault exclusion: the pools' token accounts must not count as "holders"
     const vaultLists = await Promise.all(
@@ -152,6 +155,23 @@ export class TokenCheckService {
       push('deployer-history', 'Deployer history', rug.creatorTokens ? 'pass' : 'unknown',
         rug.creatorTokens ? 'first launch' : null,
         rug.creatorTokens ? 'No other tokens from this creator in RugCheck data.' : 'RugCheck did not return creator history.');
+    }
+
+    // ── the hard honeypot check: can you actually get OUT, and at what cost ──
+    if (!sellSim) {
+      push('sell-simulation', 'Sell simulation', 'unknown', null, 'Jupiter quote API unreachable.');
+    } else if (!sellSim.buyRoute) {
+      push('sell-simulation', 'Sell simulation', 'unknown', 'no route', 'Jupiter cannot route this token at all — too new or too dead to test.');
+    } else if (!sellSim.sellRoute) {
+      push('sell-simulation', 'Sell simulation', 'fail', 'CANNOT SELL', 'Buy routes exist but no sell route — the classic honeypot shape.');
+    } else {
+      const loss = sellSim.roundTripLossPct ?? 0;
+      push(
+        'sell-simulation', 'Sell simulation',
+        loss > 30 ? 'fail' : loss > 12 ? 'warn' : 'pass',
+        `round trip −${loss}%`,
+        `0.1 SOL in and back out costs ${loss}% total (impact + fees + any transfer tax). Roughly ${Math.round(loss / 2)}% per side.`,
+      );
     }
 
     // ── external: rugcheck ──

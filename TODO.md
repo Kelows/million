@@ -29,7 +29,7 @@ How to tell if a token is legit — checks to implement, roughly in order of sig
 - [ ] Mint authority revoked (can't print more supply) — Helius DAS `getAsset`
 - [ ] Freeze authority revoked (can't freeze your tokens = soft honeypot)
 - [ ] LP burned or locked, and what % — Raydium/pump.fun AMM state
-- [ ] Sell simulation (hard honeypot check): can a wallet actually sell?
+- [x] Sell simulation v1 (Jupiter round-trip: no sell route = FAIL; measured exit tax) — v2: simulateTransaction as a real holder (sigVerify:false) to catch transfer-hook honeypots that quote fine but revert
 - [ ] Top-10 holder concentration % (exclude LP) — under ~25% is sane
 - [ ] Deployer wallet history: serial rugger detection (past tokens → how did they end?)
 - [ ] Sniper/bundle concentration in first blocks (bundled buys = team supply hidden)

@@ -5,6 +5,7 @@ import { DexScreenerService } from '../analysis/dexscreener.service';
 import { HeliusService } from '../analysis/helius.service';
 import { TokenMetaService } from '../analysis/token-meta.service';
 import { RugcheckService } from '../screener/rugcheck.service';
+import { JupiterService } from '../analysis/jupiter.service';
 import { TokenCheckService } from '../screener/token-check.service';
 import { DiscoveryService } from '../discovery/discovery.service';
 import { GemsService } from '../gems/gems.service';
@@ -26,6 +27,7 @@ import { CrawlerService } from './crawler.service';
     TokenMetaService,
     DexScreenerService,
     RugcheckService,
+    JupiterService,
     HeliusService,
     PrismaService,
   ],
