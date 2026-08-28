@@ -35,9 +35,20 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Called for every new opportunity — the feed that drives everything. */
-  async openFromOpportunity(mint: string, symbol: string | null, wallet: string, whaleEntryPriceUsd: number | null = null): Promise<void> {
+  async openFromOpportunity(
+    mint: string,
+    symbol: string | null,
+    wallet: string,
+    whaleEntryPriceUsd: number | null = null,
+    whaleBuySol: number | null = null,
+  ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
+    // conviction sizing: a % of the whale's own entry, clamped to the fixed size as cap
+    const sizeSol =
+      config.sizingMode === 'whale-pct' && whaleBuySol
+        ? Math.min(config.positionSol, Math.max(0.01, Math.round(whaleBuySol * config.copyPct) / 100))
+        : config.positionSol;
     const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
     if (open.length >= config.maxOpenPositions) {
       console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);
@@ -45,16 +56,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     // FIX: portfolio exposure cap — ten positions in one meta is one bet wearing ten hats
     const exposure = open.reduce((s, p) => s + p.sizeSol, 0);
-    if (exposure + config.positionSol > config.maxTotalExposureSol) {
+    if (exposure + sizeSol > config.maxTotalExposureSol) {
       console.log(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: exposure cap (${config.maxTotalExposureSol}◎) reached`);
       return;
     }
     const dupe = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'open' } });
     if (dupe) return;
-    const fill = await this.executor.buy(mint, config.positionSol);
+    const fill = await this.executor.buy(mint, sizeSol);
     if (!fill) return;
     await this.prisma.paperPosition.create({
-      data: { mint, symbol, wallet, sizeSol: config.positionSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd },
+      data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd },
     });
   }
 

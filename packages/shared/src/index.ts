@@ -439,7 +439,9 @@ export const OpportunityConfigSchema = z.object({
   minBuySol: z.coerce.number().nonnegative().default(1), // subbed wallet must spend at least this
   allowWarn: z.boolean().default(true), // WARN verdicts count as opportunities too
   // staged for the (paper-first) auto trader — stored now, acted on later
-  positionSol: z.coerce.number().nonnegative().default(0.1),
+  positionSol: z.coerce.number().nonnegative().default(0.1), // fixed size, and the hard cap in whale-pct mode
+  sizingMode: z.enum(['fixed', 'whale-pct']).default('fixed'),
+  copyPct: z.coerce.number().min(0.1).max(100).default(5), // % of the whale's own entry, clamped to positionSol
   takeProfitPct: z.coerce.number().min(1).default(100),
   stopLossPct: z.coerce.number().min(1).max(100).default(50),
   autoTrade: z.boolean().default(false), // locked until paper stats prove expectancy

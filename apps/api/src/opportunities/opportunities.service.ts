@@ -131,6 +131,6 @@ export class OpportunitiesService {
     });
     this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
-    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd).catch(() => undefined);
+    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol).catch(() => undefined);
   }
 }
