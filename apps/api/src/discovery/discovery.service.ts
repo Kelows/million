@@ -132,7 +132,14 @@ export class DiscoveryService {
   private async deepSample(mint: string, sinceDays: number, buckets: number): Promise<{ txs: HeliusTx[]; truncated: boolean }> {
     const SLOT_SECONDS = 0.4;
     const nowMs = Date.now();
-    const sinceMs = nowMs - sinceDays * 86_400_000;
+    let sinceMs = nowMs - sinceDays * 86_400_000;
+    // young tokens: clamp the window to pair creation so buckets sample its actual
+    // life densely instead of wasting most checkpoints on pre-launch emptiness
+    const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
+    if (pair?.pairCreatedAt) {
+      const created = new Date(pair.pairCreatedAt).getTime();
+      if (created > sinceMs) sinceMs = created;
+    }
     const currentSlot = await this.helius.getSlot().catch(() => null);
     if (!currentSlot) return this.helius.fetchHistory(mint, 5); // degraded fallback
 
