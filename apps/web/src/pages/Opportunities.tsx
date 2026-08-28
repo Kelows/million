@@ -182,6 +182,23 @@ export function Opportunities() {
               <input type="checkbox" className="checkbox" checked={config.paperEnabled} onChange={(e) => setConfig({ ...config, paperEnabled: e.target.checked })} />
               paper-trade every opportunity
             </label>
+            <div className="flex items-center gap-2 mt-3 text-sm">
+              <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
+              {(['rules', 'mirror'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setConfig({ ...config, exitMode: mode })}
+                  title={mode === 'mirror'
+                    ? 'Sell when the wallet that triggered the position sells the token. Stop loss and max hold stay active as disaster brakes; take profit is disabled — the whale is the take profit.'
+                    : 'Exit purely by your own TP / SL / timeout rules.'}
+                  className={`px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-widest border cursor-pointer ${
+                    config.exitMode === mode ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
+                  }`}
+                >
+                  {mode === 'rules' ? 'our rules' : 'mirror the wallet'}
+                </button>
+              ))}
+            </div>
             <div className="grid sm:grid-cols-3 gap-x-8 gap-y-3 mt-3">
               <label className="flex items-center justify-between gap-4 text-sm">
                 <span>Position (SOL)</span>

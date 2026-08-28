@@ -6,7 +6,7 @@ import { TokenName } from '../components/TokenName';
 import { StatTile } from '../components/StatTile';
 import { fmtAgo, truncAddr } from '../lib/format';
 
-const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died' };
+const REASON_LABEL: Record<string, string> = { tp: 'take profit', sl: 'stop loss', timeout: 'timeout', manual: 'manual', dead: 'pool died', mirror: 'mirrored exit' };
 
 export function Executor() {
   const { data } = useTrading();

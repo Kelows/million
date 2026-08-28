@@ -49,7 +49,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  /** The monitor: every open position checked against TP / SL / timeout. */
+  /** Mirror exits: the wallet that triggered the position just sold this mint. */
+  async onTriggerSell(wallet: string, mint: string): Promise<void> {
+    const config = await this.config();
+    if (config.exitMode !== 'mirror') return;
+    const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint, wallet } });
+    for (const p of positions) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
+  }
+
+  /** The monitor. Rules mode: TP/SL/timeout. Mirror mode: the whale is the TP; SL and timeout stay as brakes. */
   private async tick(): Promise<void> {
     if (this.ticking) return;
     this.ticking = true;
@@ -65,7 +73,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const changePct = (price / p.entryPriceUsd - 1) * 100;
-        if (changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
+        if (config.exitMode !== 'mirror' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
         else if (changePct <= -config.stopLossPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'sl');
         else if (Date.now() - p.openedAt.getTime() > config.maxHoldHours * 3_600_000)
           await this.closeWithFill(p.id, p.mint, p.sizeSol, 'timeout');

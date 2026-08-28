@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { LiveStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { OpportunitiesService } from '../opportunities/opportunities.service';
+import { TradingService } from '../trading/trading.service';
 import { EventsBus } from '../common/events.bus';
 import { txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
@@ -33,6 +34,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly env: ConfigService,
     private readonly opportunities: OpportunitiesService,
     private readonly bus: EventsBus,
+    private readonly trading: TradingService,
   ) {}
 
   private get webhookMode(): boolean {
@@ -242,6 +244,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       })
       .catch(() => null); // duplicate race is fine
     if (event) this.bus.emit('live_event');
+    if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
     if (event && kind === 'buy' && mint) {
       const buySol = Math.max(0, -sol) + Math.max(0, -usd) / 180; // rough stable leg conversion
       void this.opportunities.evaluate(wallet, mint, buySol, ts, event.id).catch(() => undefined);

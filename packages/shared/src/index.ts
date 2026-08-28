@@ -443,6 +443,7 @@ export const OpportunityConfigSchema = z.object({
   slippagePct: z.coerce.number().min(0).max(50).default(2), // assumed cost per side
   maxHoldHours: z.coerce.number().min(1).max(720).default(48), // timeout exit
   maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
+  exitMode: z.enum(['rules', 'mirror']).default('rules'), // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
   followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub
   minFundSol: z.coerce.number().nonnegative().default(1),
 });
