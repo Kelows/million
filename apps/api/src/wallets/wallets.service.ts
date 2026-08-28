@@ -232,6 +232,11 @@ export class WalletsService {
     return this.toRecord(updated);
   }
 
+  async unsubscribeAll(): Promise<number> {
+    const r = await this.prisma.wallet.updateMany({ where: { subscribed: true }, data: { subscribed: false } });
+    return r.count;
+  }
+
   async setSubscribed(address: string, subscribed: boolean): Promise<WalletRecord> {
     const updated = await this.prisma.wallet.update({ where: { address }, data: { subscribed } }).catch(() => {
       throw new NotFoundException(`wallet ${address} is not in the roster`);

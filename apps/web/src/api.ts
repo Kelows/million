@@ -480,3 +480,14 @@ export function useResumeTrading() {
     },
   });
 }
+
+export function useUnsubscribeAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ unsubscribed: number }>('/wallets/unsubscribe-all', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallets'] });
+      qc.invalidateQueries({ queryKey: ['live-status'] });
+    },
+  });
+}

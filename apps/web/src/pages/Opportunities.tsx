@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from '@tanstack/react-router';
 import type { OpportunityConfig } from '@million/shared';
-import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig, useSetSubscribed, useWallets } from '../api';
+import { useLiveStatus, useOpportunities, useOpportunityConfig, useSetOpportunityConfig, useSetSubscribed, useUnsubscribeAll, useWallets } from '../api';
 import { TokenName } from '../components/TokenName';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -16,6 +16,7 @@ function SubbedWalletsButton({ count }: { count: number }) {
   const [open, setOpen] = useState(false);
   const { data: wallets = [] } = useWallets();
   const setSubscribed = useSetSubscribed();
+  const unsubAll = useUnsubscribeAll();
   const subbed = wallets.filter((w) => w.subscribed);
 
   return (
@@ -34,7 +35,21 @@ function SubbedWalletsButton({ count }: { count: number }) {
             >
               <div className="flex items-center justify-between">
                 <span className="eyebrow">Subscribed wallets · {subbed.length}/25</span>
-                <button type="button" className="text-dim hover:text-ink text-sm" onClick={() => setOpen(false)}>✕</button>
+                <span className="flex items-center gap-3">
+                  {subbed.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-dim hover:text-loss"
+                      disabled={unsubAll.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Unsubscribe all ${subbed.length} wallets? The live feed goes silent until you sub again.`)) unsubAll.mutate();
+                      }}
+                    >
+                      unsub all
+                    </button>
+                  )}
+                  <button type="button" className="text-dim hover:text-ink text-sm" onClick={() => setOpen(false)}>✕</button>
+                </span>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {subbed.length === 0 ? (
