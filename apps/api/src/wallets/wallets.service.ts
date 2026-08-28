@@ -127,15 +127,20 @@ export class WalletsService {
     }
   }
 
-  /** Soft-delete wallets carrying any of the selected flags: hidden everywhere, knowledge kept. */
-  async purgeJunk(flags: WalletFlag[] = JUNK_FLAGS): Promise<{ purged: number }> {
+  /** Soft-delete wallets matching any selected flag OR under the PnL floor: hidden everywhere, knowledge kept. */
+  async purgeJunk(flags: WalletFlag[] = JUNK_FLAGS, maxPnlSol?: number): Promise<{ purged: number }> {
     const selected = new Set(flags);
     const rows = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
       select: { address: true, metrics: true },
     });
     const junk = rows
-      .filter((w) => (JSON.parse(w.metrics as string) as WalletMetrics).flags.some((f) => selected.has(f)))
+      .filter((w) => {
+        const m = JSON.parse(w.metrics as string) as WalletMetrics;
+        if (m.flags.some((f) => selected.has(f))) return true;
+        if (maxPnlSol !== undefined) return (m.realizedPnlTotalSol ?? m.realizedPnlSol) < maxPnlSol;
+        return false;
+      })
       .map((w) => w.address);
     if (junk.length) await this.prisma.wallet.updateMany({ where: { address: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };

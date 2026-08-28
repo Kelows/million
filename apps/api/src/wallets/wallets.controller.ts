@@ -88,10 +88,10 @@ export class WalletsController {
   @Post('wallets/purge-junk')
   @HttpCode(200)
   purgeJunk(
-    @Body(new ZodPipe(z.object({ flags: z.array(z.string()).min(1).max(10).optional() })))
-    body: { flags?: string[] },
+    @Body(new ZodPipe(z.object({ flags: z.array(z.string()).max(10).optional(), maxPnlSol: z.number().optional() })))
+    body: { flags?: string[]; maxPnlSol?: number },
   ) {
-    return this.wallets.purgeJunk(body.flags as import('@million/shared').WalletFlag[] | undefined);
+    return this.wallets.purgeJunk((body.flags ?? []) as import('@million/shared').WalletFlag[], body.maxPnlSol);
   }
 
   @Delete('wallets/:address')
