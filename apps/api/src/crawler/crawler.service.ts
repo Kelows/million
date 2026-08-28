@@ -145,7 +145,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.nextRunAt = null;
     // stopRequested survives into deep-run pass boundaries; cleared when all activity ends
     const config = await this.getConfig();
-    const analyzePages = Number(this.env.get('ANALYSIS_MAX_PAGES') ?? 5);
+    // REAL Helius pricing: Enhanced Transactions API bills 10 credits per call.
+    // The budget used to count calls as credits — a '6,000-credit' deep run was
+    // actually burning ~60k. Every enhanced-call unit now carries the multiplier.
+    const ENHANCED = 10;
+    const analyzePages = Number(this.env.get('ANALYSIS_MAX_PAGES') ?? 5) * ENHANCED;
     const log: string[] = [];
     const stats: CrawlerRunStats = { creditsUsed: 0, walletsReanalyzed: 0, candidates: 0, gemsPass: 0, tokensScanned: 0, walletsAbsorbed: 0 };
     const say = (msg: string) => log.push(`${new Date().toISOString().slice(11, 19)} ${msg}`);
@@ -181,7 +185,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       });
       if (gemsRun) {
         stats.candidates = gemsRun.candidates;
-        credits -= gemsRun.candidates * 2;
+        credits -= gemsRun.candidates * 2 * ENHANCED; // candidate previews ride the enhanced API
         stats.creditsUsed = config.creditsPerIteration - credits;
         const passing = gemsRun.gems.filter((g) => g.verdict === 'pass');
         stats.gemsPass = passing.length;
@@ -199,9 +203,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             take: COLD_START_TOKENS_PER_ITERATION,
           });
           for (const t of unmined) {
-            if (credits < 5 || this.stopRequested) break;
+            if (credits < 2 * ENHANCED || this.stopRequested) break;
             const report = await this.tokenCheck.check(t.mint, config.thresholds).catch(() => null);
-            credits -= 2;
+            credits -= 2 * ENHANCED; // gauntlet: mostly RPC (1cr) but the deep probes ride enhanced
             if (!report) continue;
             const safetyFail = report.checks.some((c) => SAFETY_CHECK_IDS.has(c.id) && c.status === 'fail');
             if (safetyFail) {
@@ -244,7 +248,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             if (credits < 10 || stats.walletsAbsorbed >= config.maxWalletsAbsorbed || this.stopRequested) break;
             // first sighting of a gem: mine its WHOLE LIFE of buyers, not the last minutes
             const useDeep = config.deepScanNewGems && !(scanTimes.get(gem.mint) ?? 0);
-            const scanCost = useDeep ? config.deepScanBuckets * 3 + 25 : 16;
+            // deep bucket ≈ getBlock(10cr) + sigs(1) + enhanced parse(10); recent scan = enhanced pages
+            const scanCost = useDeep ? config.deepScanBuckets * 21 + 100 : 16 * ENHANCED;
             if (credits < scanCost) continue;
             const report = await this.discovery
               .find(gem.mint, config.discoveryMinSol, 1, useDeep ? 'deep' : 'recent', 30, config.deepScanBuckets)
