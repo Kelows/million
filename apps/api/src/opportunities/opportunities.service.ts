@@ -68,6 +68,9 @@ export class OpportunitiesService {
       id: r.id,
       kind: (r.kind as OpportunityRow['kind']) ?? 'token',
       signal: (r.signal as OpportunityRow['signal']) ?? 'copy',
+      whalePriceUsd: r.whalePriceUsd,
+      marketPriceUsd: r.marketPriceUsd,
+      fillGapPct: r.fillGapPct,
       mint: r.mint,
       symbol: r.symbol,
       wallet: r.wallet,
@@ -326,8 +329,25 @@ export class OpportunitiesService {
       return;
     }
 
+    // Record BOTH prices at decision time, not just the verdict they produced.
+    // A stale feed and a genuine price spike are indistinguishable afterwards
+    // unless the quote we actually saw is stored alongside the whale's fill.
+    const marketPriceUsd = report.priceUsd ?? null;
+    const fillGapPct =
+      whalePriceUsd && marketPriceUsd ? Math.round((marketPriceUsd / whalePriceUsd - 1) * 1000) / 10 : null;
     await this.prisma.opportunity.create({
-      data: { mint, symbol: report.symbol, wallet, verdict: report.verdict, buySol: Math.round(buySol * 100) / 100, ts, signal },
+      data: {
+        mint,
+        symbol: report.symbol,
+        wallet,
+        verdict: report.verdict,
+        buySol: Math.round(buySol * 100) / 100,
+        ts,
+        signal,
+        whalePriceUsd,
+        marketPriceUsd,
+        fillGapPct,
+      },
     });
     this.decisions.push(`[opps] FIRED ${report.symbol ?? mint.slice(0, 6)} (${signal}) — ${buySol.toFixed(1)}◎ by ${wallet.slice(0, 6)}…, verdict ${report.verdict}`);
     this.bus.emit('opportunity');

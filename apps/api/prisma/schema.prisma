@@ -106,6 +106,13 @@ model Opportunity {
 
   @@index([mint, createdAt])
   signal        String    @default("copy") // copy = one whale's entry · consensus = N distinct owners in the window
+  // Fill audit. The gap between what the whale paid and what we could get is
+  // the single most load-bearing assumption in the system, and it was never
+  // recorded — only the decision it produced. Without these, a stale price feed
+  // and a real price spike look identical after the fact.
+  whalePriceUsd  Float?
+  marketPriceUsd Float? // our quotable price at the moment we decided
+  fillGapPct     Float? // market vs whale, signed
 }
 
 model OpportunityConfig {

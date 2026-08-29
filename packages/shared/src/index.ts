@@ -513,6 +513,9 @@ export interface OpportunityRow {
   id: number;
   kind: 'token' | 'wallet';
   signal?: 'copy' | 'consensus' | 'ladder';
+  whalePriceUsd?: number | null;
+  marketPriceUsd?: number | null;
+  fillGapPct?: number | null; // our quotable price vs the whale's fill, at decision time
   mint: string | null;
   symbol: string | null;
   wallet: string; // token: the buyer · rotation: the NEW wallet

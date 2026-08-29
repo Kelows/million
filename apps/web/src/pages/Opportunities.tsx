@@ -156,6 +156,14 @@ export function Opportunities() {
                     </Link>{' '}
                     · {o.buySol} ◎ · <span title={o.ts}>{fmtAgo(o.ts)}</span>
                   </span>
+                  {o.fillGapPct !== null && o.fillGapPct !== undefined && (
+                    <span
+                      className={`text-xs font-mono ${Math.abs(o.fillGapPct) > 30 ? 'text-loss' : 'text-dim'}`}
+                      title="Our quotable price versus the whale's fill, recorded at decision time. Large negative gaps are either a real price spike we would be buying into, or a lagging price feed — this column is what tells them apart."
+                    >
+                      fill {o.fillGapPct > 0 ? '+' : ''}{o.fillGapPct}%
+                    </span>
+                  )}
                   {o.mint && <Link to="/discover" search={{ mint: o.mint }} className="text-xs text-neon hover:underline ml-auto">find whales →</Link>}
                 </li>
               ))}
