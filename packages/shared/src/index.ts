@@ -695,7 +695,7 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
   {
     id: 'launch-surf',
     name: 'Launch Surf',
-    tagline: 'young thin pools, fresh mints only, trail the winners — high variance by design',
+    tagline: 'young thin pools, skip anything over an hour old, trail the winners — high variance by design',
     opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'both', consensusOwners: 2, allowWarn: false, maxPairAgeMinutes: 60, maxHoldHours: 168 },
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },

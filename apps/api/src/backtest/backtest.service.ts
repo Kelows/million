@@ -50,7 +50,13 @@ export class BacktestService {
     private readonly gecko: GeckoTerminalService,
   ) {}
 
-  status() {
+  async status() {
+    if (!this.last) {
+      // survive restarts: a 20-minute rate-limited run should not lose its
+      // output to a process bounce
+      const row = await this.prisma.backtestRun.findFirst({ orderBy: { id: 'desc' } }).catch(() => null);
+      if (row) this.last = JSON.parse(row.payload) as BacktestResult;
+    }
     return { ...this.job, result: this.last };
   }
 
@@ -305,6 +311,7 @@ export class BacktestService {
       replayed,
       strategies: rows.sort((a, b) => b.avgRetPct - a.avgRetPct),
     };
+    await this.prisma.backtestRun.create({ data: { payload: JSON.stringify(this.last) } }).catch(() => undefined);
     this.log.log(`backtest done: ${replayed} replayed`);
   }
 }

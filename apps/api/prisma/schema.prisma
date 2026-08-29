@@ -233,3 +233,11 @@ model BacktestPath {
 
   @@unique([mint, entryTs])
 }
+
+/// Last backtest result, so it survives a restart. The run costs 20 minutes of
+/// rate-limited fetching; losing its output to a process bounce is needless.
+model BacktestRun {
+  id      Int      @id @default(autoincrement())
+  ranAt   DateTime @default(now())
+  payload String // JSON BacktestResult
+}
