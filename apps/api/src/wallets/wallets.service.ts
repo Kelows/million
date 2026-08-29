@@ -55,8 +55,8 @@ export class WalletsService {
    */
   private async unrealized(record: WalletRecord): Promise<WalletUnrealized | null> {
     // every open position counts toward `positions`; only those we can actually
-    // value count toward `priced`. Dropping the unvaluable ones from the
-    // denominator would make a 1-of-8 sample look like a full book.
+    // value count toward `priced`, and cost is only summed for the priced ones
+    // so the PnL compares like with like. The ratio is shown, never hidden.
     const open = (record.metrics?.tokens ?? []).filter((t) => t.open);
     if (!open.length) return null;
     const prices = await this.dexscreener.fetchPrices(open.map((t) => t.mint));
@@ -65,16 +65,10 @@ export class WalletsService {
     for (const t of open) {
       const price = prices.get(t.mint);
       const cost = t.entrySol ?? 0;
-      costSol += cost;
       const qty = t.qty ?? 0;
-      if (price === undefined) continue; // delisted/unquotable — counted as cost, worth nothing
-      if (qty <= 0) {
-        // analysed before quantities were recorded: assume it held its value
-        // rather than inventing a loss. Re-analysis replaces this with truth.
-        valueSol += cost;
-        continue;
-      }
+      if (price === undefined || qty <= 0) continue; // unquotable, or no quantity to value — excluded, and the priced/total ratio says so
       priced++;
+      costSol += cost;
       valueSol += (qty * price) / solUsd;
     }
     const r = (n: number) => Math.round(n * 100) / 100;
