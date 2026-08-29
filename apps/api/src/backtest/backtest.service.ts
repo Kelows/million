@@ -7,7 +7,12 @@ import { PrismaService } from '../prisma.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { GeckoTerminalService, type Candle } from '../analysis/geckoterminal.service';
 
-const HORIZON_MIN = 120;
+// 500 minutes (8.3h) is the most GeckoTerminal returns in one call — and the
+// horizon matters more than anything else here. The roster holds a median of 52
+// minutes, but p75 is 12.7 HOURS and 83% of their profit comes from trades held
+// past two hours. A 120-minute replay measured the least profitable 17% of
+// their behaviour and concluded the strategy loses money.
+const HORIZON_MIN = 500;
 
 /**
  * Round numbers only, and few of them. A coarse grid is regularisation: it cuts
@@ -17,9 +22,9 @@ const HORIZON_MIN = 120;
  * reproducible rather than a lucky draw.
  */
 const GRID = {
-  trailPct: [10, 15, 20, 25, 30, 40, 50],
+  trailPct: [10, 20, 30, 40, 50, 60],
   armAtPct: [0, 10, 20, 30],
-  minHoldMin: [0, 1, 3, 5, 10, 15, 30],
+  minHoldMin: [0, 5, 15, 60, 180, 480],
   stopLossPct: [30, 50, 70, 90],
 };
 
@@ -81,7 +86,9 @@ export class BacktestService {
       { name: 'exit @3m', run: hold(3) },
       { name: 'exit @15m', run: hold(15) },
       { name: 'exit @60m', run: hold(60) },
-      { name: 'hold 120m', run: hold(120) },
+      { name: 'exit @120m', run: hold(120) },
+      { name: 'exit @240m', run: hold(240) },
+      { name: 'hold 500m (8h)', run: hold(500) },
       { name: 'trail 15%', run: trail(15) },
       { name: 'trail 25%', run: trail(25) },
       { name: 'trail 40%', run: trail(40) },

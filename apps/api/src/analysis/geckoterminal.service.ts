@@ -17,6 +17,7 @@ export class GeckoTerminalService {
 
   /** Up to `limit` minute candles ending at `beforeTs` (unix seconds), sorted ascending. */
   async minuteCandles(pool: string, beforeTs: number, limit = 40): Promise<Candle[]> {
+    limit = Math.min(limit, 500); // GeckoTerminal caps at 500 per call; 1000 errors
     const url = `${GT}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&before_timestamp=${beforeTs}&limit=${limit}&currency=usd&token=base`;
     let res: Response | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {

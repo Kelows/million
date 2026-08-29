@@ -494,7 +494,6 @@ export const OpportunityConfigSchema = z.object({
   ladderBuys: z.coerce.number().int().min(0).max(50).default(3), // N buys of one mint by one wallet = accumulation in progress (0 = off)
   ladderWindowMinutes: z.coerce.number().min(1).max(120).default(10),
   ladderMinSol: z.coerce.number().min(0).max(100).default(3), // cumulative across the clips, not per clip
-  minHoldBeforeMirrorSec: z.coerce.number().min(0).max(3600).default(180), // a whale's sell cannot close a position younger than this
   consensusNetFlow: z.boolean().default(true), // buyers must outweigh sellers, not merely outnumber them
   cyclerGuardMinutes: z.coerce.number().min(0).max(120).default(10), // skip a trigger that SOLD this mint within N minutes (0 = off)
   maxPairAgeMinutes: z.coerce.number().min(-1).default(-1), // skip pools older than this; -1 = no ceiling. The inverse of the age FLOOR: on a launch-tier strategy the run happens early, and a maturity gate makes you buy after it
