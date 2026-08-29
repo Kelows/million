@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { BacktestMarginal, HoldBand, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, TokenReport, WalletMetrics } from '@million/shared';
 
-interface TuneParams { trailPct: number; armAtPct: number; minHoldMin: number; stopLossPct: number }
-import { isExcludedToken } from '@million/shared';
+interface TuneParams { trailPct: number; armAtPct: number; stopLossPct: number; takeProfitPct: number }
+import { isExcludedToken, TokenCheckThresholdsSchema } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { GeckoTerminalService, type Candle } from '../analysis/geckoterminal.service';
+import { TokenCheckService } from '../screener/token-check.service';
 
 // 500 minutes (8.3h) is the most GeckoTerminal returns in one call — and the
 // horizon matters more than anything else here. The roster holds a median of 52
@@ -22,10 +23,20 @@ const HORIZON_MIN = 500;
  * reproducible rather than a lucky draw.
  */
 const GRID = {
-  trailPct: [10, 20, 30, 40, 50, 60],
-  armAtPct: [0, 10, 20, 30],
-  minHoldMin: [0, 5, 15, 60, 180, 480],
-  stopLossPct: [30, 50, 70, 90],
+  // Every value here must be TYPEABLE into the trading config, and every
+  // parameter must MAP to a real field — a search that recommends a setting the
+  // system cannot express is a search that wasted its run.
+  //   trailPct     -> opportunity.trailStopPct  (schema max 50)
+  //   armAtPct     -> opportunity.trailArmPct   (schema 0-100)
+  //   stopLossPct  -> opportunity.stopLossPct   (schema 1-100; 100 = no stop)
+  //   takeProfitPct-> opportunity.takeProfitPct (schema min 1; 9999 = off)
+  // The old grid searched trailPct up to 60 — above the schema ceiling, so its
+  // top rows were unreachable — and tuned a `minHoldMin` that no config field
+  // exists for, spending a quarter of the search space on an unusable knob.
+  trailPct: [10, 15, 20, 25, 30, 40, 50],
+  armAtPct: [0, 10, 20, 30, 50, 75, 100],
+  stopLossPct: [30, 50, 70, 90, 100],
+  takeProfitPct: [50, 100, 200, 500, 9999],
 };
 
 /**
@@ -57,6 +68,7 @@ export class BacktestService {
     private readonly prisma: PrismaService,
     private readonly dexscreener: DexScreenerService,
     private readonly gecko: GeckoTerminalService,
+    private readonly tokenCheck: TokenCheckService,
   ) {}
 
   async status() {
@@ -168,11 +180,10 @@ export class BacktestService {
     const score = (set: typeof paths, p: TuneParams) => {
       const rets = set.map(({ entry, closes }) => {
         let peak = entry;
-        for (let i = 0; i < closes.length; i++) {
-          const c = closes[i];
+        for (const c of closes) {
           peak = Math.max(peak, c);
-          if (c <= entry * (1 - p.stopLossPct / 100)) return -p.stopLossPct;
-          if (i < p.minHoldMin) continue;
+          if (p.stopLossPct < 100 && c <= entry * (1 - p.stopLossPct / 100)) return -p.stopLossPct;
+          if (c >= entry * (1 + p.takeProfitPct / 100)) return p.takeProfitPct;
           if (peak >= entry * (1 + p.armAtPct / 100) && c <= peak * (1 - p.trailPct / 100)) return (c / entry - 1) * 100;
         }
         return (closes[closes.length - 1] / entry - 1) * 100;
@@ -185,9 +196,9 @@ export class BacktestService {
     const candidates: BacktestTuneRow[] = [];
     for (const trailPct of GRID.trailPct)
       for (const armAtPct of GRID.armAtPct)
-        for (const minHoldMin of GRID.minHoldMin)
-          for (const stopLossPct of GRID.stopLossPct) {
-            const p = { trailPct, armAtPct, minHoldMin, stopLossPct };
+        for (const stopLossPct of GRID.stopLossPct)
+          for (const takeProfitPct of GRID.takeProfitPct) {
+            const p = { trailPct, armAtPct, stopLossPct, takeProfitPct };
             const tr = score(train, p);
             const te = score(test, p);
             candidates.push({
@@ -295,10 +306,6 @@ export class BacktestService {
     const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'hour' } });
     const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] })).filter((p) => p.entry > 0 && p.closes.length >= 6);
     if (!paths.length) return [];
-    // A horizon you cannot observe is not a result: a 14-day hold scored on a
-    // 20-hour path is silently a 20-hour hold. Returning null drops the path
-    // from that strategy instead, so `trades` shows what each row really saw.
-    const hold = (hours: number) => (e: number, c: number[]) => (c.length > hours ? (c[hours] / e - 1) * 100 : null);
     // stop = 0 disables the stop. Treating it as a level makes it "sell the
     // moment price touches entry", which is a different strategy entirely.
     const trail = (pct: number, arm = 20, stop = 50) => (e: number, c: number[]) => {
@@ -311,15 +318,25 @@ export class BacktestService {
       return (c[c.length - 1] / e - 1) * 100;
     };
     const strategies: [string, (e: number, c: number[]) => number | null][] = [
-      ['swing: hold 6h', hold(6)],
-      ['swing: hold 24h', hold(24)],
-      ['swing: hold 3 days', hold(72)],
-      ['swing: hold 7 days', hold(168)],
-      ['swing: hold 14 days', hold(336)],
-      ['swing: trail 20% (hourly)', trail(20)],
-      ['swing: trail 30% (hourly)', trail(30)],
-      ['swing: trail 50% (hourly)', trail(50)],
-      ['swing: trail 30%, no stop', trail(30, 20, 0)],
+      // Fixed-duration holds are gone. Every one of them lost, and they lost
+      // WORSE the longer they ran (24h -22.5%, 3d -50.5%) -- because holding for
+      // a duration copies the roster's holding PERIOD without copying the exit
+      // DECISION that produced it. Their long-hold profit comes from cutting
+      // losers early and letting winners run; a clock does neither.
+      //
+      // What is left varies the two things that actually respond: how far the
+      // trail sits from the peak, and how high price must go before it arms.
+      ['swing: trail 15% · arm +20%', trail(15)],
+      ['swing: trail 20% · arm +20%', trail(20)],
+      ['swing: trail 25% · arm +20%', trail(25)],
+      ['swing: trail 30% · arm +20%', trail(30)],
+      ['swing: trail 40% · arm +20%', trail(40)],
+      ['swing: trail 20% · arm +0%', trail(20, 0)],
+      ['swing: trail 20% · arm +50%', trail(20, 50)],
+      ['swing: trail 20% · arm +100%', trail(20, 100)],
+      ['swing: trail 20% · stop 30%', trail(20, 20, 30)],
+      ['swing: trail 20% · stop 70%', trail(20, 20, 70)],
+      ['swing: trail 20% · no stop', trail(20, 20, 0)],
     ];
     return strategies
       .map(([strategy, f]) => {
@@ -360,6 +377,46 @@ export class BacktestService {
    * launch, so age-at-entry is arithmetic on the entry timestamp. Those rows
    * are honest and can be acted on.
    */
+  /**
+   * Run the gauntlet on backtest mints that have never been checked, so the
+   * cohorts stop being n=2. Costs ~5 RPC credits per token (no Enhanced API
+   * calls), and the check is cache-aware, so re-running is nearly free.
+   *
+   * Coverage is the ONLY thing this buys. It does not make the market-facing
+   * checks time-honest — see entryCohorts() — so the one-way cohort is where
+   * the extra datapoints actually land.
+   */
+  async backfillReports(limit = 100): Promise<{ checked: number; skipped: number; failed: number }> {
+    const rows = await this.prisma.backtestPath.findMany({ select: { mint: true }, distinct: ['mint'] });
+    const known = await this.prisma.token.findMany({
+      where: { mint: { in: rows.map((r) => r.mint) }, lastReport: { not: null } },
+      select: { mint: true },
+    });
+    const have = new Set(known.map((t) => t.mint));
+    const todo = rows.map((r) => r.mint).filter((m) => !have.has(m) && !isExcludedToken(m)).slice(0, limit);
+    this.log.log(`gauntlet backfill: ${todo.length} mints without a report`);
+    let checked = 0;
+    let failed = 0;
+    for (const mint of todo) {
+      const report = await this.tokenCheck.check(mint, TokenCheckThresholdsSchema.parse({})).catch(() => null);
+      if (!report) {
+        failed++;
+        continue;
+      }
+      await this.prisma.token
+        .upsert({
+          where: { mint },
+          create: { mint, symbol: report.symbol, name: report.name, lastReport: JSON.stringify(report), lastCheckedAt: new Date() },
+          update: { lastReport: JSON.stringify(report), lastCheckedAt: new Date() },
+        })
+        .catch(() => undefined);
+      checked++;
+      await new Promise((r) => setTimeout(r, 250)); // stay polite to RugCheck/DexScreener
+    }
+    this.log.log(`gauntlet backfill: ${checked} checked, ${failed} failed`);
+    return { checked, skipped: rows.length - todo.length, failed };
+  }
+
   async entryCohorts(): Promise<BacktestStrategyRow[]> {
     const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'hour' } });
     if (!rows.length) return [];
@@ -370,7 +427,19 @@ export class BacktestService {
     const meta = new Map(
       tokens.map((t) => {
         const rep = t.lastReport ? (JSON.parse(t.lastReport) as TokenReport) : null;
-        return [t.mint, { verdict: rep?.verdict ?? null, pairCreatedAt: rep?.pairCreatedAt ?? null }];
+        const st = (id: string) => rep?.checks.find((c) => c.id === id)?.status ?? null;
+        // Authority revocation is a ONE-WAY door: active -> revoked, never back.
+        // So "active today" proves "active at entry" (excluding is exact), while
+        // "revoked today" does not prove revoked at entry (admitting may let in
+        // a token that was unsafe then). That error only ever ADMITS extra risk,
+        // so this cohort's return is a LOWER bound on the real filter -- a bias
+        // that is safe to act on, unlike the market checks.
+        const oneWayClean =
+          rep !== null && (['mint-authority', 'freeze-authority', 'token-program'] as const).every((id) => {
+            const v = st(id);
+            return v === 'pass' || v === 'warn';
+          });
+        return [t.mint, { verdict: rep?.verdict ?? null, pairCreatedAt: rep?.pairCreatedAt ?? null, oneWayClean }];
       }),
     );
     const paths = rows
@@ -382,6 +451,8 @@ export class BacktestService {
           entry: r.entryPrice,
           closes: JSON.parse(r.closes) as number[],
           verdict: m?.verdict ?? null,
+          oneWayClean: m?.oneWayClean ?? false,
+          hasReport: m !== undefined && m.verdict !== null,
           ageMin: created ? (r.entryTs * 1000 - created) / 60_000 : null,
         };
       })
@@ -400,6 +471,9 @@ export class BacktestService {
     type P = (typeof paths)[number];
     const cohorts: [string, (p: P) => boolean][] = [
       ['no filter — every entry', () => true],
+      ['checked universe (has a report)', (p) => p.hasReport],
+      ['authorities clean — TIME-HONEST', (p) => p.oneWayClean],
+      ['authorities live — TIME-HONEST', (p) => p.hasReport && !p.oneWayClean],
       ['gauntlet pass/warn ⚠ LOOK-AHEAD', (p) => p.verdict !== null && p.verdict !== 'fail'],
       ['gauntlet fail ⚠ LOOK-AHEAD', (p) => p.verdict === 'fail'],
       ['pair < 60 min at entry', (p) => p.ageMin !== null && p.ageMin < 60],

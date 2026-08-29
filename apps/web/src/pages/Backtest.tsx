@@ -210,8 +210,8 @@ function HoldPanel() {
 const PARAM_LABEL: Record<string, string> = {
   trailPct: 'Trail %',
   armAtPct: 'Arm at +%',
-  minHoldMin: 'Min hold (min)',
   stopLossPct: 'Stop loss %',
+  takeProfitPct: 'Take profit %',
 };
 
 /** Each parameter value scored across every combination it appears in. */
@@ -266,8 +266,8 @@ function TunePanel({ result }: { result: import('@million/shared').BacktestTuneR
             <tr className="text-left text-dim text-xs">
               <th className="px-4 py-2 font-normal">trail</th>
               <th className="px-4 py-2 font-normal">arm at</th>
-              <th className="px-4 py-2 font-normal">min hold</th>
               <th className="px-4 py-2 font-normal">stop</th>
+              <th className="px-4 py-2 font-normal">take profit</th>
               <th className="px-4 py-2 font-normal text-right">train avg</th>
               <th className="px-4 py-2 font-normal text-right">TEST avg</th>
               <th className="px-4 py-2 font-normal text-right">test median</th>
@@ -279,8 +279,8 @@ function TunePanel({ result }: { result: import('@million/shared').BacktestTuneR
               <tr key={i} className="border-t border-line">
                 <td className="px-4 py-2 text-bright">{r.trailPct}%</td>
                 <td className="px-4 py-2 text-dim">+{r.armAtPct}%</td>
-                <td className="px-4 py-2 text-dim">{r.minHoldMin}m</td>
-                <td className="px-4 py-2 text-dim">−{r.stopLossPct}%</td>
+                <td className="px-4 py-2 text-dim">{r.stopLossPct >= 100 ? 'none' : `−${r.stopLossPct}%`}</td>
+                <td className="px-4 py-2 text-dim">{r.takeProfitPct >= 9999 ? 'none' : `+${r.takeProfitPct}%`}</td>
                 <td className="px-4 py-2 text-right text-dim">{r.trainAvgPct > 0 ? '+' : ''}{r.trainAvgPct}%</td>
                 <td className={`px-4 py-2 text-right font-bold ${r.testAvgPct >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {r.testAvgPct > 0 ? '+' : ''}{r.testAvgPct}%

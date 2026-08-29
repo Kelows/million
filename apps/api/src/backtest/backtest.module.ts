@@ -4,8 +4,10 @@ import { DexScreenerService } from '../analysis/dexscreener.service';
 import { GeckoTerminalService } from '../analysis/geckoterminal.service';
 import { BacktestController } from './backtest.controller';
 import { BacktestService } from './backtest.service';
+import { ScreenerModule } from '../screener/screener.module';
 
 @Module({
+  imports: [ScreenerModule],
   controllers: [BacktestController],
   providers: [BacktestService, PrismaService, DexScreenerService, GeckoTerminalService],
 })

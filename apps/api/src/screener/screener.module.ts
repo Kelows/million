@@ -11,5 +11,6 @@ import { PrismaService } from '../prisma.service';
   controllers: [ScreenerController],
   providers: [TokenCheckService, DexScreenerService, RugcheckService,
     JupiterService, HeliusService, PrismaService],
+  exports: [TokenCheckService],
 })
 export class ScreenerModule {}

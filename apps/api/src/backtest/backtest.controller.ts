@@ -22,6 +22,12 @@ export class BacktestController {
     return { started: true };
   }
 
+  @Post('backfill')
+  @HttpCode(200)
+  backfill(@Body() body: { limit?: number }) {
+    return this.backtest.backfillReports(Math.min(500, Math.max(1, body.limit ?? 100)));
+  }
+
   @Get('cohorts')
   cohorts() {
     return this.backtest.entryCohorts();

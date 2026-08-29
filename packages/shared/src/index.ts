@@ -766,8 +766,8 @@ export interface BacktestResult {
 export interface BacktestTuneRow {
   trailPct: number;
   armAtPct: number;
-  minHoldMin: number;
   stopLossPct: number;
+  takeProfitPct: number;
   trainAvgPct: number; // what the search optimised
   testAvgPct: number; // held-out — the only number that means anything
   testMedianPct: number;
