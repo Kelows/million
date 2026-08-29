@@ -14,6 +14,18 @@ const DEEP_MAX_CANDIDATES = 60;
 const PREVIEW_CAP = 15;
 const DEEP_PREVIEW_CAP = 25;
 const PREVIEW_CONCURRENCY = 3;
+// Venues and routers that appear on both sides of trades they never "own".
+// Seeded with the obvious ones; extend from the sampler in tools/find-infra.mjs,
+// which finds addresses that are top buyers across unrelated tokens.
+const INFRA_ADDRESSES = new Set<string>([
+  '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1', // Raydium AMM v4 authority
+  'GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL', // Raydium CPMM authority
+  '39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg', // pump.fun fee recipient
+  'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM', // Jupiter referral
+  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', // Jupiter v6
+  'ARu4n5mFdZogZAravu7CcizaojWnS6oqka37gdLT5SZn', // sampler: top buyer on 4/6 unrelated tokens
+]);
+
 const DEFAULT_DEEP_BUCKETS = 24; // time checkpoints sampled across the token's life
 
 @Injectable()
@@ -23,6 +35,18 @@ export class DiscoveryService {
     private readonly dexscreener: DexScreenerService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /** Pool accounts and their vaults for this mint, plus the routers everything trades through. */
+  private async venueAddresses(mint: string): Promise<Set<string>> {
+    const out = new Set<string>(INFRA_ADDRESSES);
+    const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
+    for (const p of pair?.pairAddresses ?? []) {
+      out.add(p);
+      const vaults = await this.helius.getTokenAccountsByOwner(p, mint).catch(() => []);
+      for (const v of vaults) out.add(v);
+    }
+    return out;
+  }
 
   /**
    * Scan a token's recent transactions for size buyers: accounts that RECEIVED the
@@ -41,11 +65,16 @@ export class DiscoveryService {
     const solPrice = await this.dexscreener.fetchSolPriceUsd();
     const { txs, truncated } = mode === 'deep' ? await this.deepSample(mint, sinceDays, buckets) : await this.helius.fetchHistory(mint, pages);
 
+    // The pool is on both sides of every swap, so it always looks like the
+    // biggest buyer on the token — on Lyra it topped the list with "119 SOL
+    // across 94 txs" and was simply the AMM. Exclude the venue from the traders.
+    const venues = await this.venueAddresses(mint);
+
     const agg = new Map<string, { boughtSol: number; buyTxs: number; lastTs: number; firstTs: number }>();
     for (const tx of txs) {
       const spend = this.buyersOf(tx, mint, solPrice);
       for (const [buyer, spentSol] of spend) {
-        if (spentSol < minSol) continue;
+        if (spentSol < minSol || venues.has(buyer)) continue;
         const entry = agg.get(buyer) ?? { boughtSol: 0, buyTxs: 0, lastTs: 0, firstTs: Number.MAX_SAFE_INTEGER };
         entry.boughtSol += spentSol;
         entry.buyTxs++;

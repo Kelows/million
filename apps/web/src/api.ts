@@ -467,7 +467,9 @@ export function useRunCopyability() {
 }
 
 export function useFamousTokens() {
-  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous') });
+  // the ledger under this updates on every live event; poll rather than
+  // invalidate per-event, since recomputing it scans the roster
+  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous'), refetchInterval: 30_000 });
 }
 
 export function useResumeTrading() {
