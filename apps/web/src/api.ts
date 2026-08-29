@@ -343,6 +343,16 @@ export function useClosePosition() {
 export function useEventStream() {
   const qc = useQueryClient();
   useEffect(() => {
+    // Live events fire ~20x/min and /wallets returns the whole roster with
+    // metrics, so heavy queries get a throttled invalidation rather than one
+    // per event: fresh within 30s, without refetching megabytes constantly.
+    let lastHeavy = 0;
+    const invalidateHeavy = () => {
+      if (Date.now() - lastHeavy < 30_000) return;
+      lastHeavy = Date.now();
+      qc.invalidateQueries({ queryKey: ['wallets'] });
+      qc.invalidateQueries({ queryKey: ['tokens', 'famous'] });
+    };
     const es = new EventSource('/api/live/stream');
     es.onmessage = (msg) => {
       try {
@@ -351,6 +361,7 @@ export function useEventStream() {
           qc.invalidateQueries({ queryKey: ['live-events'] });
           qc.invalidateQueries({ queryKey: ['live-status'] });
           qc.invalidateQueries({ queryKey: ['emitters'] });
+          invalidateHeavy(); // wallets + famous: same feed, slower cadence
         } else if (type === 'opportunity') {
           qc.invalidateQueries({ queryKey: ['opportunities'] });
           qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets

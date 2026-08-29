@@ -140,6 +140,9 @@ export function Opportunities() {
             {pag.rows.map((o) => (
                 <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
                   <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
+                  {o.signal === 'ladder' && (
+                    <span className="text-neon border border-neon/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="a wallet accumulating this mint in repeated clips right now">LADDER</span>
+                  )}
                   {o.signal === 'consensus' && (
                     <span className="text-warn border border-warn/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="fired by owner breadth, not a single wallet's entry">CONSENSUS</span>
                   )}
@@ -228,6 +231,14 @@ export function Opportunities() {
               <input type="checkbox" checked={config.freshEntriesOnly} onChange={(e) => setConfig({ ...config, freshEntriesOnly: e.target.checked })} />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-dim">Ladder: clips / window / total<Info text="Accumulation in progress: N buys of one mint by one wallet inside the window, cumulative SOL above the floor, with no sell in between. The measured ladderers buy every ~15s in ~1.4 SOL clips, so this fires within a minute of them starting — far earlier than any maturity gate allows. 0 clips = off." /></span>
+              <span className="flex items-center gap-1">
+                <input type="number" min={0} max={50} step={1} value={config.ladderBuys} onChange={(e) => setConfig({ ...config, ladderBuys: Number(e.target.value) })} className="w-14 text-right" />
+                <input type="number" min={1} max={120} step={1} value={config.ladderWindowMinutes} onChange={(e) => setConfig({ ...config, ladderWindowMinutes: Number(e.target.value) })} className="w-14 text-right" />
+                <input type="number" min={0} max={100} step={0.5} value={config.ladderMinSol} onChange={(e) => setConfig({ ...config, ladderMinSol: Number(e.target.value) })} className="w-14 text-right" />
+              </span>
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
               <span className="text-dim">Consensus owners (0 = off)<Info text="N distinct owners (clustered wallets count once) buying ≥ the min buy inside the live window fires a CONSENSUS entry — breadth no single wallet can fake. Cyclers and top-ups can't fire direct copies but still vote. Same gauntlet, own label in the book so expectancy splits by entry logic." /></span>
               <input type="number" min={0} max={10} step={1} value={config.consensusOwners} onChange={(e) => setConfig({ ...config, consensusOwners: Number(e.target.value) })} className="w-24 text-right" />
             </label>
@@ -253,7 +264,7 @@ export function Opportunities() {
             </label>
             <div className="flex items-center gap-2 mt-3 text-sm">
               <span className="text-dim text-xs uppercase tracking-wider mr-1">trade signals</span>
-              {(['both', 'copy', 'consensus'] as const).map((sig) => (
+              {(['both', 'copy', 'consensus', 'ladder'] as const).map((sig) => (
                 <button
                   key={sig}
                   className={`btn py-1! px-2! text-[0.65rem]! ${config.tradeSignals === sig ? '' : 'opacity-50'}`}

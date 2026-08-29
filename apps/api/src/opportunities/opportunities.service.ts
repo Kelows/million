@@ -138,6 +138,10 @@ export class OpportunitiesService {
     // consensus voting happens BEFORE the per-wallet novelty gates: a top-up or
     // repeat buy can't fire a direct copy, but it still counts toward breadth
     await this.tryConsensus(mint, wallet, buySol, ts, config).catch(() => undefined);
+    // ladder: accumulation IN PROGRESS. The measured ladderers buy the same
+    // mint every ~15s in ~1.4 SOL clips, so this trips within a minute of them
+    // starting — hours before a maturity gate would let us near the token.
+    await this.tryLadder(mint, wallet, buySol, ts, config).catch(() => undefined);
 
     // recency: must be NEW for this wallet — no prior live buy, not in its analyzed history
     const priorLive = await this.prisma.liveEvent.findFirst({
@@ -209,13 +213,37 @@ export class OpportunitiesService {
     await this.fire(mint, wallet, buySol, ts, 'consensus', config, null);
   }
 
+  /**
+   * A wallet buying one mint repeatedly is accumulating, not repeating itself.
+   * The per-wallet novelty gates below treat clips 2..N as "continuation, not
+   * news" and discard exactly the pattern that identifies the behaviour — so
+   * this runs before them, and judges the cumulative position, not the clip.
+   */
+  private async tryLadder(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<void> {
+    if (config.ladderBuys < 1) return;
+    const since = new Date(Date.now() - config.ladderWindowMinutes * 60_000);
+    const clips = await this.prisma.liveEvent.findMany({
+      where: { wallet, mint, kind: 'buy', ts: { gte: since } },
+      select: { sol: true, usd: true },
+    });
+    if (clips.length < config.ladderBuys) return;
+    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+    const cumulative = clips.reduce((sum, c) => sum + Math.abs(c.sol ?? 0) + Math.abs(c.usd ?? 0) / solUsd, 0);
+    if (cumulative < config.ladderMinSol) return;
+    // a wallet that also SOLD this mint in the window is cycling, not accumulating
+    const sold = await this.prisma.liveEvent.findFirst({ where: { wallet, mint, kind: 'sell', ts: { gte: since } }, select: { id: true } });
+    if (sold) return;
+    this.decisions.push(`[opps] LADDER ${mint.slice(0, 6)}... ${wallet.slice(0, 6)}...: ${clips.length} clips, ${cumulative.toFixed(1)} SOL in ${config.ladderWindowMinutes}m`);
+    await this.fire(mint, wallet, cumulative, ts, 'ladder', config, null);
+  }
+
   /** Shared trigger tail: hourly mint dedupe → gauntlet → opportunity row → paper trade. */
   private async fire(
     mint: string,
     wallet: string,
     buySol: number,
     ts: Date,
-    signal: 'copy' | 'consensus',
+    signal: 'copy' | 'consensus' | 'ladder',
     config: OpportunityConfig,
     whalePriceUsd: number | null,
     blockedBy: string | null = null,
