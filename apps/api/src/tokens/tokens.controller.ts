@@ -12,6 +12,7 @@ const PartialThresholdsSchema = z.object({
 });
 import { ZodPipe } from '../zod.pipe';
 import { TokensService } from './tokens.service';
+import { ConvictionService } from './conviction.service';
 import { MoversService } from '../analysis/movers.service';
 
 const MoversQuerySchema = z.object({
@@ -31,6 +32,7 @@ export class TokensController {
   constructor(
     private readonly tokens: TokensService,
     private readonly movers: MoversService,
+    private readonly conviction: ConvictionService,
   ) {}
 
   @Post('import')
@@ -63,6 +65,17 @@ export class TokensController {
   @Get('jobs/recheck-all')
   recheckStatus() {
     return this.tokens.getRecheckStatus();
+  }
+
+  @Get('conviction')
+  convictionCohorts() {
+    return this.conviction.cohorts();
+  }
+
+  @Post('conviction/snapshot')
+  @HttpCode(200)
+  takeSnapshot() {
+    return this.conviction.snapshot();
   }
 
   @Get('famous')

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
+import type { ConvictionCohortRow, CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -513,4 +513,8 @@ export function useSubscribeAll() {
       qc.invalidateQueries({ queryKey: ['live-status'] });
     },
   });
+}
+
+export function useConvictionCohorts() {
+  return useQuery({ queryKey: ['tokens', 'conviction'], queryFn: () => request<ConvictionCohortRow[]>('/tokens/conviction'), refetchInterval: 120_000 });
 }

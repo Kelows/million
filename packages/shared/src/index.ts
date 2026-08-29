@@ -652,3 +652,14 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
 ];
+
+export interface ConvictionCohortRow {
+  cohort: string; // "1-5" | "6-10" | "11-20" | "control"
+  snapshots: number;
+  resolved6h: number;
+  avgRet6hPct: number | null;
+  medianRet6hPct: number | null;
+  resolved24h: number;
+  avgRet24hPct: number | null;
+  medianRet24hPct: number | null;
+}
