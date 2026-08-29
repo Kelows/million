@@ -707,6 +707,50 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
   {
+    id: 'measured-mirror',
+    name: 'Measured Mirror',
+    tagline: 'the only exit settings that survived a sample tripling — their exit, capped by a tight trail',
+    /**
+     * Not a guess and not a grid winner: every value here held its ranking when
+     * the backtest sample grew from 51 to 170 mirror paths and 249 to 445 rule
+     * paths. That filter matters — `exit @240m` looked like the best rule on
+     * the small sample (+33.7%) and inverted to -13.8% on the larger one.
+     *
+     * Measured on 170 paths with a recorded whale exit, all entries:
+     *   mirror alone        +9.7% avg ·  0.0% median · 47% wins · worst -95%
+     *   mirror-trail 10/20 +10.2% avg ·  4.9% median · 57% wins · worst -30%
+     * Same mean, but the trail converts a -95% tail into -30% and adds ten
+     * points of win rate. The whale says when to leave; the trail says when
+     * not to wait for them.
+     *
+     * stopLossPct 30 is the single most robust number in the whole study:
+     * monotonic across all 1,225 combinations, reproduced independently on
+     * hourly bars, and it survives dropping the three best test trades — so it
+     * is not a tail artifact. Looser stops score worse at every step.
+     *
+     * trailStopPct 10 beat 15/20/25/30/40/50 on held-out marginals.
+     * trailArmPct 20 sits within noise of 50; left at 20 because a higher arm
+     * leaves more of the run uninsured, which is how a 14x was once held for
+     * nine seconds and closed red.
+     */
+    opportunity: {
+      exitMode: 'mirror-trail',
+      trailStopPct: 10,
+      trailArmPct: 20,
+      stopLossPct: 30,
+      takeProfitPct: 100, // inert in mirror-trail; kept at the most robust value in case exitMode moves to 'rules'
+      maxHoldHours: 168,
+      minBuySol: 1.5,
+      minMedianHoldMinutes: 15,
+      sizingMode: 'whale-frac',
+      tradeSignals: 'both',
+      consensusOwners: 2,
+      allowWarn: false,
+      maxPairAgeMinutes: -1,
+    },
+    thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
+  },
+  {
     id: 'gauntlet-only',
     name: 'Gauntlet Only',
     tagline: 'no signal filters at all — if the token survives the gauntlet, we copy the buy',
@@ -726,7 +770,14 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
       ignoreSniperTriggers: false,
       allowWarn: false, // the one gate that stays: the gauntlet must actually pass
       tradeSignals: 'copy',
+      // EXITS ARE IDENTICAL TO 'Measured Mirror' ON PURPOSE. This preset is the
+      // control arm for the entry filters, so entry must be the only thing that
+      // differs — change the exits too and a difference in results tells you
+      // nothing about which half caused it.
       exitMode: 'mirror-trail',
+      trailStopPct: 10,
+      trailArmPct: 20,
+      stopLossPct: 30,
       sizingMode: 'whale-frac',
       maxHoldHours: 168,
     },
