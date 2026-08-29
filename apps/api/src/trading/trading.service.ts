@@ -166,15 +166,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       }
       // mirror-trail: their exit cuts losers instantly; a winner arms a trailing stop instead
       const price = await this.executor.quote(p.mint);
-      // arm the trail only on a REAL winner (≥+10%): between 0 and the +25%
-      // breakeven ratchet, an armed trail can give back 8-30% — a marginal
-      // winner is better mirror-closed than donated to the giveback zone
+      // a marginal winner (<+10%) is better mirror-closed than left to the
+      // giveback zone; a real winner is already protected by the trail
       const inProfit = price !== null && price > p.entryPriceUsd * 1.1;
       if (!inProfit) {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
-      } else if (p.peakPriceUsd === null) {
-        await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: price } });
-        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: whale exited in profit — trailing ${config.trailStopPct}% instead of mirroring`);
+      } else {
+        // tick() already tracks the peak from entry, so the trail is live —
+        // nothing to arm, just let it run
+        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: whale exited in profit — trailing stop keeps the position`);
       }
     }
   }
@@ -204,13 +204,18 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const changePct = (price / p.entryPriceUsd - 1) * 100;
-        if (p.peakPriceUsd !== null) {
-          // armed trailing stop: ratchet the peak, exit on the giveback.
+        // The peak ratchets on EVERY tick, for every open position — the trail
+        // used to arm only when the whale sold, so a position that ran +40% and
+        // reversed while the whale sat still had no protection above the -50%
+        // stop, and the "a winner never finishes red" ratchet never applied.
+        // Price, not the whale, is what the trail should react to.
+        const peak = Math.max(p.peakPriceUsd ?? p.entryPriceUsd, price);
+        if (peak > (p.peakPriceUsd ?? 0)) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
+        if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * 1.1) {
+          // trailing stop on any position that has been a real winner (>=+10%).
           // The leash is volatility-scaled — a coin wicking 6%/min gets room a
           // calm one doesn't — with the configured pct as cold-start fallback,
           // and a breakeven ratchet: once a real winner (+25%), never red again.
-          const peak = Math.max(p.peakPriceUsd, price);
-          if (peak > p.peakPriceUsd) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
           const trailPct = this.dynamicTrailPct(p.id, config.trailStopPct);
           const trailLine = peak * (1 - trailPct / 100);
           const breakevenLine = peak >= p.entryPriceUsd * 1.25 ? p.entryPriceUsd * 1.02 : 0;
