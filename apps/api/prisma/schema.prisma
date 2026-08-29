@@ -218,3 +218,18 @@ model ObservedTrade {
   @@index([wallet])
   @@index([mint])
 }
+
+/// Cached candle path for one replayed entry. Fetching candles is the slow,
+/// rate-limited part of a backtest; scoring a strategy against a cached path is
+/// microseconds. Caching turns parameter search from hours into milliseconds.
+model BacktestPath {
+  id        Int      @id @default(autoincrement())
+  mint      String
+  symbol    String?
+  entryTs   Int // unix seconds
+  entryPrice Float
+  closes    String // JSON number[] — minute closes from entry forward
+  fetchedAt DateTime @default(now())
+
+  @@unique([mint, entryTs])
+}

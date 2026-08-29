@@ -733,3 +733,40 @@ export interface RosterFlows {
   accumulating: FlowRow[]; // laddering IN — an entry signal
   distributing: FlowRow[]; // laddering OUT — the exit signal mirror exits cannot see
 }
+
+// ── backtest: score exit rules against each other on real whale entries ──
+
+export interface BacktestStrategyRow {
+  strategy: string;
+  trades: number;
+  avgRetPct: number;
+  medianRetPct: number; // with fat tails the mean and median disagree — both matter
+  winRate: number;
+  bestPct: number;
+  worstPct: number;
+}
+
+export interface BacktestResult {
+  ranAt: string;
+  sampled: number;
+  replayed: number; // entries with usable candle data
+  strategies: BacktestStrategyRow[];
+}
+
+export interface BacktestTuneRow {
+  trailPct: number;
+  armAtPct: number;
+  minHoldMin: number;
+  stopLossPct: number;
+  trainAvgPct: number; // what the search optimised
+  testAvgPct: number; // held-out — the only number that means anything
+  testMedianPct: number;
+  testWinRate: number;
+}
+
+export interface BacktestTuneResult {
+  ranAt: string;
+  paths: number; // cached entries searched over
+  tried: number;
+  best: BacktestTuneRow[];
+}

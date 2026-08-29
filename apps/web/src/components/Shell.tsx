@@ -27,6 +27,7 @@ const NAV = [
     section: 'Ops',
     links: [
       { to: '/crawler', label: 'Crawler' },
+      { to: '/backtest', label: 'Backtest' },
       { to: '/screener', label: 'Screener' },
     ],
   },

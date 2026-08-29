@@ -14,8 +14,9 @@ import { TradingModule } from './trading/trading.module';
 import { EventsBusModule } from './common/events.bus';
 import { DecisionLogModule } from './common/decision-log';
 import { CopyabilityModule } from './copyability/copyability.module';
+import { BacktestModule } from './backtest/backtest.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), EventsBusModule, DecisionLogModule, WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule, CopyabilityModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), EventsBusModule, DecisionLogModule, WalletsModule, ScreenerModule, RecommendationsModule, FundingModule, DiscoveryModule, GemsModule, TokensModule, CrawlerModule, LiveModule, OpportunitiesModule, TradingModule, CopyabilityModule, BacktestModule],
 })
 export class AppModule {}

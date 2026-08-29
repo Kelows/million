@@ -1,0 +1,234 @@
+import { Injectable, Logger } from '@nestjs/common';
+import type { BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
+
+interface TuneParams { trailPct: number; armAtPct: number; minHoldMin: number; stopLossPct: number }
+import { isExcludedToken } from '@million/shared';
+import { PrismaService } from '../prisma.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
+import { GeckoTerminalService, type Candle } from '../analysis/geckoterminal.service';
+
+const HORIZON_MIN = 120;
+
+/**
+ * Replay real whale entries against candles and score exit rules against each
+ * other. Built because "180s minimum hold before mirroring" was a guess, and
+ * guesses about exits are expensive here: 38% of the roster's profit sits in
+ * the top 1% of trades, so a rule that clips tails destroys the strategy
+ * silently while looking prudent.
+ *
+ * Entries come from the roster's own history (firstBuyAt per token) — thousands
+ * of moments we could have copied — not our dozen fired signals.
+ */
+@Injectable()
+export class BacktestService {
+  private readonly log = new Logger(BacktestService.name);
+  private job = { running: false, done: 0, total: 0 };
+  private last: BacktestResult | null = null;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dexscreener: DexScreenerService,
+    private readonly gecko: GeckoTerminalService,
+  ) {}
+
+  status() {
+    return { ...this.job, result: this.last };
+  }
+
+  start(sample: number): { started: boolean } {
+    if (this.job.running) return { started: false };
+    this.job = { running: true, done: 0, total: 0 };
+    void this.run(sample).finally(() => (this.job = { ...this.job, running: false }));
+    return { started: true };
+  }
+
+  /** Each exit rule maps a post-entry candle path to a return %. */
+  private strategies(): { name: string; run: (path: Candle[], entry: number) => number | null }[] {
+    const trail = (pct: number, armAt = 10, minHoldMin = 0) => (path: Candle[], entry: number) => {
+      let peak = entry;
+      for (const [i, c] of path.entries()) {
+        peak = Math.max(peak, c.close);
+        if (i < minHoldMin) continue;
+        if (peak >= entry * (1 + armAt / 100) && c.close <= peak * (1 - pct / 100)) return (c.close / entry - 1) * 100;
+      }
+      return (path[path.length - 1].close / entry - 1) * 100;
+    };
+    const hold = (mins: number) => (path: Candle[], entry: number) =>
+      (path[Math.min(mins, path.length - 1)].close / entry - 1) * 100;
+    const tpsl = (tp: number, sl: number) => (path: Candle[], entry: number) => {
+      for (const c of path) {
+        if (c.close >= entry * (1 + tp / 100)) return tp;
+        if (c.close <= entry * (1 - sl / 100)) return -sl;
+      }
+      return (path[path.length - 1].close / entry - 1) * 100;
+    };
+    return [
+      { name: 'exit @1m (reflex)', run: hold(1) },
+      { name: 'exit @3m', run: hold(3) },
+      { name: 'exit @15m', run: hold(15) },
+      { name: 'exit @60m', run: hold(60) },
+      { name: 'hold 120m', run: hold(120) },
+      { name: 'trail 15%', run: trail(15) },
+      { name: 'trail 25%', run: trail(25) },
+      { name: 'trail 40%', run: trail(40) },
+      { name: 'trail 25% after 3m', run: trail(25, 10, 3) },
+      { name: 'TP100 / SL50', run: tpsl(100, 50) },
+    ];
+  }
+
+  /**
+   * Parameter search over CACHED paths. Once candles are cached, scoring a
+   * strategy is arithmetic — thousands of combinations per second — so the
+   * sample-efficiency that Bayesian/GP optimisation buys is not what limits us
+   * here; fetching was. Random search over a bounded space is competitive with
+   * grid search at a fraction of the evaluations (Bergstra & Bengio 2012) and
+   * has no surrogate model to mislead us.
+   *
+   * The real risk is overfitting: four parameters against a few dozen entries
+   * will happily memorise noise. So every candidate is fit on a train split and
+   * reported on a held-out test split, and the test number is the one that counts.
+   */
+  async tune(iterations = 400): Promise<BacktestTuneResult> {
+    const rows = await this.prisma.backtestPath.findMany();
+    if (rows.length < 10) return { ranAt: new Date().toISOString(), paths: rows.length, tried: 0, best: [] };
+    const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] }));
+    // deterministic split so repeated tuning is comparable
+    const cut = Math.floor(paths.length * 0.7);
+    const train = paths.slice(0, cut);
+    const test = paths.slice(cut);
+
+    const score = (set: typeof paths, p: TuneParams) => {
+      const rets = set.map(({ entry, closes }) => {
+        let peak = entry;
+        for (let i = 0; i < closes.length; i++) {
+          const c = closes[i];
+          peak = Math.max(peak, c);
+          if (c <= entry * (1 - p.stopLossPct / 100)) return -p.stopLossPct;
+          if (i < p.minHoldMin) continue;
+          if (peak >= entry * (1 + p.armAtPct / 100) && c <= peak * (1 - p.trailPct / 100)) return (c / entry - 1) * 100;
+        }
+        return (closes[closes.length - 1] / entry - 1) * 100;
+      });
+      const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
+      const sorted = [...rets].sort((a, b) => a - b);
+      return { avg, median: sorted[Math.floor(sorted.length / 2)], winRate: rets.filter((x) => x > 0).length / rets.length };
+    };
+
+    const rnd = (lo: number, hi: number, step: number) => lo + Math.round((Math.random() * (hi - lo)) / step) * step;
+    const seen = new Set<string>();
+    const candidates: BacktestTuneRow[] = [];
+    for (let i = 0; i < iterations; i++) {
+      const p: TuneParams = {
+        trailPct: rnd(5, 60, 5),
+        armAtPct: rnd(0, 50, 5),
+        minHoldMin: rnd(0, 30, 1),
+        stopLossPct: rnd(20, 95, 5),
+      };
+      const key = `${p.trailPct}|${p.armAtPct}|${p.minHoldMin}|${p.stopLossPct}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const tr = score(train, p);
+      const te = score(test, p);
+      candidates.push({
+        ...p,
+        trainAvgPct: Math.round(tr.avg * 10) / 10,
+        testAvgPct: Math.round(te.avg * 10) / 10,
+        testMedianPct: Math.round(te.median * 10) / 10,
+        testWinRate: Math.round(te.winRate * 100),
+      });
+    }
+    // rank on TRAIN (as a real search would), then read the test column honestly
+    candidates.sort((a, b) => b.trainAvgPct - a.trainAvgPct);
+    return {
+      ranAt: new Date().toISOString(),
+      paths: paths.length,
+      tried: candidates.length,
+      best: candidates.slice(0, 12),
+    };
+  }
+
+  private async run(sample: number): Promise<void> {
+    const wallets = await this.prisma.wallet.findMany({
+      where: { metrics: { not: null }, purgedAt: null },
+      select: { metrics: true },
+    });
+    const entries: { mint: string; at: string }[] = [];
+    for (const w of wallets) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      if ((m.flags ?? []).includes('BOT_INFRA')) continue;
+      for (const t of m.tokens) {
+        if (!t.firstBuyAt || isExcludedToken(t.mint) || t.solIn < 1) continue;
+        entries.push({ mint: t.mint, at: t.firstBuyAt });
+      }
+    }
+    entries.sort(() => Math.random() - 0.5);
+    const picked = entries.slice(0, sample);
+    this.job.total = picked.length;
+    this.log.log(`backtest: replaying ${picked.length} whale entries`);
+
+    const strategies = this.strategies();
+    const results = new Map<string, number[]>(strategies.map((s) => [s.name, []]));
+    const poolCache = new Map<string, string | null>();
+    let replayed = 0;
+
+    for (const e of picked) {
+      this.job.done++;
+      let pool = poolCache.get(e.mint);
+      if (pool === undefined) {
+        pool = (await this.dexscreener.fetchBestPair(e.mint).catch(() => null))?.pairAddresses[0] ?? null;
+        poolCache.set(e.mint, pool);
+      }
+      if (!pool) continue;
+      const entryTs = Math.floor(new Date(e.at).getTime() / 1000);
+      // cached path? then this entry costs nothing to replay again
+      const cached = await this.prisma.backtestPath.findUnique({ where: { mint_entryTs: { mint: e.mint, entryTs } } }).catch(() => null);
+      let closes: number[];
+      let entryPrice: number;
+      if (cached) {
+        closes = JSON.parse(cached.closes) as number[];
+        entryPrice = cached.entryPrice;
+      } else {
+        const candles = await this.gecko.minuteCandles(pool, entryTs + HORIZON_MIN * 60, HORIZON_MIN);
+        const entryCandle = this.gecko.candleAt(candles, entryTs);
+        if (!entryCandle) continue;
+        const after = candles.filter((c) => c.ts >= entryCandle.ts);
+        if (after.length < 5) continue;
+        closes = after.map((c) => c.close);
+        entryPrice = entryCandle.close;
+        await this.prisma.backtestPath
+          .create({ data: { mint: e.mint, entryTs, entryPrice, closes: JSON.stringify(closes) } })
+          .catch(() => undefined);
+      }
+      const path: Candle[] = closes.map((close, i) => ({ ts: entryTs + i * 60, open: close, close }));
+      if (path.length < 5) continue;
+      replayed++;
+      void entryPrice;
+      for (const s of strategies) {
+        const ret = s.run(path, entryPrice);
+        if (ret !== null && Number.isFinite(ret)) results.get(s.name)!.push(ret);
+      }
+    }
+
+    const rows: BacktestStrategyRow[] = strategies.map((s) => {
+      const xs = results.get(s.name)!;
+      const sorted = [...xs].sort((a, b) => a - b);
+      const avg = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+      return {
+        strategy: s.name,
+        trades: xs.length,
+        avgRetPct: Math.round(avg * 10) / 10,
+        medianRetPct: sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10 : 0,
+        winRate: xs.length ? Math.round((xs.filter((x) => x > 0).length / xs.length) * 100) : 0,
+        bestPct: sorted.length ? Math.round(sorted[sorted.length - 1]) : 0,
+        worstPct: sorted.length ? Math.round(sorted[0]) : 0,
+      };
+    });
+    this.last = {
+      ranAt: new Date().toISOString(),
+      sampled: picked.length,
+      replayed,
+      strategies: rows.sort((a, b) => b.avgRetPct - a.avgRetPct),
+    };
+    this.log.log(`backtest done: ${replayed} replayed`);
+  }
+}

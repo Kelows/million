@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConvictionCohortRow, CopyabilityJobStatus, RosterFlows, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
+import type { BacktestResult, BacktestTuneResult, ConvictionCohortRow, CopyabilityJobStatus, RosterFlows, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -569,5 +569,28 @@ export function useFlows(minutes: number) {
     queryKey: ['live', 'flows', minutes],
     queryFn: () => request<RosterFlows>(`/live/flows?minutes=${minutes}`),
     refetchInterval: 20_000,
+  });
+}
+
+export function useBacktest() {
+  return useQuery({
+    queryKey: ['backtest'],
+    queryFn: () => request<{ running: boolean; done: number; total: number; result: BacktestResult | null }>('/backtest'),
+    refetchInterval: (q) => (q.state.data?.running ? 3_000 : false),
+  });
+}
+
+export function useRunBacktest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { sample: number }) => request<{ started: boolean }>('/backtest/run', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['backtest'] }),
+  });
+}
+
+export function useTuneBacktest() {
+  return useMutation({
+    mutationFn: (body: { iterations: number }) =>
+      request<BacktestTuneResult>('/backtest/tune', { method: 'POST', body: JSON.stringify(body) }),
   });
 }
