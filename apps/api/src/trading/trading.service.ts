@@ -168,7 +168,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       const price = await this.executor.quote(p.mint);
       // a marginal winner (<+10%) is better mirror-closed than left to the
       // giveback zone; a real winner is already protected by the trail
-      const inProfit = price !== null && price > p.entryPriceUsd * 1.1;
+      const inProfit = price !== null && price > p.entryPriceUsd * (1 + config.trailArmPct / 100);
       if (!inProfit) {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
       } else {
@@ -211,7 +211,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         // Price, not the whale, is what the trail should react to.
         const peak = Math.max(p.peakPriceUsd ?? p.entryPriceUsd, price);
         if (peak > (p.peakPriceUsd ?? 0)) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
-        if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * 1.1) {
+        if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * (1 + config.trailArmPct / 100)) {
           // trailing stop on any position that has been a real winner (>=+10%).
           // The leash is volatility-scaled — a coin wicking 6%/min gets room a
           // calm one doesn't — with the configured pct as cold-start fallback,

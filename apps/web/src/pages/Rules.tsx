@@ -137,6 +137,9 @@ export function Rules() {
           <RuleField label="Exit strategy" hint="rules = our TP/SL only · mirror = their exit is our exit, a faithful copy · mirror+trail = their exit cuts losers, winners hand over to a trailing stop.">
             <Choice value={c.exitMode} options={['rules', 'mirror', 'mirror-trail'] as const} onChange={(v) => set({ exitMode: v })} labels={{ rules: 'our rules', 'mirror-trail': 'mirror+trail' }} />
           </RuleField>
+          <RuleField label="Trail arms at" hint="How far up a position must go before the trailing stop engages at all. Swept over 242 replayed entries: +20% was most robust and the only setting with a positive median and a majority win rate. Higher bars leave most winners unprotected — the median peak is only ~+14% — and they ride back to the stop." off={c.exitMode === 'rules'}>
+            <Num value={c.trailArmPct} onChange={(v) => set({ trailArmPct: v })} min={0} max={100} step={5} suffix="%" />
+          </RuleField>
           <RuleField label="Trailing stop" hint="Fallback width — the live trail is volatility-scaled per token (3× its recent 1-min swings, clamped 8–30%) and this is used until price history accumulates. Peak tracks from entry, so a winner is protected whether or not the whale has moved." off={c.exitMode === 'rules'}>
             <Num value={c.trailStopPct} onChange={(v) => set({ trailStopPct: v })} min={1} max={50} suffix="%" />
           </RuleField>
