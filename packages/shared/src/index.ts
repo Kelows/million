@@ -764,9 +764,22 @@ export interface BacktestTuneRow {
   testWinRate: number;
 }
 
+/**
+ * A parameter VALUE averaged across every combination containing it. With a
+ * small sample the single best combination is mostly luck; a value that holds
+ * up across all its combinations is a real effect.
+ */
+export interface BacktestMarginal {
+  param: string;
+  value: number;
+  combos: number;
+  avgTestPct: number;
+}
+
 export interface BacktestTuneResult {
   ranAt: string;
   paths: number; // cached entries searched over
-  tried: number;
+  tried: number; // exhaustive over the discrete grid
   best: BacktestTuneRow[];
+  marginals: BacktestMarginal[];
 }

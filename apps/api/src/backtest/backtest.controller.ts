@@ -12,8 +12,8 @@ export class BacktestController {
 
   @Post('tune')
   @HttpCode(200)
-  tune(@Body() body: { iterations?: number }) {
-    return this.backtest.tune(Math.min(5000, Math.max(50, body.iterations ?? 400)));
+  tune() {
+    return this.backtest.tune(); // exhaustive over a fixed discrete grid — nothing to configure
   }
 
   @Post('run')

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
+import type { BacktestMarginal, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
 
 interface TuneParams { trailPct: number; armAtPct: number; minHoldMin: number; stopLossPct: number }
 import { isExcludedToken } from '@million/shared';
@@ -8,6 +8,20 @@ import { DexScreenerService } from '../analysis/dexscreener.service';
 import { GeckoTerminalService, type Candle } from '../analysis/geckoterminal.service';
 
 const HORIZON_MIN = 120;
+
+/**
+ * Round numbers only, and few of them. A coarse grid is regularisation: it cuts
+ * the degrees of freedom the search can spend on noise, keeps every candidate a
+ * value you could actually type into the config, and is small enough (784
+ * combinations) to search EXHAUSTIVELY — so the result is deterministic and
+ * reproducible rather than a lucky draw.
+ */
+const GRID = {
+  trailPct: [10, 15, 20, 25, 30, 40, 50],
+  armAtPct: [0, 10, 20, 30],
+  minHoldMin: [0, 1, 3, 5, 10, 15, 30],
+  stopLossPct: [30, 50, 70, 90],
+};
 
 /**
  * Replay real whale entries against candles and score exit rules against each
@@ -88,11 +102,10 @@ export class BacktestService {
    * will happily memorise noise. So every candidate is fit on a train split and
    * reported on a held-out test split, and the test number is the one that counts.
    */
-  async tune(iterations = 400): Promise<BacktestTuneResult> {
+  async tune(): Promise<BacktestTuneResult> {
     const rows = await this.prisma.backtestPath.findMany();
-    if (rows.length < 10) return { ranAt: new Date().toISOString(), paths: rows.length, tried: 0, best: [] };
+    if (rows.length < 10) return { ranAt: new Date().toISOString(), paths: rows.length, tried: 0, best: [], marginals: [] };
     const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] }));
-    // deterministic split so repeated tuning is comparable
     const cut = Math.floor(paths.length * 0.7);
     const train = paths.slice(0, cut);
     const test = paths.slice(cut);
@@ -114,36 +127,47 @@ export class BacktestService {
       return { avg, median: sorted[Math.floor(sorted.length / 2)], winRate: rets.filter((x) => x > 0).length / rets.length };
     };
 
-    const rnd = (lo: number, hi: number, step: number) => lo + Math.round((Math.random() * (hi - lo)) / step) * step;
-    const seen = new Set<string>();
     const candidates: BacktestTuneRow[] = [];
-    for (let i = 0; i < iterations; i++) {
-      const p: TuneParams = {
-        trailPct: rnd(5, 60, 5),
-        armAtPct: rnd(0, 50, 5),
-        minHoldMin: rnd(0, 30, 1),
-        stopLossPct: rnd(20, 95, 5),
-      };
-      const key = `${p.trailPct}|${p.armAtPct}|${p.minHoldMin}|${p.stopLossPct}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const tr = score(train, p);
-      const te = score(test, p);
-      candidates.push({
-        ...p,
-        trainAvgPct: Math.round(tr.avg * 10) / 10,
-        testAvgPct: Math.round(te.avg * 10) / 10,
-        testMedianPct: Math.round(te.median * 10) / 10,
-        testWinRate: Math.round(te.winRate * 100),
-      });
+    for (const trailPct of GRID.trailPct)
+      for (const armAtPct of GRID.armAtPct)
+        for (const minHoldMin of GRID.minHoldMin)
+          for (const stopLossPct of GRID.stopLossPct) {
+            const p = { trailPct, armAtPct, minHoldMin, stopLossPct };
+            const tr = score(train, p);
+            const te = score(test, p);
+            candidates.push({
+              ...p,
+              trainAvgPct: Math.round(tr.avg * 10) / 10,
+              testAvgPct: Math.round(te.avg * 10) / 10,
+              testMedianPct: Math.round(te.median * 10) / 10,
+              testWinRate: Math.round(te.winRate * 100),
+            });
+          }
+
+    // MARGINALS matter more than the winner. With a few dozen entries the single
+    // best combination is mostly luck; a parameter VALUE that performs well
+    // averaged across every combination containing it is a real effect. Read
+    // these first and the top table second.
+    const marginals: BacktestMarginal[] = [];
+    for (const [param, values] of Object.entries(GRID) as [keyof typeof GRID, number[]][]) {
+      for (const value of values) {
+        const subset = candidates.filter((c) => c[param] === value);
+        marginals.push({
+          param,
+          value,
+          combos: subset.length,
+          avgTestPct: Math.round((subset.reduce((a, b) => a + b.testAvgPct, 0) / subset.length) * 10) / 10,
+        });
+      }
     }
-    // rank on TRAIN (as a real search would), then read the test column honestly
+
     candidates.sort((a, b) => b.trainAvgPct - a.trainAvgPct);
     return {
       ranAt: new Date().toISOString(),
       paths: paths.length,
       tried: candidates.length,
-      best: candidates.slice(0, 12),
+      best: candidates.slice(0, 10),
+      marginals,
     };
   }
 

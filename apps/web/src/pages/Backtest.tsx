@@ -34,7 +34,7 @@ export function Backtest() {
           <button className="btn" disabled={running || run.isPending} onClick={() => run.mutate({ sample })}>
             {running ? `Replaying ${data?.done ?? 0}/${data?.total ?? 0}…` : 'Fetch + replay'}
           </button>
-          <button className="btn" disabled={tune.isPending} onClick={() => tune.mutate({ iterations: 800 })} title="Search exit parameters over cached paths — instant, no fetching">
+          <button className="btn" disabled={tune.isPending} onClick={() => tune.mutate()} title="Exhaustive search over a discrete grid of round values, using cached paths — instant">
             {tune.isPending ? 'Searching…' : 'Tune parameters'}
           </button>
         </span>
@@ -97,6 +97,49 @@ export function Backtest() {
   );
 }
 
+const PARAM_LABEL: Record<string, string> = {
+  trailPct: 'Trail %',
+  armAtPct: 'Arm at +%',
+  minHoldMin: 'Min hold (min)',
+  stopLossPct: 'Stop loss %',
+};
+
+/** Each parameter value scored across every combination it appears in. */
+function MarginalsGrid({ rows }: { rows: import('@million/shared').BacktestMarginal[] }) {
+  const params = [...new Set(rows.map((r) => r.param))];
+  return (
+    <div className="px-4 pb-3">
+      <div className="text-xs text-dim mb-2">
+        Read this first: each value averaged over every combination containing it. Robust effects show here; the table
+        below can win on luck.
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {params.map((p) => {
+          const mine = rows.filter((r) => r.param === p).sort((a, b) => b.avgTestPct - a.avgTestPct);
+          const best = mine[0]?.value;
+          return (
+            <div key={p} className="border border-line p-2">
+              <div className="eyebrow mb-1">{PARAM_LABEL[p] ?? p}</div>
+              <table className="w-full text-xs font-mono">
+                <tbody>
+                  {mine.map((m) => (
+                    <tr key={m.value} className={m.value === best ? 'text-bright' : 'text-dim'}>
+                      <td className="py-0.5">{m.value}</td>
+                      <td className={`py-0.5 text-right ${m.avgTestPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {m.avgTestPct > 0 ? '+' : ''}{m.avgTestPct}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TunePanel({ result }: { result: import('@million/shared').BacktestTuneResult }) {
   if (!result.paths) return null;
   return (
@@ -106,6 +149,7 @@ function TunePanel({ result }: { result: import('@million/shared').BacktestTuneR
         <Info text="Random search over cached paths. Candidates are ranked by TRAIN performance, as any real search would be — the test column is held out and untouched by the ranking. A row whose train number is far above its test number memorised noise; only the test column is evidence." />
         <span className="normal-case tracking-normal text-dim"> · {result.tried} combinations over {result.paths} cached entries</span>
       </div>
+      <MarginalsGrid rows={result.marginals} />
       <div className="overflow-x-auto">
         <table className="w-full text-sm font-mono">
           <thead>
@@ -141,8 +185,10 @@ function TunePanel({ result }: { result: import('@million/shared').BacktestTuneR
         </table>
       </div>
       <p className="px-4 py-3 text-xs text-dim">
-        Four parameters against a few dozen entries overfits easily — treat a large train/test gap as a warning, not a
-        discovery, and re-run after fetching more paths before changing any live setting.
+        The grid is deliberately coarse and round: fewer degrees of freedom to spend on noise, every value one you
+        could type into the config, and small enough to search exhaustively so the result is reproducible rather than a
+        lucky draw. Still — four parameters against a few dozen entries overfits easily. Trust the marginals over the
+        winner, treat a large train/test gap as a warning, and fetch more paths before changing a live setting.
       </p>
     </div>
   );

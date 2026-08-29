@@ -590,7 +590,6 @@ export function useRunBacktest() {
 
 export function useTuneBacktest() {
   return useMutation({
-    mutationFn: (body: { iterations: number }) =>
-      request<BacktestTuneResult>('/backtest/tune', { method: 'POST', body: JSON.stringify(body) }),
+    mutationFn: () => request<BacktestTuneResult>('/backtest/tune', { method: 'POST' }),
   });
 }
