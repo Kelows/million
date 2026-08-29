@@ -28,6 +28,8 @@ interface Position {
   usdOut: number;
   realSol: number;
   realUsd: number;
+  unbackedSol: number; // proceeds from selling tokens we never saw bought — not profit, just cash
+  unbackedUsd: number;
   firstBuyTs: number | null;
   lastBuyTs: number | null;
   lastSellTs: number | null;
@@ -52,7 +54,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   const getPos = (mint: string): Position => {
     let p = positions.get(mint);
     if (!p) {
-      p = { mint, qty: 0, costSol: 0, costUsd: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, realUsd: 0, firstBuyTs: null, lastBuyTs: null, lastSellTs: null };
+      p = { mint, qty: 0, costSol: 0, costUsd: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, realUsd: 0, unbackedSol: 0, unbackedUsd: 0, firstBuyTs: null, lastBuyTs: null, lastSellTs: null };
       positions.set(mint, p);
     }
     return p;
@@ -104,9 +106,13 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
           p.costUsd *= 1 - fraction;
           p.qty = Math.max(0, p.qty - sold);
         } else {
-          // sold tokens acquired before our window (or airdropped): pure proceeds
-          p.realSol += gs;
-          p.realUsd += gu;
+          // Sold tokens we never saw bought — acquired before our window, or
+          // airdropped. Booking the proceeds as profit invented 5.7k SOL of
+          // phantom PnL across the roster and pushed those wallets to the top
+          // of the scoring range. Profit needs a cost basis; this has none, so
+          // it is tracked separately and kept out of realized.
+          p.unbackedSol += gs;
+          p.unbackedUsd += gu;
         }
         traded = true;
       } else if (delta < 0) {
@@ -184,6 +190,10 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   if (firstSeen !== null && now - firstSeen < 7 * 86400 && !truncated) flags.push('FRESH_WALLET');
   if (medianHold !== null && medianHold < 5 && closed.length >= 5) flags.push('SNIPER_SPEED');
   if (winRate !== null && winRate > 0.9 && closed.length >= 20) flags.push('HIGH_WINRATE_SUS');
+  const unbackedTotal = [...positions.values()].reduce((sum, p) => sum + p.unbackedSol + p.unbackedUsd / solPriceUsd, 0);
+  // history truncation makes a wallet look brilliant: it sells bags we never saw
+  // it buy, and every sale reads as pure profit. Flag it rather than trust it.
+  if (unbackedTotal > 1 && unbackedTotal > Math.abs(realizedPnlSol + realizedPnlUsd / solPriceUsd)) flags.push('UNBACKED_HISTORY');
   if (closed.length < 5) flags.push('LOW_ACTIVITY');
   if (lastSeen !== null && now - lastSeen > 14 * 86400) flags.push('DORMANT');
 
@@ -199,6 +209,9 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
     realizedPnlSol,
     realizedPnlUsd,
     realizedPnlTotalSol: round(realizedPnlSol + realizedPnlUsd / solPriceUsd),
+    unbackedPnlSol: round(
+      [...positions.values()].reduce((sum, p) => sum + p.unbackedSol + p.unbackedUsd / solPriceUsd, 0),
+    ),
     solPriceUsd: round(solPriceUsd),
     medianHoldMinutes: medianHold,
     firstSeen: firstSeen !== null ? new Date(firstSeen * 1000).toISOString() : null,

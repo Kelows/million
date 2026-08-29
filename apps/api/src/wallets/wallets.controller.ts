@@ -34,6 +34,12 @@ export class WalletsController {
     return this.wallets.cohorts();
   }
 
+  /** Just the fields live events move — 1100 wallets fit in ~60KB, so this can poll fast. */
+  @Get('wallets-activity')
+  activity() {
+    return this.wallets.activity();
+  }
+
   @Get('wallets/:address')
   get(@Param('address') address: string) {
     return this.wallets.get(address);

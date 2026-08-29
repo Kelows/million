@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConvictionCohortRow, CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
@@ -27,8 +27,37 @@ export function useHealth() {
   return useQuery({ queryKey: ['health'], queryFn: () => request<Health>('/health'), refetchInterval: 30_000 });
 }
 
+interface WalletActivity { address: string; lastEventAt: string | null; liveRealizedSol: number }
+
+/**
+ * The roster is 4.4MB with metrics; the fields live events actually move are
+ * 14KB. Poll the small one fast and merge, rather than refetching the whole
+ * roster — same freshness, 300x less traffic and no JSON-parse jank.
+ */
 export function useWallets() {
-  return useQuery({ queryKey: ['wallets'], queryFn: () => request<WalletRecord[]>('/wallets') });
+  const roster = useQuery({ queryKey: ['wallets'], queryFn: () => request<WalletRecord[]>('/wallets') });
+  const activity = useQuery({
+    queryKey: ['wallets-activity'],
+    queryFn: () => request<WalletActivity[]>('/wallets-activity'),
+    refetchInterval: 3_000,
+  });
+  const data = useMemo(() => {
+    if (!roster.data) return roster.data;
+    if (!activity.data?.length) return roster.data;
+    const live = new Map(activity.data.map((a) => [a.address, a]));
+    return roster.data.map((w) => {
+      const a = live.get(w.address);
+      if (!a || !w.metrics) return w;
+      const metrics = { ...w.metrics };
+      if (a.lastEventAt && (!metrics.lastSeen || a.lastEventAt > metrics.lastSeen)) metrics.lastSeen = a.lastEventAt;
+      if (a.liveRealizedSol) {
+        metrics.realizedPnlSol = Math.round((metrics.realizedPnlSol + a.liveRealizedSol) * 1000) / 1000;
+        if (metrics.realizedPnlTotalSol != null) metrics.realizedPnlTotalSol = Math.round((metrics.realizedPnlTotalSol + a.liveRealizedSol) * 1000) / 1000;
+      }
+      return { ...w, metrics };
+    });
+  }, [roster.data, activity.data]);
+  return { ...roster, data };
 }
 
 export function useWallet(address: string) {
@@ -350,8 +379,7 @@ export function useEventStream() {
     const invalidateHeavy = () => {
       if (Date.now() - lastHeavy < 30_000) return;
       lastHeavy = Date.now();
-      qc.invalidateQueries({ queryKey: ['wallets'] });
-      qc.invalidateQueries({ queryKey: ['tokens', 'famous'] });
+      qc.invalidateQueries({ queryKey: ['wallets'] }); // 4.4MB — the 3s freshness comes from wallets-activity instead
     };
     const es = new EventSource('/api/live/stream');
     es.onmessage = (msg) => {
@@ -480,7 +508,7 @@ export function useRunCopyability() {
 export function useFamousTokens() {
   // the ledger under this updates on every live event; poll rather than
   // invalidate per-event, since recomputing it scans the roster
-  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous'), refetchInterval: 30_000 });
+  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous'), refetchInterval: 3_000 }); // 4KB — cheap to poll fast
 }
 
 export function useResumeTrading() {

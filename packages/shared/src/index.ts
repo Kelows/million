@@ -29,7 +29,8 @@ export type WalletFlag =
   | 'LOW_ACTIVITY' // too few closed trades to trust the stats
   | 'DORMANT' // no swaps in the last 14 days
   | 'BOT_INFRA' // automated infrastructure (broker/volume/MEV), not a trader
-  | 'DISTRIBUTOR'; // sells vastly exceed buys — an early holder exiting a bag, not trading
+  | 'DISTRIBUTOR' // sells vastly exceed buys — an early holder exiting a bag, not trading
+  | 'UNBACKED_HISTORY'; // 'profit' is mostly proceeds from bags we never saw bought — truncated history, not skill
 
 export interface TokenBreakdown {
   mint: string;
@@ -59,7 +60,8 @@ export interface WalletMetrics {
   winRate: number | null; // profitable closed tokens / closed tokens
   realizedPnlSol: number;
   realizedPnlUsd?: number;
-  realizedPnlTotalSol?: number; // sol legs + usd legs converted at analysis-time SOL price
+  realizedPnlTotalSol?: number;
+  unbackedPnlSol?: number; // proceeds from selling tokens with no recorded buy — cash, not measured profit
   solPriceUsd?: number;
   medianHoldMinutes: number | null;
   lifetimeTxs?: number | null; // from the signature index; null = unknown

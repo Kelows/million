@@ -6,6 +6,7 @@ const FLAG_INFO: Record<WalletFlag, { label: string; title: string; warn: boolea
   HIGH_WINRATE_SUS: { label: 'sus winrate', title: '>90% win rate over 20+ tokens — possibly farmed for copy-traders', warn: true },
   LOW_ACTIVITY: { label: 'low data', title: 'Fewer than 5 closed trades — stats not trustworthy yet', warn: false },
   DORMANT: { label: 'dormant', title: 'No swaps in the last 14 days', warn: false },
+  UNBACKED_HISTORY: { label: 'unbacked', title: 'Most of this wallet\u2019s apparent profit comes from selling tokens we never saw it buy \u2014 its buy history predates our analysis window. Those sales have no cost basis, so they are cash, not measured profit. Treat the PnL and the score as unreliable until a deeper analysis backfills the buys.', warn: true },
   DISTRIBUTOR: { label: 'distributor', title: 'Sells vastly exceed buys — an early holder exiting a bag acquired elsewhere. The PnL is real but the strategy is uncopyable; cadence acceleration is a sell signal for the token.', warn: true },
   BOT_INFRA: { label: 'infra', title: 'Automated infrastructure (broker/volume/MEV), not a trader — stats meaningless, excluded from recs', warn: true },
 };

@@ -147,6 +147,14 @@ export class WalletsService {
     });
   }
 
+  async activity(): Promise<{ address: string; lastEventAt: string | null; liveRealizedSol: number }[]> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { purgedAt: null, OR: [{ lastEventAt: { not: null } }, { liveRealizedSol: { not: 0 } }] },
+      select: { address: true, lastEventAt: true, liveRealizedSol: true },
+    });
+    return rows.map((r) => ({ address: r.address, lastEventAt: r.lastEventAt?.toISOString() ?? null, liveRealizedSol: r.liveRealizedSol }));
+  }
+
   async get(address: string): Promise<WalletRecord> {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
