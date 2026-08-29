@@ -212,7 +212,8 @@ export function WalletDetail() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* same wrapping flex row as the Trading tiles: each tile hugs its content, the row shares the leftover width */}
+          <div className="flex flex-wrap gap-4 *:flex-1 *:basis-40 *:whitespace-nowrap">
             <StatTile
               label="Realized PnL"
               value={fmtSol(totalPnlSol(m) ?? 0)}
