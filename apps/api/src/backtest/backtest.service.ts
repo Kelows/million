@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { BacktestMarginal, HoldBand, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
+import type { BacktestMarginal, HoldBand, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, TokenReport, WalletMetrics } from '@million/shared';
 
 interface TuneParams { trailPct: number; armAtPct: number; minHoldMin: number; stopLossPct: number }
 import { isExcludedToken } from '@million/shared';
@@ -238,14 +238,22 @@ export class BacktestService {
    * roster actually earns in — holds past 24h carry 61% of their profit, and
    * every conclusion we have drawn so far was blind to it.
    */
-  async runSwing(sample: number): Promise<void> {
+  /**
+   * minSol defaults to 0 — the unfiltered population. The 1 SOL floor that used
+   * to be hardcoded here is a STRATEGY choice, and baking a strategy into the
+   * sample means no cohort can ever be measured against its absence.
+   *
+   * BOT_INFRA stays excluded at every setting: an AMM pool's "first buy" is not
+   * a trade anyone could have copied, so it is bad data rather than a bold bet.
+   */
+  async runSwing(sample: number, minSol = 0): Promise<void> {
     const wallets = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null }, select: { metrics: true } });
     const entries: { mint: string; at: string }[] = [];
     for (const w of wallets) {
       const m = JSON.parse(w.metrics as string) as WalletMetrics;
       if ((m.flags ?? []).includes('BOT_INFRA')) continue;
       for (const t of m.tokens) {
-        if (!t.firstBuyAt || isExcludedToken(t.mint) || t.solIn < 1) continue;
+        if (!t.firstBuyAt || isExcludedToken(t.mint) || t.solIn < minSol) continue;
         // an entry needs room to develop: skip anything too recent to have days of history
         if (Date.now() - new Date(t.firstBuyAt).getTime() < 36 * 3_600_000) continue;
         entries.push({ mint: t.mint, at: t.firstBuyAt });
@@ -331,6 +339,87 @@ export class BacktestService {
       // horizons no path is long enough to reach score 0 by default — park them
       // at the bottom rather than letting an unmeasured row top the table
       .sort((a, b) => Number(b.trades > 0) - Number(a.trades > 0) || b.avgRetPct - a.avgRetPct);
+  }
+
+  /**
+   * Entry FILTERS scored against each other, holding the exit rule fixed
+   * (trail 20% hourly — the only swing rule that is not underwater). Every row
+   * answers one question: does this gate earn its exclusions?
+   *
+   * ── Why "gauntlet pass" is marked contaminated ──────────────────────────────
+   * The gauntlet is a PRESENT-TENSE check. Token.lastReport holds liquidity,
+   * market cap, holder concentration and a sell simulation as they are TODAY,
+   * not as they were at entry. A token that rugged after we would have bought
+   * it now has no liquidity and fails its own sell-sim — so filtering on
+   * "gauntlet passes" silently deletes the losers from the sample. The row is
+   * reported because seeing the size of that lift is the clearest possible
+   * demonstration of the bias, but it is NOT a result and must never be used to
+   * justify a gate.
+   *
+   * Pair age is the one gate reconstructable exactly: pairCreatedAt is fixed at
+   * launch, so age-at-entry is arithmetic on the entry timestamp. Those rows
+   * are honest and can be acted on.
+   */
+  async entryCohorts(): Promise<BacktestStrategyRow[]> {
+    const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'hour' } });
+    if (!rows.length) return [];
+    const tokens = await this.prisma.token.findMany({
+      where: { mint: { in: [...new Set(rows.map((r) => r.mint))] } },
+      select: { mint: true, lastReport: true },
+    });
+    const meta = new Map(
+      tokens.map((t) => {
+        const rep = t.lastReport ? (JSON.parse(t.lastReport) as TokenReport) : null;
+        return [t.mint, { verdict: rep?.verdict ?? null, pairCreatedAt: rep?.pairCreatedAt ?? null }];
+      }),
+    );
+    const paths = rows
+      .filter((r) => r.entryPrice > 0)
+      .map((r) => {
+        const m = meta.get(r.mint);
+        const created = m?.pairCreatedAt ? new Date(m.pairCreatedAt).getTime() : null;
+        return {
+          entry: r.entryPrice,
+          closes: JSON.parse(r.closes) as number[],
+          verdict: m?.verdict ?? null,
+          ageMin: created ? (r.entryTs * 1000 - created) / 60_000 : null,
+        };
+      })
+      .filter((p) => p.closes.length >= 6);
+
+    // fixed exit so the rows differ ONLY by which entries they admit
+    const exit = (e: number, c: number[]) => {
+      let peak = e;
+      for (const x of c) {
+        peak = Math.max(peak, x);
+        if (x <= e * 0.5) return -50;
+        if (peak >= e * 1.2 && x <= peak * 0.8) return (x / e - 1) * 100;
+      }
+      return (c[c.length - 1] / e - 1) * 100;
+    };
+    type P = (typeof paths)[number];
+    const cohorts: [string, (p: P) => boolean][] = [
+      ['no filter — every entry', () => true],
+      ['gauntlet pass/warn ⚠ LOOK-AHEAD', (p) => p.verdict !== null && p.verdict !== 'fail'],
+      ['gauntlet fail ⚠ LOOK-AHEAD', (p) => p.verdict === 'fail'],
+      ['pair < 60 min at entry', (p) => p.ageMin !== null && p.ageMin < 60],
+      ['pair 1–24 h at entry', (p) => p.ageMin !== null && p.ageMin >= 60 && p.ageMin < 1440],
+      ['pair > 24 h at entry', (p) => p.ageMin !== null && p.ageMin >= 1440],
+    ];
+    return cohorts.map(([strategy, keep]) => {
+      const xs = paths.filter(keep).map((p) => exit(p.entry, p.closes));
+      if (!xs.length) return { strategy, trades: 0, avgRetPct: 0, medianRetPct: 0, winRate: 0, bestPct: 0, worstPct: 0 };
+      const sorted = [...xs].sort((a, b) => a - b);
+      return {
+        strategy,
+        trades: xs.length,
+        avgRetPct: Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10,
+        medianRetPct: Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10,
+        winRate: Math.round((xs.filter((x) => x > 0).length / xs.length) * 100),
+        bestPct: Math.round(sorted[sorted.length - 1]),
+        worstPct: Math.round(sorted[0]),
+      };
+    });
   }
 
   async holdDistribution(): Promise<HoldBand[]> {

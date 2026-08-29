@@ -17,9 +17,14 @@ export class BacktestController {
 
   @Post('swing/run')
   @HttpCode(200)
-  runSwing(@Body() body: { sample?: number }) {
-    void this.backtest.runSwing(Math.min(300, Math.max(5, body.sample ?? 60)));
+  runSwing(@Body() body: { sample?: number; minSol?: number }) {
+    void this.backtest.runSwing(Math.min(300, Math.max(5, body.sample ?? 60)), Math.max(0, body.minSol ?? 0));
     return { started: true };
+  }
+
+  @Get('cohorts')
+  cohorts() {
+    return this.backtest.entryCohorts();
   }
 
   @Get('holds')
