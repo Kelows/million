@@ -34,7 +34,7 @@ export function Dashboard() {
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
   const [filters, setFilters] = useStoredFilters('million.filters.watch');
   const watchAll = analyzed
-    .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens, loadMinOpenSol()).length > 0)
+    .filter((w) => w.metrics && isQualifyingWallet(w.metrics, w.observed) && openPositions(w.metrics.tokens, loadMinOpenSol()).length > 0)
     .sort((a, b) => (observedPnlSol(b) ?? 0) - (observedPnlSol(a) ?? 0));
   const top = applyFilters(watchAll, WATCH_FILTERS, filters);
   const pag = usePagination(top, 10);
@@ -71,7 +71,7 @@ export function Dashboard() {
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
             <span className="eyebrow">
               Wallets to watch
-              <Info text={`Base bar: win rate > ${Math.round(WATCH_CRITERIA.minWinRate * 100)}%, at least ${WATCH_CRITERIA.minClosedTokens} closed tokens, and an open position of ${loadMinOpenSol()}+ SOL (stables & dust excluded). Sorted by realized PnL. The Filters button refines further on top of this.`} />
+              <Info text={`Base bar, measured on OBSERVED round trips only: win rate > ${Math.round(WATCH_CRITERIA.minWinRate * 100)}%, at least ${WATCH_CRITERIA.minClosedTokens} watched round trips, and an open position of ${loadMinOpenSol()}+ SOL (stables & dust excluded). Sorted by realized PnL. The Filters button refines further on top of this.`} />
             </span>
             <span className="flex items-center gap-3">
               <FilterModal fields={WATCH_FILTERS} state={filters} onChange={setFilters} />
@@ -87,7 +87,7 @@ export function Dashboard() {
                   <tr className="text-left text-dim text-xs">
                     <th className="pl-4 pr-0 py-2 w-8"></th>
                     <th className="px-4 py-2 font-normal">wallet</th>
-                    <th className="px-4 py-2 font-normal">win rate</th>
+                    <th className="px-4 py-2 font-normal">observed WR</th>
                     <th className="px-4 py-2 font-normal text-right">observed PnL</th>
                     <th className="px-4 py-2 font-normal">open</th>
                     <th className="px-4 py-2 font-normal">last active</th>
@@ -106,7 +106,7 @@ export function Dashboard() {
                           {w.label ?? truncAddr(w.address)}
                         </Link>
                       </td>
-                      <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
+                      <td className="px-4 py-2">{fmtPct(w.observed?.winRate ?? null)}</td>
                       <td className={`px-4 py-2 text-right ${(observedPnlSol(w) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {w.observed?.trades ? fmtSol(observedPnlSol(w) ?? 0) : <span className="text-dim">unmeasured</span>}
                       </td>

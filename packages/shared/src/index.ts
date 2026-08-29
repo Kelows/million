@@ -199,7 +199,7 @@ export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT
 }
 
 /** One definition of a wallet worth acting on — dashboard watch list and recs both use it. */
-export const WATCH_CRITERIA = { minWinRate: 0.4, minClosedTokens: 2 }; // calibrated for deep (300-tx) windows
+export const WATCH_CRITERIA = { minWinRate: 0.4, minClosedTokens: 2 }; // measured on OBSERVED round trips, never on historical scans // calibrated for deep (300-tx) windows
 
 /** Unambiguous junk: structural evidence only. HIGH_WINRATE_SUS is suspicion, not proof —
  * it stays a warning (and blocks auto-absorption) but never justifies deletion. */
@@ -233,10 +233,16 @@ export function isBotWallet(m: WalletMetrics): boolean {
   return m.flags.some((f) => f === 'BOT_INFRA' || f === 'SNIPER_SPEED' || f === 'HIGH_WINRATE_SUS');
 }
 
-export function isQualifyingWallet(m: WalletMetrics): boolean {
+/**
+ * Worth watching: judged on OBSERVED round trips. Historical win rate came from
+ * a truncated scan whose unbacked sells all counted as wins, so it promoted
+ * measurement error. A wallet with too few observed trades is unqualified —
+ * not rejected, just not yet evidence.
+ */
+export function isQualifyingWallet(m: WalletMetrics, observed?: WalletObserved): boolean {
   if (m.flags.includes('BOT_INFRA')) return false; // plumbing, not a trader
-  if (m.winRate === null) return false;
-  return m.winRate > WATCH_CRITERIA.minWinRate && m.closedTokens >= WATCH_CRITERIA.minClosedTokens;
+  if (!observed || observed.winRate === null) return false;
+  return observed.winRate > WATCH_CRITERIA.minWinRate && observed.trades >= WATCH_CRITERIA.minClosedTokens;
 }
 
 // ── recommendations ───────────────────────────────────────────────────────────
@@ -487,7 +493,7 @@ export const OpportunityConfigSchema = z.object({
   ladderWindowMinutes: z.coerce.number().min(1).max(120).default(10),
   ladderMinSol: z.coerce.number().min(0).max(100).default(3), // cumulative across the clips, not per clip
   cyclerGuardMinutes: z.coerce.number().min(0).max(120).default(10), // skip a trigger that SOLD this mint within N minutes (0 = off)
-  freshEntriesOnly: z.boolean().default(false), // trigger must be the roster's FIRST owner in — if our whales already hold it, the story is mid-flight
+  maxPairAgeMinutes: z.coerce.number().min(-1).default(-1), // skip pools older than this; -1 = no ceiling. The inverse of the age FLOOR: on a launch-tier strategy the run happens early, and a maturity gate makes you buy after it
   strategyPreset: z.string().nullable().default(null), // which preset these settings started from — a label, not a lock
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;
@@ -675,21 +681,21 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
     id: 'swing-copy',
     name: 'Swing Copy',
     tagline: 'follow patient whales into proven pools — the copyability sweet spot',
-    opportunity: { minBuySol: 5, minMedianHoldMinutes: 60, exitMode: 'mirror', sizingMode: 'whale-frac', tradeSignals: 'copy', consensusOwners: 0, allowWarn: false, freshEntriesOnly: false },
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 60, exitMode: 'mirror', sizingMode: 'whale-frac', tradeSignals: 'copy', consensusOwners: 0, allowWarn: false, maxPairAgeMinutes: -1 },
     thresholds: { minLiquidityUsd: 100_000, minMarketCapUsd: 200_000, minTokenAgeMinutes: 60 },
   },
   {
     id: 'launch-surf',
     name: 'Launch Surf',
     tagline: 'young thin pools, fresh mints only, trail the winners — high variance by design',
-    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'both', consensusOwners: 2, allowWarn: false, freshEntriesOnly: true },
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'both', consensusOwners: 2, allowWarn: false, maxPairAgeMinutes: 60 },
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
   {
     id: 'consensus-chorus',
     name: 'Consensus Chorus',
     tagline: 'enter only when distinct owners agree — breadth over any single wallet',
-    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'consensus', consensusOwners: 2, allowWarn: false, freshEntriesOnly: false },
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'consensus', consensusOwners: 2, allowWarn: false, maxPairAgeMinutes: -1 },
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
 ];

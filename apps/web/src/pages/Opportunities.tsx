@@ -227,8 +227,8 @@ export function Opportunities() {
               <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Fresh entries only<Info text="Trigger must be the roster's FIRST owner into the token. If our whales already hold it, the story is mid-flight — we'd buy the crowd's position, not the discovery." /></span>
-              <input type="checkbox" checked={config.freshEntriesOnly} onChange={(e) => setConfig({ ...config, freshEntriesOnly: e.target.checked })} />
+              <span className="text-dim">Skip pools older than (min, -1 = off)<Info text="A ceiling on pair age, the inverse of the age floor in the gauntlet. On a launch strategy the run happens in the first minutes, so an old pool means the move already belongs to someone else. Replaces the roster-fresh rule, which blocked 87% of signals once the position ledger went live — with 1600 wallets watching one universe, 'nobody holds this' approaches never." /></span>
+              <input type="number" min={-1} step={5} value={config.maxPairAgeMinutes} onChange={(e) => setConfig({ ...config, maxPairAgeMinutes: Number(e.target.value) })} className="w-24 text-right" />
             </label>
             <label className="flex items-center justify-between gap-4 text-sm">
               <span className="text-dim">Ladder: clips / window / total<Info text="Accumulation in progress: N buys of one mint by one wallet inside the window, cumulative SOL above the floor, with no sell in between. The measured ladderers buy every ~15s in ~1.4 SOL clips, so this fires within a minute of them starting — far earlier than any maturity gate allows. 0 clips = off." /></span>

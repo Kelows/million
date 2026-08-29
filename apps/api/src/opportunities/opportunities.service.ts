@@ -250,28 +250,6 @@ export class OpportunitiesService {
     wouldBlock: string[] = [],
     objections: string[] = [],
   ): Promise<void> {
-    // fresh-entry gate (preset knob): the trigger must be the roster's FIRST
-    // owner into this mint. If our whales already hold it, the story is
-    // mid-flight — we'd be buying the crowd's position, not the discovery.
-    // compute when enabled, or when a shadow is coming anyway — the matrix needs
-    // roster-fresh's verdict even on signals another guard claimed first
-    if (config.freshEntriesOnly || objections.length > 0) {
-      const holders = await this.prisma.wallet.findMany({
-        where: { metrics: { contains: mint }, purgedAt: null },
-        select: { address: true, metrics: true },
-      });
-      const held = holders.some((w) => {
-        if (w.address === wallet) return false; // the trigger's own (stale) position doesn't count against them
-        const m = JSON.parse(w.metrics as string) as WalletMetrics;
-        return m.tokens.some((t) => t.mint === mint && t.open);
-      });
-      if (held) objections.push('roster-fresh');
-      if (held && config.freshEntriesOnly && !blockedBy) {
-        blockedBy = 'roster-fresh';
-        this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): roster already holds this — not a fresh discovery`);
-      }
-    }
-
     // dedupe: one opportunity per token per hour, whoever (and whichever signal) triggers it
     const recent = await this.prisma.opportunity.findFirst({
       where: { mint, createdAt: { gte: new Date(Date.now() - DEDUPE_MINUTES * 60_000) } },
@@ -292,6 +270,16 @@ export class OpportunitiesService {
       const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',');
       this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
       return;
+    }
+
+    // pair-age ceiling: on a launch strategy the run happens in the first
+    // minutes, so an old pool means the move already belongs to someone else
+    if (config.maxPairAgeMinutes >= 0 && report.pairCreatedAt) {
+      const ageMinutes = (Date.now() - new Date(report.pairCreatedAt).getTime()) / 60_000;
+      if (ageMinutes > config.maxPairAgeMinutes && !blockedBy) {
+        blockedBy = 'pair-too-old';
+        this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): pool is ${Math.round(ageMinutes)}m old, ceiling ${config.maxPairAgeMinutes}m`);
+      }
     }
 
     // impact gate: a buy that IS a meaningful share of the pool means the whale's
