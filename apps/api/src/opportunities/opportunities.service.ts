@@ -92,7 +92,10 @@ export class OpportunitiesService {
     if (!sigs || sigs.length > 50) return;
     const funderRow = await this.prisma.wallet.findUnique({ where: { address: funder }, select: { subscribed: true, label: true } });
     await this.prisma.wallet.create({
-      data: { address: recipient, source: 'owner-rotation', subscribed: funderRow?.subscribed ?? false },
+      // absorbed, NOT subscribed: an unanalyzed wallet in the feed is a blank
+      // cheque — one spray bot inherited a sub overnight and burned 300k credits.
+      // Analysis first, subscription only once it proves it trades.
+      data: { address: recipient, source: 'owner-rotation', subscribed: false },
     }).catch(() => undefined);
     await this.prisma.opportunity.create({
       data: { kind: 'wallet', mint: null, wallet: recipient, funder, verdict: 'unknown', buySol: Math.round(fundedSol * 100) / 100, ts },

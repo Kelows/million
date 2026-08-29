@@ -9,6 +9,7 @@ import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 
+const MAX_EVENTS_PER_WINDOW = 150; // a real trader never emits this much in 15 minutes
 const MAX_SUBSCRIPTIONS = 25; // standard websocket comfort zone on the free tier
 const EVENT_RETENTION_MINUTES = 15; // the feed is a window, not an archive
 const EVENT_MAX_ROWS = 5_000; // hard cap regardless of age
@@ -68,6 +69,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       // health signal stayed green. Silence triggers a self-probe of the public
       // URL; a failed probe flips to the websocket so the feed never goes deaf.
       setInterval(() => void this.deadmanCheck(), 5 * 60_000);
+      setInterval(() => void this.muteFloodEmitters(), 5 * 60_000);
     } else this.connect();
   }
 
@@ -102,6 +104,27 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (this.webhookSynced) {
       this.lastSyncKey = syncKey;
       this.lastSyncAt = Date.now();
+    }
+  }
+
+  /**
+   * Flood breaker: a wallet emitting more than MAX_EVENTS_PER_WINDOW in the
+   * retention window is infrastructure, not a trader — one spray bot doing 600
+   * txs/minute burned 300k credits overnight. Mute it and let analysis decide
+   * if it ever deserves the feed back.
+   */
+  private async muteFloodEmitters(): Promise<void> {
+    const rows = await this.prisma.liveEvent.groupBy({
+      by: ['wallet'],
+      _count: { wallet: true },
+      where: { ts: { gte: new Date(Date.now() - EVENT_RETENTION_MINUTES * 60_000) } },
+    }).catch(() => []);
+    const floods = rows.filter((r) => r._count.wallet > MAX_EVENTS_PER_WINDOW).map((r) => r.wallet);
+    if (!floods.length) return;
+    const muted = await this.prisma.wallet.updateMany({ where: { address: { in: floods }, subscribed: true }, data: { subscribed: false } });
+    if (muted.count > 0) {
+      console.error(`[live] FLOOD BREAKER muted ${muted.count} wallet(s) over ${MAX_EVENTS_PER_WINDOW} events/${EVENT_RETENTION_MINUTES}min: ${floods.map((f) => f.slice(0, 6)).join(', ')}`);
+      void this.syncWebhook();
     }
   }
 
