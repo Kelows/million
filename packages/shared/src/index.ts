@@ -713,3 +713,21 @@ export interface ConvictionCohortRow {
   avgRet24hPct: number | null;
   medianRet24hPct: number | null;
 }
+
+// ── roster flows: laddering in and out, both directions ──
+
+export interface FlowRow {
+  mint: string;
+  symbol: string | null;
+  owners: number; // distinct owners (clustered wallets count once)
+  wallets: number;
+  clips: number; // repeated trades are the signature — one buy is an event, twenty is a decision
+  sol: number; // gross in this direction
+  netSol: number; // minus the opposite direction, so churn cancels out
+}
+
+export interface RosterFlows {
+  minutes: number;
+  accumulating: FlowRow[]; // laddering IN — an entry signal
+  distributing: FlowRow[]; // laddering OUT — the exit signal mirror exits cannot see
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConvictionCohortRow, CopyabilityJobStatus, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
+import type { ConvictionCohortRow, CopyabilityJobStatus, RosterFlows, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -562,4 +562,12 @@ export function useSubscribeAll() {
 
 export function useConvictionCohorts() {
   return useQuery({ queryKey: ['tokens', 'conviction'], queryFn: () => request<ConvictionCohortRow[]>('/tokens/conviction'), refetchInterval: 120_000 });
+}
+
+export function useFlows(minutes: number) {
+  return useQuery({
+    queryKey: ['live', 'flows', minutes],
+    queryFn: () => request<RosterFlows>(`/live/flows?minutes=${minutes}`),
+    refetchInterval: 20_000,
+  });
 }

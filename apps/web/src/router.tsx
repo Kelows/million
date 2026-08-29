@@ -11,6 +11,7 @@ import { Discover } from './pages/Discover';
 import { Gems } from './pages/Gems';
 import { Crawler } from './pages/Crawler';
 import { Copyability } from './pages/Copyability';
+import { Flows } from './pages/Flows';
 import { Live } from './pages/Live';
 import { Opportunities } from './pages/Opportunities';
 import { Tokens } from './pages/Tokens';
@@ -68,9 +69,10 @@ export const fundingRoute = createRoute({
     typeof search.address === 'string' ? { address: search.address } : {},
 });
 export const copyabilityRoute = createRoute({ getParentRoute: () => rootRoute, path: '/copyability', component: Copyability });
+export const flowsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/flows', component: Flows });
 export const executorRoute = createRoute({ getParentRoute: () => rootRoute, path: '/executor', component: Executor });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute, copyabilityRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute, copyabilityRoute, flowsRoute]);
 
 export const router = createRouter({ routeTree });
 

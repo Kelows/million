@@ -8,6 +8,7 @@ import type { LiveEventRow } from '@million/shared';
 import { ZodPipe } from '../zod.pipe';
 import { PrismaService } from '../prisma.service';
 import { LiveFeedService } from './live-feed.service';
+import { FlowsService } from './flows.service';
 
 const ListSchema = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) });
 
@@ -18,6 +19,7 @@ export class LiveController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly bus: EventsBus,
+    private readonly flows_: FlowsService,
   ) {}
 
   @Get('status')
@@ -48,6 +50,11 @@ export class LiveController {
   }
 
   /** Who is flooding the feed — event counts per wallet in the retention window. */
+  @Get('flows')
+  flows(@Query('minutes') minutes?: string) {
+    return this.flows_.flows(Math.min(120, Math.max(1, Number(minutes) || 15)));
+  }
+
   @Get('emitters')
   async emitters() {
     const rows = await this.prisma.liveEvent.groupBy({ by: ['wallet'], _count: { wallet: true }, orderBy: { _count: { wallet: 'desc' } }, take: 15 });

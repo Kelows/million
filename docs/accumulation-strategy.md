@@ -56,13 +56,29 @@ Cost: one batched price call per hour (30 mints per request) — effectively
 free. If high conviction does not outperform, the module dies here and we have
 saved ourselves the build.
 
-## Phase 2 — build the idea (only if phase 1 confirms)
+## Phase 2 — revised, and built 2026-08-29
 
-- Ladder entry: split target size into N clips over M minutes, sized to stay
-  under ~1% of pool depth per clip (we already compute liquidity in the gauntlet).
-- Exit: laddered out, or the price-driven trailing stop the copy module now uses.
-- Its own book label so expectancy is measured separately from copy/consensus.
-- Runs on a schedule, not on webhooks — a different shape of module entirely.
+Phase 1 was skipped: conviction validation needs days of snapshots and the
+answer was not arriving fast enough to be worth blocking on.
+
+**The original phase 2 was wrong.** It planned to ladder OUR entries — split a
+target size into clips to hide market impact. But laddering solves impact, and
+at 0.5 SOL a position we have none. `922M9` splits 345 SOL because a single
+order that size moves the pool; splitting ours buys nothing and adds latency.
+
+What was actually worth building is the **detection**, in both directions:
+
+- **Accumulating** — owners laddering in. Already traded via the ladder signal;
+  the Flows leaf makes it visible.
+- **Distributing** — owners laddering OUT. This is the gap: mirror exits only
+  watch the single wallet that triggered our entry, so the whole roster could be
+  leaving a token we hold and nothing would notice.
+
+Both read live events we already pay for. Netted against the opposite direction
+so churn cancels; clustered wallets count once; infra excluded.
+
+Still open: wiring distribution into exits (close or tighten the trail when the
+roster starts leaving a token we hold). That is the part with money attached.
 
 ## The open question worth settling either way
 
