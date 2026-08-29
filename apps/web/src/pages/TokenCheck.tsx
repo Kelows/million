@@ -3,7 +3,6 @@ import { getRouteApi, Link } from '@tanstack/react-router';
 import type { CheckStatus } from '@million/shared';
 import { useTokenReport } from '../api';
 import { Addr } from '../components/Addr';
-import { loadFailsafes } from '../lib/failsafes';
 import { fmtAgo } from '../lib/format';
 
 const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -30,8 +29,7 @@ export function TokenCheck() {
   const [input, setInput] = useState(initial ?? '');
   const [mint, setMint] = useState<string | null>(initial);
   const [inputError, setInputError] = useState<string | null>(null);
-  const failsafes = loadFailsafes();
-  const { data: report, isFetching, error } = useTokenReport(mint, failsafes);
+  const { data: report, isFetching, error } = useTokenReport(mint);
 
   const submit = () => {
     const candidate = input.trim();
@@ -48,7 +46,7 @@ export function TokenCheck() {
       <div>
         <h1 className="text-xl font-bold text-bright tracking-wide">Token check</h1>
         <p className="text-sm text-dim mt-1">
-          Paste a mint, get a verdict. Thresholds come from the <Link to="/screener" className="text-neon hover:underline">screener failsafes</Link>.
+          Paste a mint, get a verdict. Thresholds come from the <Link to="/rules" className="text-neon hover:underline">trading rules</Link>.
         </p>
       </div>
 

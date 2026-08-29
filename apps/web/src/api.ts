@@ -94,11 +94,11 @@ export function useRemoveWallet() {
 
 import type { TokenCheckThresholds, TokenReport } from '@million/shared';
 
-export function useTokenReport(mint: string | null, thresholds: TokenCheckThresholds) {
-  const params = new URLSearchParams(Object.entries(thresholds).map(([k, v]) => [k, String(v)]));
+/** Thresholds resolve server-side from the crawler config — one source of truth. */
+export function useTokenReport(mint: string | null) {
   return useQuery({
-    queryKey: ['token-report', mint, thresholds],
-    queryFn: () => request<TokenReport>(`/screener/token/${mint}?${params}`),
+    queryKey: ['token-report', mint],
+    queryFn: () => request<TokenReport>(`/screener/token/${mint}`),
     enabled: mint !== null,
     staleTime: 30_000,
     retry: 0,
@@ -161,7 +161,6 @@ export function useDiscovery(params: DiscoveryParams | null) {
 }
 
 import type { GemsRunData } from '@million/shared';
-import { loadFailsafes } from './lib/failsafes';
 
 export function useGems() {
   return useQuery({ queryKey: ['gems'], queryFn: () => request<GemsRunData | null>('/gems') });
@@ -170,12 +169,9 @@ export function useGems() {
 export function useRunGems() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => {
-      const params = new URLSearchParams(
-        Object.entries({ ...loadFailsafes(), minOpenSol: loadMinOpenSol() }).map(([k, v]) => [k, String(v)]),
-      );
-      return request<GemsRunData>(`/gems/run?${params}`, { method: 'POST' });
-    },
+    // thresholds resolve server-side from the crawler config — the one source
+    // of truth the Rules and Crawler pages both edit
+    mutationFn: () => request<GemsRunData>(`/gems/run?minOpenSol=${loadMinOpenSol()}`, { method: 'POST' }),
     onSuccess: (data) => qc.setQueryData(['gems'], data),
   });
 }
