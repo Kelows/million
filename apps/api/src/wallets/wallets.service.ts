@@ -78,6 +78,23 @@ export class WalletsService {
     };
   }
 
+  /** Analysis is the periodic truth: replace this wallet's ledger rows wholesale. */
+  private async seedPositions(address: string, metrics: WalletMetrics): Promise<void> {
+    const open = metrics.tokens.filter((t) => t.open && (t.qty ?? 0) > 0);
+    await this.prisma.rosterPosition.deleteMany({ where: { wallet: address } });
+    if (!open.length) return;
+    await this.prisma.rosterPosition.createMany({
+      data: open.map((t) => ({
+        wallet: address,
+        mint: t.mint,
+        symbol: t.symbol,
+        qty: t.qty ?? 0,
+        costSol: t.entrySol ?? t.solIn,
+        source: 'analysis',
+      })),
+    });
+  }
+
   async get(address: string): Promise<WalletRecord> {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
@@ -172,6 +189,7 @@ export class WalletsService {
           ...(balanceSol !== null ? { balanceSol, balanceAt: new Date() } : {}),
         },
       });
+      await this.seedPositions(address, metrics).catch(() => undefined);
       return this.toRecord(updated);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'analysis failed';

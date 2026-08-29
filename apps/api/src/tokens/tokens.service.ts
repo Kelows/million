@@ -152,41 +152,52 @@ export class TokensService {
    * One owner with five wallets counts once — address-counting flatters clusters.
    */
   async famous(): Promise<FamousTokens> {
-    const rows = await this.prisma.wallet.findMany({
-      where: { metrics: { not: null }, purgedAt: null },
-      select: { address: true, ownerId: true, metrics: true },
-    });
+    // "held" comes from the LIVE position ledger (analysis-seeded, event-updated);
+    // "earned" still comes from metrics, since realized PnL is only known at analysis.
+    const [positions, wallets] = await Promise.all([
+      this.prisma.rosterPosition.findMany({ where: { costSol: { gt: 0 } } }), // cost, not qty — pre-qty analyses still count
+      this.prisma.wallet.findMany({
+        where: { metrics: { not: null }, purgedAt: null },
+        select: { address: true, ownerId: true, metrics: true, subscribed: true },
+      }),
+    ]);
+    const owners = new Map(wallets.map((w) => [w.address, w.ownerId != null ? `o${w.ownerId}` : w.address]));
+    const infra = new Set(
+      wallets.filter((w) => ((JSON.parse(w.metrics as string) as WalletMetrics).flags ?? []).includes('BOT_INFRA')).map((w) => w.address),
+    );
+
     const held = new Map<string, FamousTokenRow & { keys: Set<string> }>();
-    const earned = new Map<string, FamousTokenRow & { keys: Set<string> }>();
-    const bump = (map: typeof held, mint: string, symbol: string | null, ownerKey: string, sol: number) => {
-      const row = map.get(mint) ?? { mint, symbol, owners: 0, sol: 0, keys: new Set<string>() };
-      row.symbol = row.symbol ?? symbol;
-      row.keys.add(ownerKey);
+    for (const p of positions) {
+      if (isExcludedToken(p.mint) || infra.has(p.wallet) || p.costSol < 0.5) continue;
+      const key = owners.get(p.wallet) ?? p.wallet;
+      const row = held.get(p.mint) ?? { mint: p.mint, symbol: p.symbol, owners: 0, sol: 0, keys: new Set<string>() };
+      row.symbol = row.symbol ?? p.symbol;
+      row.keys.add(key);
       row.owners = row.keys.size;
-      row.sol += sol;
-      map.set(mint, row);
-    };
-    for (const w of rows) {
+      row.sol += p.costSol;
+      held.set(p.mint, row);
+    }
+
+    const earned = new Map<string, FamousTokenRow & { keys: Set<string> }>();
+    for (const w of wallets) {
       const m = JSON.parse(w.metrics as string) as WalletMetrics;
-      if ((m.flags ?? []).includes('BOT_INFRA')) continue; // infra "holdings" are inventory, not conviction
-      const ownerKey = w.ownerId != null ? `o${w.ownerId}` : w.address;
-      const sp = m.solPriceUsd ?? 200;
+      if ((m.flags ?? []).includes('BOT_INFRA')) continue;
+      const key = owners.get(w.address) ?? w.address;
       for (const t of m.tokens) {
         if (isExcludedToken(t.mint)) continue;
-        // what's STILL in, at cost — entrySol is the remaining basis from the
-        // average-cost ledger; older metrics without it get in-minus-out as the
-        // proxy. Total solIn would count money they already took back out.
-        const stillIn =
-          t.entrySol ?? Math.max(0, t.solIn + (t.usdIn ?? 0) / sp - (t.solOut + (t.usdOut ?? 0) / sp));
-        if (t.open && stillIn >= 0.5) bump(held, t.mint, t.symbol, ownerKey, stillIn);
         const pnl = t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200);
-        if (t.sells > 0 && pnl !== 0) bump(earned, t.mint, t.symbol, ownerKey, pnl);
+        if (t.sells === 0 || pnl === 0) continue;
+        const row = earned.get(t.mint) ?? { mint: t.mint, symbol: t.symbol, owners: 0, sol: 0, keys: new Set<string>() };
+        row.symbol = row.symbol ?? t.symbol;
+        row.keys.add(key);
+        row.owners = row.keys.size;
+        row.sol += pnl;
+        earned.set(t.mint, row);
       }
     }
+
     const strip = (r: FamousTokenRow & { keys: Set<string> }): FamousTokenRow => ({ mint: r.mint, symbol: r.symbol, owners: r.owners, sol: Math.round(r.sol * 100) / 100 });
-    // conviction score: breadth × size, discounted by profit already taken — a mint
-    // the roster is sitting on scores high; a mint it already milked scores low even
-    // if stragglers still hold. entryShare = fresh entry / (entry + banked profit).
+    // conviction: breadth × size, discounted by profit already taken here
     const scored = [...held.values()].map((r) => {
       const realized = Math.max(0, earned.get(r.mint)?.sol ?? 0);
       const entryShare = r.sol / (r.sol + realized || 1);
@@ -201,6 +212,7 @@ export class TokensService {
       earned: [...earned.values()].sort((a, b) => b.sol - a.sol).slice(0, 15).map(strip),
     };
   }
+
 
   /** Which roster wallets hold or traded this token, from their cached analyses. */
   private async intel(mint: string): Promise<TokenRosterIntel> {

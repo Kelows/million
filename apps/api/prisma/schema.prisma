@@ -149,3 +149,20 @@ model ShadowPosition {
   pnlSol        Float?
   allReasons    String? // EVERY guard that objected, not just the first — the co-occurrence matrix
 }
+
+/// Live position ledger: seeded from each analysis, incremented by every live
+/// buy/sell. Replaces re-parsing 800+ stale metrics blobs to answer "who holds
+/// what right now" — analysis is the periodic truth, events keep it current.
+model RosterPosition {
+  id        Int      @id @default(autoincrement())
+  wallet    String
+  mint      String
+  symbol    String?
+  qty       Float
+  costSol   Float
+  source    String   @default("analysis") // analysis | live — how the last update arrived
+  updatedAt DateTime @updatedAt
+
+  @@unique([wallet, mint])
+  @@index([mint])
+}

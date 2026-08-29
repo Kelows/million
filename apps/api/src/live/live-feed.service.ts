@@ -128,6 +128,39 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Keep the position ledger current from events we already pay for. Analysis
+   * reconciles periodically; this is what stops "held across the roster" from
+   * being a day-old photograph between analyses.
+   */
+  private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number): Promise<void> {
+    if (tokenDelta === 0) return;
+    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+    const existing = await this.prisma.rosterPosition.findUnique({ where: { wallet_mint: { wallet, mint } } });
+    if (tokenDelta > 0) {
+      const spent = Math.max(0, -sol) + Math.max(0, -usd) / solUsd;
+      await this.prisma.rosterPosition.upsert({
+        where: { wallet_mint: { wallet, mint } },
+        create: { wallet, mint, qty: tokenDelta, costSol: spent, source: 'live' },
+        update: { qty: (existing?.qty ?? 0) + tokenDelta, costSol: (existing?.costSol ?? 0) + spent, source: 'live' },
+      });
+      return;
+    }
+    if (!existing) return; // selling something we never recorded — analysis will reconcile
+    const sold = Math.min(-tokenDelta, existing.qty);
+    const remaining = existing.qty - sold;
+    if (remaining <= existing.qty * 0.02) {
+      await this.prisma.rosterPosition.delete({ where: { id: existing.id } }).catch(() => undefined);
+      return; // position closed
+    }
+    // average-cost: selling a fraction of the bag retires that fraction of the basis
+    const fraction = existing.qty > 0 ? sold / existing.qty : 0;
+    await this.prisma.rosterPosition.update({
+      where: { id: existing.id },
+      data: { qty: remaining, costSol: existing.costSol * (1 - fraction), source: 'live' },
+    });
+  }
+
   private async deadmanCheck(): Promise<void> {
     if (!this.webhookMode) return;
     const quietMs = this.lastEventAt ? Date.now() - this.lastEventAt.getTime() : Infinity;
@@ -350,6 +383,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       })
       .catch(() => null); // duplicate race is fine
     if (event) this.bus.emit('live_event');
+    if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd).catch(() => undefined);
     if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
     if (event && kind === 'buy' && mint) {
       // live rate: a stale constant here biases the fill-fidelity gap directly
