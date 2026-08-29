@@ -707,6 +707,32 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
   {
+    id: 'gauntlet-only',
+    name: 'Gauntlet Only',
+    tagline: 'no signal filters at all — if the token survives the gauntlet, we copy the buy',
+    // Deliberately empty of entry gates: every conviction/breadth/age/cadence
+    // filter is off, so the gauntlet is the ONLY thing standing between a whale
+    // buy and a position. The control arm for every other preset — if a filter
+    // is worth its exclusions, it has to beat this.
+    // Exits stay armed: they are risk management, not signal selection.
+    opportunity: {
+      minBuySol: 0,
+      minMedianHoldMinutes: 0,
+      consensusOwners: 0,
+      ladderBuys: 0,
+      cyclerGuardMinutes: 0,
+      minEdgeRetentionPct: 0,
+      maxPairAgeMinutes: -1,
+      ignoreSniperTriggers: false,
+      allowWarn: false, // the one gate that stays: the gauntlet must actually pass
+      tradeSignals: 'copy',
+      exitMode: 'mirror-trail',
+      sizingMode: 'whale-frac',
+      maxHoldHours: 168,
+    },
+    thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
+  },
+  {
     id: 'consensus-chorus',
     name: 'Consensus Chorus',
     tagline: 'enter only when distinct owners agree — breadth over any single wallet',

@@ -602,6 +602,30 @@ export function useSwingResults() {
   });
 }
 
+export function useEntryCohorts() {
+  return useQuery({
+    queryKey: ['backtest', 'cohorts'],
+    queryFn: () => request<import('@million/shared').BacktestStrategyRow[]>('/backtest/cohorts'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useExitMatrix() {
+  return useQuery({
+    queryKey: ['backtest', 'matrix'],
+    queryFn: () => request<import('@million/shared').BacktestStrategyRow[]>('/backtest/matrix'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useBackfillReports() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<{ checked: number; skipped: number; failed: number }>('/backtest/backfill', { method: 'POST', body: JSON.stringify({ limit: 200 }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['backtest', 'cohorts'] }),
+  });
+}
+
 export function useRunSwing() {
   const qc = useQueryClient();
   return useMutation({

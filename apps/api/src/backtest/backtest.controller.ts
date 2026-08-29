@@ -33,6 +33,11 @@ export class BacktestController {
     return this.backtest.entryCohorts();
   }
 
+  @Get('matrix')
+  matrix() {
+    return this.backtest.exitMatrix();
+  }
+
   @Get('holds')
   holds() {
     return this.backtest.holdDistribution();

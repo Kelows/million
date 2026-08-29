@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBacktest, useHoldBands, useRunBacktest, useRunSwing, useSwingResults, useTuneBacktest } from '../api';
+import { useBacktest, useBackfillReports, useEntryCohorts, useExitMatrix, useHoldBands, useRunBacktest, useRunSwing, useSwingResults, useTuneBacktest } from '../api';
 import { Info } from '../components/Info';
 
 export function Backtest() {
@@ -92,6 +92,7 @@ export function Backtest() {
           </p>
         </div>
       )}
+      <MatrixPanel />
       <SwingPanel />
       <HoldPanel />
       {tune.data && <TunePanel result={tune.data} />}
@@ -203,6 +204,77 @@ function HoldPanel() {
         Our replay horizon is 8.3 hours — the most GeckoTerminal returns per call. Bands beyond that are invisible to
         the backtest, so any exit rule it recommends is only judged on trades that resolve inside the window.
       </p>
+    </div>
+  );
+}
+
+
+/** Rows named "entry × exit" — the only table here that varies both. */
+function MatrixPanel() {
+  const { data: rows = [] } = useExitMatrix();
+  const { data: cohorts = [] } = useEntryCohorts();
+  const backfill = useBackfillReports();
+  if (!rows.length && !cohorts.length) return null;
+  const table = (title: string, note: string, list: import('@million/shared').BacktestStrategyRow[]) => (
+    <div className="border border-line bg-deck">
+      <div className="px-4 py-3 border-b border-line">
+        <h2 className="text-sm font-bold text-bright tracking-wide">{title}</h2>
+        <p className="text-xs text-dim mt-1 max-w-3xl">{note}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm font-mono">
+          <thead>
+            <tr className="text-left text-dim text-xs">
+              <th className="px-4 py-2 font-normal">entry × exit</th>
+              <th className="px-4 py-2 font-normal text-right">n</th>
+              <th className="px-4 py-2 font-normal text-right">avg</th>
+              <th className="px-4 py-2 font-normal text-right">median</th>
+              <th className="px-4 py-2 font-normal text-right">win rate</th>
+              <th className="px-4 py-2 font-normal text-right">worst</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((s) => (
+              <tr key={s.strategy} className="border-t border-line">
+                <td className="px-4 py-2 text-bright">
+                  {s.strategy}
+                  {/LOOK-AHEAD/.test(s.strategy) && (
+                    <Info text="Contaminated: the gauntlet reads liquidity, market cap, holders and the sell simulation as they are TODAY. A token that rugged after entry now fails its own sell-sim, so this filter deletes the losers from the sample. Shown to size the bias, never to justify a gate." />
+                  )}
+                </td>
+                <td className="px-4 py-2 text-right text-dim">{s.trades}</td>
+                <td className={`px-4 py-2 text-right font-bold ${s.avgRetPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {s.avgRetPct > 0 ? '+' : ''}{s.avgRetPct}%
+                </td>
+                <td className={`px-4 py-2 text-right ${s.medianRetPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {s.medianRetPct > 0 ? '+' : ''}{s.medianRetPct}%
+                </td>
+                <td className="px-4 py-2 text-right text-dim">{s.winRate}%</td>
+                <td className="px-4 py-2 text-right text-loss">{s.worstPct}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-6">
+      {table(
+        'Entry filter × exit rule',
+        'Every other table varies one and fixes the other, so none of them can show that the best exit depends on the entry. The mirror rows replay the whale\u2019s own hold time against the candles \u2014 the first time this backtest can score the exit mode we actually run.',
+        rows,
+      )}
+      <div className="flex flex-col gap-2">
+        {table(
+          'Entry cohorts, one fixed exit',
+          'Rows differ only by which entries they admit. Pair age is exact \u2014 launch time is fixed, so age-at-entry is arithmetic. Authority rows are time-honest: revocation is one-way, so \u201Cactive today\u201D proves \u201Cactive at entry\u201D.',
+          cohorts,
+        )}
+        <button className="btn self-start py-1! px-2! text-[0.65rem]!" disabled={backfill.isPending} onClick={() => backfill.mutate()}>
+          {backfill.isPending ? 'Checking…' : 'Backfill gauntlet reports'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -496,6 +496,119 @@ export class BacktestService {
     });
   }
 
+  /**
+   * Entry filter × exit rule. Every other table here varies one and fixes the
+   * other, which cannot show that the best exit DEPENDS on the entry.
+   *
+   * The mirror exits are the important part: holdMinutes on a whale's token row
+   * is first-buy -> last-sell, so replaying it against the candle path finally
+   * models the exit mode we actually run. Until now the backtest could only
+   * score rules-style exits, and we run mirror-trail -- it was grading a
+   * strategy we do not trade.
+   */
+  async exitMatrix(): Promise<BacktestStrategyRow[]> {
+    const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'minute' } });
+    if (!rows.length) return [];
+    const tokens = await this.prisma.token.findMany({
+      where: { mint: { in: [...new Set(rows.map((r) => r.mint))] } },
+      select: { mint: true, lastReport: true },
+    });
+    const clean = new Map<string, boolean>();
+    for (const t of tokens) {
+      const rep = t.lastReport ? (JSON.parse(t.lastReport) as TokenReport) : null;
+      if (!rep) continue;
+      const ok = (['mint-authority', 'freeze-authority', 'token-program'] as const).every((id) => {
+        const st = rep.checks.find((c) => c.id === id)?.status;
+        return st === 'pass' || st === 'warn';
+      });
+      clean.set(t.mint, ok);
+    }
+    // whale hold time, keyed by the same (mint, entry second) the path was cut on
+    const wallets = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null }, select: { metrics: true } });
+    const holds = new Map<string, number>();
+    for (const w of wallets) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      for (const t of m.tokens) {
+        if (!t.firstBuyAt || t.holdMinutes === null || t.holdMinutes === undefined) continue;
+        holds.set(`${t.mint}:${Math.floor(new Date(t.firstBuyAt).getTime() / 1000)}`, t.holdMinutes);
+      }
+    }
+    const paths = rows
+      .filter((r) => r.entryPrice > 0)
+      .map((r) => ({
+        entry: r.entryPrice,
+        closes: JSON.parse(r.closes) as number[],
+        clean: clean.get(r.mint) ?? null,
+        hold: holds.get(`${r.mint}:${r.entryTs}`) ?? null,
+      }))
+      .filter((p) => p.closes.length >= 5);
+
+    type P = (typeof paths)[number];
+    // null = this path cannot score this rule honestly (no whale exit recorded,
+    // or the path ends before they sold) -- dropped rather than clamped
+    const mirror = (p: P): number | null => {
+      if (p.hold === null) return null;
+      const i = Math.round(p.hold);
+      if (i >= p.closes.length) return null;
+      return (p.closes[i] / p.entry - 1) * 100;
+    };
+    const ruleExit = (trail: number, arm: number, stop: number, until?: number): ((p: P) => number | null) => (p) => {
+      let peak = p.entry;
+      const end = until ?? p.closes.length;
+      for (let i = 0; i < Math.min(end, p.closes.length); i++) {
+        const c = p.closes[i];
+        peak = Math.max(peak, c);
+        if (stop < 100 && c <= p.entry * (1 - stop / 100)) return -stop;
+        if (peak >= p.entry * (1 + arm / 100) && c <= peak * (1 - trail / 100)) return (c / p.entry - 1) * 100;
+      }
+      const last = p.closes[Math.min(end, p.closes.length) - 1];
+      return (last / p.entry - 1) * 100;
+    };
+    // ours: mirror-trail -- the whale's exit closes it, but a trail can fire first
+    const mirrorTrail = (trail: number, arm: number, stop: number): ((p: P) => number | null) => (p) => {
+      if (p.hold === null) return null;
+      const i = Math.round(p.hold);
+      if (i >= p.closes.length) return null;
+      return ruleExit(trail, arm, stop, i + 1)(p);
+    };
+
+    const entries: [string, (p: P) => boolean][] = [
+      ['all entries', () => true],
+      ['gauntlet-only', (p) => p.clean === true],
+    ];
+    const exits: [string, (p: P) => number | null][] = [
+      ['mirror (their exit)', mirror],
+      ['mirror-trail 10/20 (ours)', mirrorTrail(10, 20, 30)],
+      ['mirror-trail 20/20', mirrorTrail(20, 20, 30)],
+      ['trail 10 · arm 20 · stop 30', ruleExit(10, 20, 30)],
+      ['trail 20 · arm 20 · stop 30', ruleExit(20, 20, 30)],
+      ['trail 20 · arm 0 · stop 30', ruleExit(20, 0, 30)],
+      ['no exit (ride the path)', ruleExit(100, 999, 100)],
+    ];
+    const out: BacktestStrategyRow[] = [];
+    for (const [eName, keep] of entries) {
+      const subset = paths.filter(keep);
+      for (const [xName, f] of exits) {
+        const xs = subset.map(f).filter((x): x is number => x !== null);
+        if (!xs.length) {
+          out.push({ strategy: `${eName} × ${xName}`, trades: 0, avgRetPct: 0, medianRetPct: 0, winRate: 0, bestPct: 0, worstPct: 0 });
+          continue;
+        }
+        const sorted = [...xs].sort((a, b) => a - b);
+        out.push({
+          strategy: `${eName} × ${xName}`,
+          trades: xs.length,
+          avgRetPct: Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10,
+          medianRetPct: Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10,
+          winRate: Math.round((xs.filter((x) => x > 0).length / xs.length) * 100),
+          bestPct: Math.round(sorted[sorted.length - 1]),
+          worstPct: Math.round(sorted[0]),
+        });
+      }
+    }
+    return out;
+  }
+
   async holdDistribution(): Promise<HoldBand[]> {
     const wallets = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
