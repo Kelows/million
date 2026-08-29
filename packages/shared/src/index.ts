@@ -43,6 +43,7 @@ export interface TokenBreakdown {
   realizedPnlSol: number;
   realizedPnlUsd?: number;
   entrySol?: number; // total entry cost expressed in SOL (usd leg converted at analysis-time price)
+  qty?: number; // tokens still held — without this, an open position's P&L is unmeasurable
   holdMinutes: number | null; // first buy -> last sell
   firstBuyAt?: string | null; // ISO — when the position was opened
   lastActivityAt?: string | null; // ISO — most recent buy or sell; fresh vs dead
@@ -93,6 +94,7 @@ export interface WalletRecord {
   ownerId: number | null;
   /** other roster addresses assigned to the same owner (detail endpoint only) */
   ownerSiblings?: { address: string; label: string | null }[];
+  unrealized?: WalletUnrealized | null; // open book marked to market (detail view only)
   /** aggregate across all owner members (detail endpoint only, when clustered) */
   ownerAggregate?: OwnerAggregate;
 }
@@ -517,6 +519,15 @@ export interface PaperPositionRow {
   pnlSol: number | null;
   pnlPct: number | null;
   mode: string;
+}
+
+export interface WalletUnrealized {
+  positions: number; // open positions with a held quantity
+  priced: number; // how many we could get a live price for — the rest are counted as worthless
+  costSol: number;
+  valueSol: number;
+  pnlSol: number;
+  pnlPct: number | null;
 }
 
 export interface CohortRow {

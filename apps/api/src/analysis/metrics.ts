@@ -132,6 +132,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       realizedPnlUsd: round(p.realUsd),
       // remaining cost basis in SOL terms — the live exposure, not the total ever bought
       entrySol: round(p.costSol + p.costUsd / solPriceUsd),
+      qty: p.qty,
       holdMinutes:
         p.firstBuyTs !== null && p.lastSellTs !== null && p.lastSellTs >= p.firstBuyTs
           ? Math.round((p.lastSellTs - p.firstBuyTs) / 60)

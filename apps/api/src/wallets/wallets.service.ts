@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
-import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics, type WalletRecord, type WalletStatus } from '@million/shared';
+import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics,
+  type WalletUnrealized, type WalletRecord, type WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -47,10 +48,41 @@ export class WalletsService {
     return wallets.map((w) => this.toRecord(w));
   }
 
+  /**
+   * Mark the open book to market. Without this a pure accumulator — 924 buys,
+   * zero sells, 1547 SOL deployed — scores zero and reads as a dead wallet,
+   * because every metric we compute needs a completed round trip.
+   */
+  private async unrealized(record: WalletRecord): Promise<WalletUnrealized | null> {
+    const open = (record.metrics?.tokens ?? []).filter((t) => t.open && (t.qty ?? 0) > 0);
+    if (!open.length) return null;
+    const prices = await this.dexscreener.fetchPrices(open.map((t) => t.mint));
+    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+    let valueSol = 0, costSol = 0, priced = 0;
+    for (const t of open) {
+      const price = prices.get(t.mint);
+      const cost = t.entrySol ?? 0;
+      costSol += cost;
+      if (price === undefined) continue; // delisted/unquotable — counted as cost, worth nothing
+      priced++;
+      valueSol += ((t.qty ?? 0) * price) / solUsd;
+    }
+    const r = (n: number) => Math.round(n * 100) / 100;
+    return {
+      positions: open.length,
+      priced,
+      costSol: r(costSol),
+      valueSol: r(valueSol),
+      pnlSol: r(valueSol - costSol),
+      pnlPct: costSol > 0 ? r(((valueSol - costSol) / costSol) * 100) : null,
+    };
+  }
+
   async get(address: string): Promise<WalletRecord> {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
     const record = this.toRecord(wallet);
+    record.unrealized = await this.unrealized(record).catch(() => null);
     record.ownerSiblings = await this.owners.siblings(address);
     if (wallet.ownerId && record.ownerSiblings.length > 0) {
       record.ownerAggregate = await this.ownerAggregate(wallet.ownerId);
