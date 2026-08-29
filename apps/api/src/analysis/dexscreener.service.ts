@@ -50,6 +50,25 @@ export class DexScreenerService {
     return out;
   }
 
+  /** Symbols for many mints at once — live events carry mints, humans need names. */
+  async fetchSymbols(mints: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (let i = 0; i < mints.length; i += 30) {
+      const batch = mints.slice(i, i + 30).join(',');
+      const res = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${batch}`, {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      }).catch(() => null);
+      if (!res?.ok) continue;
+      const pairs = (await res.json().catch(() => [])) as { baseToken?: { address?: string; symbol?: string } }[];
+      for (const p of pairs ?? []) {
+        const mint = p.baseToken?.address;
+        if (mint && p.baseToken?.symbol && !out.has(mint)) out.set(mint, p.baseToken.symbol);
+      }
+    }
+    return out;
+  }
+
   async fetchBestPair(mint: string): Promise<DexPair | null> {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
     if (!res?.ok) return null;

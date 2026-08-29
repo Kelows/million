@@ -15,6 +15,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { TokenCheckService } from '../screener/token-check.service';
 import { EventsBus } from '../common/events.bus';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 
 @Injectable()
 export class TokensService {
@@ -22,6 +23,7 @@ export class TokensService {
     private readonly prisma: PrismaService,
     private readonly tokenCheck: TokenCheckService,
     private readonly bus: EventsBus,
+    private readonly dexscreener: DexScreenerService,
   ) {}
 
   async import(mints: string[], source: string | null): Promise<{ imported: number; skipped: number }> {
@@ -166,12 +168,35 @@ export class TokensService {
       wallets.filter((w) => ((JSON.parse(w.metrics as string) as WalletMetrics).flags ?? []).includes('BOT_INFRA')).map((w) => w.address),
     );
 
+    // live events carry a mint, not a name — resolve symbols from the token
+    // cache at read time so they fill in as we learn them
+    const named = await this.prisma.token.findMany({
+      where: { mint: { in: [...new Set(positions.map((p) => p.mint))] } },
+      select: { mint: true, symbol: true },
+    });
+    const symbols = new Map(named.filter((t) => t.symbol).map((t) => [t.mint, t.symbol]));
+    // mints we have never named: resolve once from DexScreener (free, batched)
+    // and persist, so the 3s poll never re-fetches the same unknown
+    const unknown = [...new Set(positions.map((p) => p.mint))].filter((m) => !named.some((t) => t.mint === m));
+    if (unknown.length) {
+      const found = await this.dexscreener.fetchSymbols(unknown).catch(() => new Map<string, string>());
+      for (const mint of unknown) {
+        const symbol = found.get(mint) ?? null;
+        if (symbol) symbols.set(mint, symbol);
+        // upsert either way — a row with no symbol still stops the retry loop
+        await this.prisma.token
+          .upsert({ where: { mint }, create: { mint, symbol, source: 'live-ledger' }, update: symbol ? { symbol } : {} })
+          .catch(() => undefined);
+      }
+    }
+
     const held = new Map<string, FamousTokenRow & { keys: Set<string> }>();
     for (const p of positions) {
       if (isExcludedToken(p.mint) || infra.has(p.wallet) || p.costSol < 0.5) continue;
       const key = owners.get(p.wallet) ?? p.wallet;
-      const row = held.get(p.mint) ?? { mint: p.mint, symbol: p.symbol, owners: 0, sol: 0, keys: new Set<string>() };
-      row.symbol = row.symbol ?? p.symbol;
+      const symbol = p.symbol ?? symbols.get(p.mint) ?? null;
+      const row = held.get(p.mint) ?? { mint: p.mint, symbol, owners: 0, sol: 0, keys: new Set<string>() };
+      row.symbol = row.symbol ?? symbol;
       row.keys.add(key);
       row.owners = row.keys.size;
       row.sol += p.costSol;
