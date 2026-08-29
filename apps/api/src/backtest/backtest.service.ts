@@ -87,19 +87,52 @@ export class BacktestService {
       }
       return (path[path.length - 1].close / entry - 1) * 100;
     };
+    // Scale out: sell fractions as targets are hit, the rest rides. This is the
+    // laddered exit the roster actually uses — closest we can get to their game.
+    const scale = (levels: [number, number][], trailRest?: number) => (path: Candle[], entry: number) => {
+      let remaining = 1;
+      let realized = 0;
+      let peak = entry;
+      const hit = levels.map(() => false);
+      for (const c of path) {
+        peak = Math.max(peak, c.close);
+        levels.forEach(([gain, frac], i) => {
+          if (!hit[i] && c.close >= entry * (1 + gain / 100)) {
+            hit[i] = true;
+            realized += frac * gain;
+            remaining -= frac;
+          }
+        });
+        if (trailRest && remaining > 0 && peak >= entry * 1.1 && c.close <= peak * (1 - trailRest / 100)) {
+          return realized + remaining * ((c.close / entry - 1) * 100);
+        }
+      }
+      return realized + remaining * ((path[path.length - 1].close / entry - 1) * 100);
+    };
     return [
       { name: 'exit @1m (reflex)', run: hold(1) },
-      { name: 'exit @3m', run: hold(3) },
       { name: 'exit @15m', run: hold(15) },
       { name: 'exit @60m', run: hold(60) },
-      { name: 'exit @120m', run: hold(120) },
       { name: 'exit @240m', run: hold(240) },
       { name: 'hold 500m (8h)', run: hold(500) },
-      { name: 'trail 15%', run: trail(15) },
-      { name: 'trail 25%', run: trail(25) },
-      { name: 'trail 40%', run: trail(40) },
-      { name: 'trail 25% after 3m', run: trail(25, 10, 3) },
+      // arm thresholds: how far up before the trail engages at all. Measured
+      // best at +10% — a high bar leaves everything below it unprotected, and
+      // the median peak is only ~+14%, so most winners never get insured.
+      { name: 'trail 20% · arm +10%', run: trail(20, 10) },
+      { name: 'trail 20% · arm +20%', run: trail(20, 20) },
+      { name: 'trail 20% · arm +30%', run: trail(20, 30) },
+      { name: 'trail 20% · arm +40%', run: trail(20, 40) },
+      { name: 'trail 20% · arm +50%', run: trail(20, 50) },
+      { name: 'trail 15% · arm +10%', run: trail(15, 10) },
+      { name: 'trail 30% · arm +10%', run: trail(30, 10) },
+      { name: 'trail 50% · no arm', run: trail(50, 0) },
       { name: 'TP100 / SL50', run: tpsl(100, 50) },
+      // "their game": hold through drawdown, ladder out. High mean, brutal
+      // median, and every one collapses when its single best trade is removed.
+      { name: 'their: half at +100%, rest holds', run: scale([[100, 0.5]]) },
+      { name: 'their: half +100%, rest trail 30%', run: scale([[100, 0.5]], 30) },
+      { name: 'their: thirds +50 / +200', run: scale([[50, 0.34], [200, 0.33]]) },
+      { name: 'their: quarters +50 / +100 / +300', run: scale([[50, 0.25], [100, 0.25], [300, 0.25]]) },
     ];
   }
 
