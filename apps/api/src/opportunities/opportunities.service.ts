@@ -139,8 +139,14 @@ export class OpportunitiesService {
     // for accumulation: the measured ladderers use ~1.4 SOL clips, so a 1.5
     // floor hid every one of them from the detector built to find them. These
     // two judge the total, and carry their own floors.
-    await this.tryConsensus(mint, wallet, buySol, ts, config).catch(() => undefined);
-    await this.tryLadder(mint, wallet, buySol, ts, config).catch(() => undefined);
+    const cumulativeFired =
+      (await this.tryConsensus(mint, wallet, buySol, ts, config).catch(() => false)) ||
+      (await this.tryLadder(mint, wallet, buySol, ts, config).catch(() => false));
+    // A cumulative signal has already spoken for this token, on better evidence
+    // than one clip's size. Stop here rather than letting the copy path run its
+    // gates and die on the hourly dedupe — the suppression should be intentional,
+    // not a side effect of another rule we might tune later.
+    if (cumulativeFired) return;
 
     // from here the COPY path only: one buy, judged on its own size
     if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
@@ -192,8 +198,8 @@ export class OpportunitiesService {
    * inside the live window is breadth no single wallet can fake — that's a
    * signal in its own right, labeled so expectancy splits by entry logic.
    */
-  private async tryConsensus(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<void> {
-    if (config.consensusOwners < 1) return;
+  private async tryConsensus(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<boolean> {
+    if (config.consensusOwners < 1) return false;
     const events = await this.prisma.liveEvent.findMany({
       where: { mint, kind: { in: ['buy', 'sell'] } },
       select: { wallet: true, sol: true, usd: true, kind: true },
@@ -209,11 +215,12 @@ export class OpportunitiesService {
           .map((e) => e.wallet),
       ),
     ];
-    if (voters.length < config.consensusOwners) return;
+    if (voters.length < config.consensusOwners) return false;
     const rows = await this.prisma.wallet.findMany({ where: { address: { in: voters } }, select: { address: true, ownerId: true } });
     const owners = new Set(rows.map((r) => (r.ownerId != null ? `o${r.ownerId}` : r.address)));
-    if (owners.size < config.consensusOwners) return;
+    if (owners.size < config.consensusOwners) return false;
     await this.fire(mint, wallet, buySol, ts, 'consensus', config, null);
+    return true;
   }
 
   /**
@@ -222,22 +229,23 @@ export class OpportunitiesService {
    * news" and discard exactly the pattern that identifies the behaviour — so
    * this runs before them, and judges the cumulative position, not the clip.
    */
-  private async tryLadder(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<void> {
-    if (config.ladderBuys < 1) return;
+  private async tryLadder(mint: string, wallet: string, buySol: number, ts: Date, config: OpportunityConfig): Promise<boolean> {
+    if (config.ladderBuys < 1) return false;
     const since = new Date(Date.now() - config.ladderWindowMinutes * 60_000);
     const clips = await this.prisma.liveEvent.findMany({
       where: { wallet, mint, kind: 'buy', ts: { gte: since } },
       select: { sol: true, usd: true },
     });
-    if (clips.length < config.ladderBuys) return;
+    if (clips.length < config.ladderBuys) return false;
     const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
     const cumulative = clips.reduce((sum, c) => sum + Math.abs(c.sol ?? 0) + Math.abs(c.usd ?? 0) / solUsd, 0);
-    if (cumulative < config.ladderMinSol) return;
+    if (cumulative < config.ladderMinSol) return false;
     // a wallet that also SOLD this mint in the window is cycling, not accumulating
     const sold = await this.prisma.liveEvent.findFirst({ where: { wallet, mint, kind: 'sell', ts: { gte: since } }, select: { id: true } });
-    if (sold) return;
+    if (sold) return false;
     this.decisions.push(`[opps] LADDER ${mint.slice(0, 6)}... ${wallet.slice(0, 6)}...: ${clips.length} clips, ${cumulative.toFixed(1)} SOL in ${config.ladderWindowMinutes}m`);
     await this.fire(mint, wallet, cumulative, ts, 'ladder', config, null);
+    return true;
   }
 
   /** Shared trigger tail: hourly mint dedupe → gauntlet → opportunity row → paper trade. */
