@@ -36,6 +36,28 @@ export class GeckoTerminalService {
       .sort((a, b) => a.ts - b.ts);
   }
 
+  /**
+   * Hourly candles — the only way past the 500-minute (8.3h) ceiling on the
+   * minute endpoint. The roster earns 61% of its profit on holds beyond 24
+   * hours, which minute data physically cannot reach.
+   */
+  async hourCandles(pool: string, beforeTs: number, limit = 200): Promise<Candle[]> {
+    const url = `${GT}/networks/solana/pools/${pool}/ohlcv/hour?aggregate=1&before_timestamp=${beforeTs}&limit=${Math.min(limit, 1000)}&currency=usd&token=base`;
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await this.throttle();
+      res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+      if (res?.status !== 429) break;
+      await new Promise((r) => setTimeout(r, RETRY_429_MS * (attempt + 1)));
+    }
+    if (!res?.ok) return [];
+    const body = (await res.json().catch(() => null)) as { data?: { attributes?: { ohlcv_list?: number[][] } } } | null;
+    return (body?.data?.attributes?.ohlcv_list ?? [])
+      .filter((c) => c.length >= 5 && c[1] > 0 && c[4] > 0)
+      .map((c) => ({ ts: c[0], open: c[1], close: c[4] }))
+      .sort((a, b) => a.ts - b.ts);
+  }
+
   /** The candle covering `ts`, or the nearest one after it within `toleranceSec`. Sparse tapes are normal on memecoins. */
   candleAt(candles: Candle[], ts: number, toleranceSec = 300): Candle | null {
     const minute = Math.floor(ts / 60) * 60;

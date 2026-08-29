@@ -235,10 +235,11 @@ model BacktestPath {
   symbol    String?
   entryTs   Int // unix seconds
   entryPrice Float
-  closes    String // JSON number[] — minute closes from entry forward
+  closes    String // JSON number[] — closes from entry forward, one per bar
+  resolution String  @default("minute") // minute (8.3h reach) | hour (days)
   fetchedAt DateTime @default(now())
 
-  @@unique([mint, entryTs])
+  @@unique([mint, entryTs, resolution])
 }
 
 /// Last backtest result, so it survives a restart. The run costs 20 minutes of

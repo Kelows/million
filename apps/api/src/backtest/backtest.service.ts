@@ -149,7 +149,7 @@ export class BacktestService {
    * reported on a held-out test split, and the test number is the one that counts.
    */
   async tune(): Promise<BacktestTuneResult> {
-    const rows = await this.prisma.backtestPath.findMany();
+    const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'minute' } });
     if (rows.length < 10) return { ranAt: new Date().toISOString(), paths: rows.length, tried: 0, best: [], marginals: [] };
     const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] }));
     const cut = Math.floor(paths.length * 0.7);
@@ -223,6 +223,99 @@ export class BacktestService {
    * money is in a long tail the horizon could not see. Worth having on screen
    * before anyone reasons about exits again.
    */
+  /**
+   * Swing backtest: hourly bars, so the horizon reaches DAYS instead of the
+   * minute endpoint's 8.3 hours. This is the only way to test the band the
+   * roster actually earns in — holds past 24h carry 61% of their profit, and
+   * every conclusion we have drawn so far was blind to it.
+   */
+  async runSwing(sample: number): Promise<void> {
+    const wallets = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null }, select: { metrics: true } });
+    const entries: { mint: string; at: string }[] = [];
+    for (const w of wallets) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      if ((m.flags ?? []).includes('BOT_INFRA')) continue;
+      for (const t of m.tokens) {
+        if (!t.firstBuyAt || isExcludedToken(t.mint) || t.solIn < 1) continue;
+        // an entry needs room to develop: skip anything too recent to have days of history
+        if (Date.now() - new Date(t.firstBuyAt).getTime() < 36 * 3_600_000) continue;
+        entries.push({ mint: t.mint, at: t.firstBuyAt });
+      }
+    }
+    entries.sort(() => Math.random() - 0.5);
+    const picked = entries.slice(0, sample);
+    this.job = { running: true, done: 0, total: picked.length };
+    const poolCache = new Map<string, string | null>();
+    for (const e of picked) {
+      this.job.done++;
+      const entryTs = Math.floor(new Date(e.at).getTime() / 1000);
+      const existing = await this.prisma.backtestPath
+        .findUnique({ where: { mint_entryTs_resolution: { mint: e.mint, entryTs, resolution: 'hour' } } })
+        .catch(() => null);
+      if (existing) continue;
+      let pool = poolCache.get(e.mint);
+      if (pool === undefined) {
+        pool = (await this.dexscreener.fetchBestPair(e.mint).catch(() => null))?.pairAddresses[0] ?? null;
+        poolCache.set(e.mint, pool);
+      }
+      if (!pool) continue;
+      const candles = await this.gecko.hourCandles(pool, entryTs + 14 * 24 * 3600, 400);
+      const entryCandle = this.gecko.candleAt(candles, entryTs, 2 * 3600);
+      if (!entryCandle) continue;
+      const after = candles.filter((c) => c.ts >= entryCandle.ts);
+      if (after.length < 6) continue;
+      await this.prisma.backtestPath
+        .create({
+          data: { mint: e.mint, entryTs, entryPrice: entryCandle.close, closes: JSON.stringify(after.map((c) => c.close)), resolution: 'hour' },
+        })
+        .catch(() => undefined);
+    }
+    this.job = { ...this.job, running: false };
+  }
+
+  /** Swing strategies scored over the hourly paths — one bar is an hour here. */
+  async swingResults(): Promise<BacktestStrategyRow[]> {
+    const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'hour' } });
+    const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] })).filter((p) => p.entry > 0 && p.closes.length >= 6);
+    if (!paths.length) return [];
+    const hold = (hours: number) => (e: number, c: number[]) => (c[Math.min(hours, c.length - 1)] / e - 1) * 100;
+    const trail = (pct: number, arm = 20, stop = 50) => (e: number, c: number[]) => {
+      let peak = e;
+      for (const x of c) {
+        peak = Math.max(peak, x);
+        if (x <= e * (1 - stop / 100)) return -stop;
+        if (peak >= e * (1 + arm / 100) && x <= peak * (1 - pct / 100)) return (x / e - 1) * 100;
+      }
+      return (c[c.length - 1] / e - 1) * 100;
+    };
+    const strategies: [string, (e: number, c: number[]) => number][] = [
+      ['swing: hold 6h', hold(6)],
+      ['swing: hold 24h', hold(24)],
+      ['swing: hold 3 days', hold(72)],
+      ['swing: hold 7 days', hold(168)],
+      ['swing: hold 14 days', hold(336)],
+      ['swing: trail 20% (hourly)', trail(20)],
+      ['swing: trail 30% (hourly)', trail(30)],
+      ['swing: trail 50% (hourly)', trail(50)],
+      ['swing: trail 30%, no stop', trail(30, 20, 0)],
+    ];
+    return strategies
+      .map(([strategy, f]) => {
+        const xs = paths.map((p) => f(p.entry, p.closes));
+        const sorted = [...xs].sort((a, b) => a - b);
+        return {
+          strategy,
+          trades: xs.length,
+          avgRetPct: Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10,
+          medianRetPct: Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10,
+          winRate: Math.round((xs.filter((x) => x > 0).length / xs.length) * 100),
+          bestPct: Math.round(sorted[sorted.length - 1]),
+          worstPct: Math.round(sorted[0]),
+        };
+      })
+      .sort((a, b) => b.avgRetPct - a.avgRetPct);
+  }
+
   async holdDistribution(): Promise<HoldBand[]> {
     const wallets = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
@@ -296,7 +389,7 @@ export class BacktestService {
       if (!pool) continue;
       const entryTs = Math.floor(new Date(e.at).getTime() / 1000);
       // cached path? then this entry costs nothing to replay again
-      const cached = await this.prisma.backtestPath.findUnique({ where: { mint_entryTs: { mint: e.mint, entryTs } } }).catch(() => null);
+      const cached = await this.prisma.backtestPath.findUnique({ where: { mint_entryTs_resolution: { mint: e.mint, entryTs, resolution: 'minute' } } }).catch(() => null);
       let closes: number[];
       let entryPrice: number;
       if (cached) {
@@ -311,7 +404,7 @@ export class BacktestService {
         closes = after.map((c) => c.close);
         entryPrice = entryCandle.close;
         await this.prisma.backtestPath
-          .create({ data: { mint: e.mint, entryTs, entryPrice, closes: JSON.stringify(closes) } })
+          .create({ data: { mint: e.mint, entryTs, entryPrice, closes: JSON.stringify(closes), resolution: 'minute' } })
           .catch(() => undefined);
       }
       const path: Candle[] = closes.map((close, i) => ({ ts: entryTs + i * 60, open: close, close }));

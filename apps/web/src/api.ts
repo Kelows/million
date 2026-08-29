@@ -593,3 +593,19 @@ export function useTuneBacktest() {
 export function useHoldBands() {
   return useQuery({ queryKey: ['backtest', 'holds'], queryFn: () => request<HoldBand[]>('/backtest/holds') });
 }
+
+export function useSwingResults() {
+  return useQuery({
+    queryKey: ['backtest', 'swing'],
+    queryFn: () => request<import('@million/shared').BacktestStrategyRow[]>('/backtest/swing'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useRunSwing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { sample: number }) => request<{ started: boolean }>('/backtest/swing/run', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['backtest'] }),
+  });
+}

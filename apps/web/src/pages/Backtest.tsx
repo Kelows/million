@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBacktest, useHoldBands, useRunBacktest, useTuneBacktest } from '../api';
+import { useBacktest, useHoldBands, useRunBacktest, useRunSwing, useSwingResults, useTuneBacktest } from '../api';
 import { Info } from '../components/Info';
 
 export function Backtest() {
@@ -92,8 +92,65 @@ export function Backtest() {
           </p>
         </div>
       )}
+      <SwingPanel />
       <HoldPanel />
       {tune.data && <TunePanel result={tune.data} />}
+    </div>
+  );
+}
+
+function SwingPanel() {
+  const { data: rows = [] } = useSwingResults();
+  const run = useRunSwing();
+  return (
+    <div className="panel">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4 flex-wrap">
+        <span className="eyebrow">
+          Swing — multi-day holds
+          <Info text="Hourly bars instead of minute bars, which is the only way past the minute endpoint's 8.3-hour ceiling. This is the band the roster actually earns in: holds beyond 24h carry 61% of their profit, and every earlier conclusion here was blind to it. Entries are sampled only from trades old enough to have days of history." />
+        </span>
+        <button className="btn py-1! px-2! text-[0.65rem]!" disabled={run.isPending} onClick={() => run.mutate({ sample: 80 })}>
+          {run.isPending ? 'Fetching…' : 'Fetch hourly paths'}
+        </button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 pb-4 text-sm text-dim">No hourly paths yet — fetch some to compare multi-day holds.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead>
+              <tr className="text-left text-dim text-xs">
+                <th className="px-4 py-2 font-normal">strategy</th>
+                <th className="px-4 py-2 font-normal text-right">avg</th>
+                <th className="px-4 py-2 font-normal text-right">median</th>
+                <th className="px-4 py-2 font-normal text-right">win rate</th>
+                <th className="px-4 py-2 font-normal text-right">best</th>
+                <th className="px-4 py-2 font-normal text-right">worst</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((s, i) => (
+                <tr key={s.strategy} className={`border-t border-line ${i === 0 ? 'bg-deck2/40' : ''}`}>
+                  <td className="px-4 py-2 text-bright">{s.strategy}</td>
+                  <td className={`px-4 py-2 text-right font-bold ${s.avgRetPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {s.avgRetPct > 0 ? '+' : ''}{s.avgRetPct}%
+                  </td>
+                  <td className={`px-4 py-2 text-right ${s.medianRetPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {s.medianRetPct > 0 ? '+' : ''}{s.medianRetPct}%
+                  </td>
+                  <td className="px-4 py-2 text-right text-dim">{s.winRate}%</td>
+                  <td className="px-4 py-2 text-right text-profit">+{s.bestPct}%</td>
+                  <td className="px-4 py-2 text-right text-loss">{s.worstPct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="px-4 py-3 text-xs text-dim">
+        Figures exclude slippage — subtract roughly 6% for a round trip. Hourly bars also hide intra-hour wicks, so
+        trailing stops here fire later and look better than they would in practice.
+      </p>
     </div>
   );
 }

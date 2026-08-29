@@ -10,6 +10,18 @@ export class BacktestController {
     return this.backtest.status();
   }
 
+  @Get('swing')
+  swing() {
+    return this.backtest.swingResults();
+  }
+
+  @Post('swing/run')
+  @HttpCode(200)
+  runSwing(@Body() body: { sample?: number }) {
+    void this.backtest.runSwing(Math.min(300, Math.max(5, body.sample ?? 60)));
+    return { started: true };
+  }
+
   @Get('holds')
   holds() {
     return this.backtest.holdDistribution();
