@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException, ServiceUnavailableExc
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
 import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics,
-  type WalletUnrealized, type WalletRecord, type WalletStatus } from '@million/shared';
+  type WalletActivityRow, type WalletObserved, type WalletUnrealized, type WalletRecord, type WalletStatus } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -10,6 +10,16 @@ import { TokenMetaService } from '../analysis/token-meta.service';
 import { OwnersService } from '../analysis/owners.service';
 import { EventsBus } from '../common/events.bus';
 import { computeMetrics } from '../analysis/metrics';
+
+/** Observed stats need a minimum sample before a win rate means anything. */
+export function toObserved(realizedSol: number, trades: number, wins: number): WalletObserved {
+  return {
+    realizedSol: Math.round(realizedSol * 1000) / 1000,
+    trades,
+    wins,
+    winRate: trades >= 3 ? Math.round((wins / trades) * 100) / 100 : null,
+  };
+}
 
 @Injectable()
 export class WalletsService {
@@ -147,12 +157,18 @@ export class WalletsService {
     });
   }
 
-  async activity(): Promise<{ address: string; lastEventAt: string | null; liveRealizedSol: number }[]> {
+  async activity(): Promise<WalletActivityRow[]> {
     const rows = await this.prisma.wallet.findMany({
-      where: { purgedAt: null, OR: [{ lastEventAt: { not: null } }, { liveRealizedSol: { not: 0 } }] },
-      select: { address: true, lastEventAt: true, liveRealizedSol: true },
+      where: { purgedAt: null, OR: [{ lastEventAt: { not: null } }, { observedTrades: { gt: 0 } }] },
+      select: { address: true, lastEventAt: true, observedRealizedSol: true, observedTrades: true, observedWins: true },
     });
-    return rows.map((r) => ({ address: r.address, lastEventAt: r.lastEventAt?.toISOString() ?? null, liveRealizedSol: r.liveRealizedSol }));
+    return rows.map((r) => ({
+      address: r.address,
+      lastEventAt: r.lastEventAt?.toISOString() ?? null,
+      observedRealizedSol: r.observedRealizedSol,
+      observedTrades: r.observedTrades,
+      observedWins: r.observedWins,
+    }));
   }
 
   async get(address: string): Promise<WalletRecord> {
@@ -237,7 +253,7 @@ export class WalletsService {
       const isBotNow = metrics.flags.some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
       const cohort =
         existing?.scoreAtAbsorb == null
-          ? { scoreAtAbsorb: isBotNow ? -100 : (metrics.winRate ?? 0) * 100 + Math.max(-50, Math.min(200, pnlNow)) / 2, pnlAtAbsorb: pnlNow }
+          ? { scoreAtAbsorb: null, pnlAtAbsorb: null } // set once the wallet has enough OBSERVED trades to score
           : {};
       const updated = await this.prisma.wallet.update({
         where: { address },
@@ -245,7 +261,6 @@ export class WalletsService {
           status: 'done',
           metrics: JSON.stringify(metrics),
           lastAnalyzedAt: new Date(),
-          liveRealizedSol: 0, // analysis recomputed realized from scratch — the live delta is now baked in
           error: null,
           ...cohort,
           ...(balanceSol !== null ? { balanceSol, balanceAt: new Date() } : {}),
@@ -381,18 +396,11 @@ export class WalletsService {
 
   private toRecord(w: Wallet): WalletRecord {
     const metrics = w.metrics ? (JSON.parse(w.metrics) as WalletMetrics) : null;
-    // fold the live delta into the snapshot so the UI shows the CURRENT truth:
-    // metrics is a photograph taken at the last analysis, events happened since
-    if (metrics) {
-      if (w.lastEventAt && (!metrics.lastSeen || w.lastEventAt.toISOString() > metrics.lastSeen)) {
-        metrics.lastSeen = w.lastEventAt.toISOString();
-      }
-      if (w.liveRealizedSol !== 0) {
-        metrics.realizedPnlSol = Math.round((metrics.realizedPnlSol + w.liveRealizedSol) * 1000) / 1000;
-        if (metrics.realizedPnlTotalSol !== undefined && metrics.realizedPnlTotalSol !== null) {
-          metrics.realizedPnlTotalSol = Math.round((metrics.realizedPnlTotalSol + w.liveRealizedSol) * 1000) / 1000;
-        }
-      }
+    // metrics is a photograph of a truncated history: good for flags, not for
+    // PnL. Only lastSeen is worth refreshing from the feed; performance comes
+    // from `observed` below, which is built solely from trades we watched.
+    if (metrics && w.lastEventAt && (!metrics.lastSeen || w.lastEventAt.toISOString() > metrics.lastSeen)) {
+      metrics.lastSeen = w.lastEventAt.toISOString();
     }
     return {
       address: w.address,
@@ -402,7 +410,7 @@ export class WalletsService {
       lastAnalyzedAt: w.lastAnalyzedAt?.toISOString() ?? null,
       status: w.status as WalletStatus,
       metrics,
-      liveRealizedSol: w.liveRealizedSol,
+      observed: toObserved(w.observedRealizedSol, w.observedTrades, w.observedWins),
       lastEventAt: w.lastEventAt?.toISOString() ?? null,
       error: w.error,
       subscribed: w.subscribed,

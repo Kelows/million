@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
 import { parseWalletsJson } from '../lib/parseWallets';
-import { fmtAgo, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtHold, fmtPct, fmtSol, observedPnlSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
 import { usePagination } from '../lib/usePagination';
@@ -25,7 +25,7 @@ const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'openOnly', label: 'open positions only (excl. stables)', type: 'toggle', get: (w) => (openCount(w) ?? 0) > 0 },
   { key: 'excludeFlags', label: 'Exclude tags', type: 'multi', options: FLAG_OPTIONS, get: (w) => w.metrics?.flags ?? [] },
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
-  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
+  { key: 'minPnl', label: 'Observed PnL', type: 'min', unit: 'SOL', get: (w) => observedPnlSol(w) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openCount(w) },
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
@@ -33,7 +33,7 @@ const ROSTER_FILTERS: FilterField<WalletRecord>[] = [
 function rosterScore(w: WalletRecord): number | null {
   if (!w.metrics) return null;
   if (isBotWallet(w.metrics)) return null; // bots aren't scored — the flags say why
-  return whaleScore(w.metrics.winRate, w.metrics.realizedPnlTotalSol ?? w.metrics.realizedPnlSol, false);
+  return whaleScore(w.observed, false); // null until enough observed round trips
 }
 
 /** Grouped roster: an owner cluster collapses into one sortable row. */
@@ -51,11 +51,13 @@ function groupAgg(members: WalletRecord[]) {
   for (const w of members) {
     const m = w.metrics;
     if (!m) continue;
-    pnl += m.realizedPnlTotalSol ?? m.realizedPnlSol;
+    // owner totals aggregate OBSERVED trades — the same basis as the per-wallet
+    // score, so a cluster can never look better than the sum of its evidence
+    pnl += w.observed?.realizedSol ?? 0;
     if (!isBotWallet(m)) {
       anyClean = true;
-      closed += m.closedTokens;
-      if (m.winRate !== null) wins += Math.round(m.winRate * m.closedTokens);
+      closed += w.observed?.trades ?? 0;
+      wins += w.observed?.wins ?? 0;
     }
     for (const t of openPositions(m.tokens, loadMinOpenSol())) openMints.add(t.mint);
     if (m.lastSeen) lastSeen = Math.max(lastSeen, new Date(m.lastSeen).getTime());
@@ -66,7 +68,7 @@ function groupAgg(members: WalletRecord[]) {
     winRate,
     open: openMints.size,
     lastSeen: lastSeen || null,
-    score: anyClean ? whaleScore(winRate, pnl, false) : null,
+    score: anyClean && closed >= 3 ? whaleScore({ realizedSol: pnl, trades: closed, wins, winRate }, false) : null,
   };
 }
 
@@ -74,7 +76,7 @@ const rowGet = {
   label: (r: RosterRow) => (r.kind === 'wallet' ? r.w.label : (r.members.find((m) => m.label)?.label ?? null)),
   score: (r: RosterRow) => (r.kind === 'wallet' ? rosterScore(r.w) : groupAgg(r.members).score),
   winRate: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.winRate ?? null) : groupAgg(r.members).winRate),
-  pnl: (r: RosterRow) => (r.kind === 'wallet' ? totalPnlSol(r.w.metrics) : groupAgg(r.members).pnl),
+  pnl: (r: RosterRow) => (r.kind === 'wallet' ? observedPnlSol(r.w) : groupAgg(r.members).pnl),
   hold: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.medianHoldMinutes ?? null) : null),
   open: (r: RosterRow) => (r.kind === 'wallet' ? openCount(r.w) : groupAgg(r.members).open),
   lastSeen: (r: RosterRow) =>
@@ -87,7 +89,7 @@ const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
   { key: 'score', get: (w) => rosterScore(w) },
   { key: 'winRate', get: (w) => w.metrics?.winRate ?? null },
-  { key: 'pnl', get: (w) => totalPnlSol(w.metrics) },
+  { key: 'pnl', get: (w) => observedPnlSol(w) },
   { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
   { key: 'open', get: (w) => openCount(w) },
   { key: 'lastSeen', get: (w) => (w.metrics?.lastSeen ? new Date(w.metrics.lastSeen).getTime() : null) },
@@ -481,9 +483,9 @@ export function Wallets() {
                           return <span className={`font-bold ${score >= 50 ? 'text-profit' : score >= 0 ? 'text-ink' : 'text-loss'}`}>{score}</span>;
                         })()}
                       </td>
-                      <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
-                      <td className={`px-4 py-2 text-right ${w.metrics ? ((totalPnlSol(w.metrics) ?? 0) >= 0 ? 'text-profit' : 'text-loss') : 'text-dim'}`}>
-                        {w.metrics ? fmtSol(totalPnlSol(w.metrics) ?? 0) : '—'}
+                      <td className="px-4 py-2">{fmtPct(w.observed?.winRate ?? null)}</td>
+                      <td className={`px-4 py-2 text-right ${(observedPnlSol(w) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {w.observed?.trades ? fmtSol(observedPnlSol(w) ?? 0) : <span className="text-dim">unmeasured</span>}
                       </td>
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
                       <td className="px-4 py-2">

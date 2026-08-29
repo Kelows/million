@@ -39,7 +39,7 @@ export function useWallets() {
   const activity = useQuery({
     queryKey: ['wallets-activity'],
     queryFn: () => request<WalletActivity[]>('/wallets-activity'),
-    refetchInterval: 3_000,
+    refetchInterval: 15_000, // backstop only — the SSE push does the real work
   });
   const data = useMemo(() => {
     if (!roster.data) return roster.data;
@@ -379,7 +379,7 @@ export function useEventStream() {
     const invalidateHeavy = () => {
       if (Date.now() - lastHeavy < 30_000) return;
       lastHeavy = Date.now();
-      qc.invalidateQueries({ queryKey: ['wallets'] }); // 4.4MB — the 3s freshness comes from wallets-activity instead
+      qc.invalidateQueries({ queryKey: ['wallets'] }); // 4.4MB — throttled; freshness comes from wallets-activity
     };
     const es = new EventSource('/api/live/stream');
     es.onmessage = (msg) => {
@@ -389,7 +389,11 @@ export function useEventStream() {
           qc.invalidateQueries({ queryKey: ['live-events'] });
           qc.invalidateQueries({ queryKey: ['live-status'] });
           qc.invalidateQueries({ queryKey: ['emitters'] });
-          invalidateHeavy(); // wallets + famous: same feed, slower cadence
+          // cheap payloads (4-14KB) refresh on the event itself — no polling
+          // delay, no wasted requests when the feed is quiet
+          qc.invalidateQueries({ queryKey: ['tokens', 'famous'] });
+          qc.invalidateQueries({ queryKey: ['wallets-activity'] });
+          invalidateHeavy(); // the 4.4MB roster stays throttled
         } else if (type === 'opportunity') {
           qc.invalidateQueries({ queryKey: ['opportunities'] });
           qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets
@@ -508,7 +512,7 @@ export function useRunCopyability() {
 export function useFamousTokens() {
   // the ledger under this updates on every live event; poll rather than
   // invalidate per-event, since recomputing it scans the roster
-  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous'), refetchInterval: 3_000 }); // 4KB — cheap to poll fast
+  return useQuery({ queryKey: ['tokens', 'famous'], queryFn: () => request<FamousTokens>('/tokens/famous'), refetchInterval: 15_000 }); // backstop; SSE pushes on each event
 }
 
 export function useResumeTrading() {

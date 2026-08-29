@@ -13,7 +13,7 @@ const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 function linkScore(l: FundingLink): { na: boolean; score: number | null } {
   if (!l.preview) return { na: false, score: null };
   if ((l.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS')) return { na: true, score: null };
-  return { na: false, score: sharedWhaleScore(l.preview.winRate, l.preview.realizedPnlSol, false) };
+  return { na: false, score: null }; // previews are historical — unscored until observed
 }
 const DEFAULT_MIN_SOL = 0.5;
 

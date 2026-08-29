@@ -3,7 +3,7 @@ import { useWallets } from '../api';
 import { StatTile } from '../components/StatTile';
 import { TradingTiles } from '../components/TradingTiles';
 import { Addr } from '../components/Addr';
-import { fmtAgo, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtPct, fmtSol, observedPnlSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
 import { TokenName } from '../components/TokenName';
 import { Info } from '../components/Info';
@@ -20,7 +20,7 @@ import { isQualifyingWallet, openPositions, WATCH_CRITERIA } from '@million/shar
 const WATCH_FILTERS: FilterField<WalletRecord>[] = [
   { key: 'excludeFlags', label: 'Exclude tags', type: 'multi', options: FLAG_OPTIONS, get: (w) => w.metrics?.flags ?? [] },
   { key: 'minWinRate', label: 'Win rate', type: 'min', unit: '%', get: (w) => (w.metrics?.winRate == null ? null : w.metrics.winRate * 100) },
-  { key: 'minPnl', label: 'Realized PnL', type: 'min', unit: 'SOL', get: (w) => totalPnlSol(w.metrics) },
+  { key: 'minPnl', label: 'Observed PnL', type: 'min', unit: 'SOL', get: (w) => observedPnlSol(w) },
   { key: 'minOpen', label: 'Open positions', type: 'min', unit: 'count', get: (w) => openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length },
   { key: 'maxInactiveDays', label: 'Days since active', type: 'max', unit: 'days', get: (w) => (w.metrics?.lastSeen ? (Date.now() - new Date(w.metrics.lastSeen).getTime()) / 86_400_000 : null) },
 ];
@@ -28,13 +28,14 @@ const WATCH_FILTERS: FilterField<WalletRecord>[] = [
 export function Dashboard() {
   const { data: wallets = [], isLoading } = useWallets();
   const analyzed = wallets.filter((w) => w.metrics);
-  const totalPnl = analyzed.reduce((s, w) => s + (totalPnlSol(w.metrics) ?? 0), 0);
+  const totalPnl = wallets.reduce((s, w) => s + (observedPnlSol(w) ?? 0), 0);
+  const measured = wallets.filter((w) => (w.observed?.trades ?? 0) > 0).length;
   const winRates = analyzed.map((w) => w.metrics?.winRate).filter((r): r is number => r !== null && r !== undefined);
   const avgWinRate = winRates.length ? winRates.reduce((s, r) => s + r, 0) / winRates.length : null;
   const [filters, setFilters] = useStoredFilters('million.filters.watch');
   const watchAll = analyzed
     .filter((w) => w.metrics && isQualifyingWallet(w.metrics) && openPositions(w.metrics.tokens, loadMinOpenSol()).length > 0)
-    .sort((a, b) => (totalPnlSol(b.metrics) ?? 0) - (totalPnlSol(a.metrics) ?? 0));
+    .sort((a, b) => (observedPnlSol(b) ?? 0) - (observedPnlSol(a) ?? 0));
   const top = applyFilters(watchAll, WATCH_FILTERS, filters);
   const pag = usePagination(top, 10);
 
@@ -50,9 +51,9 @@ export function Dashboard() {
         <StatTile label="Analyzed" value={`${analyzed.length}/${wallets.length}`} sub="with on-chain stats" />
         <StatTile label="Avg win rate" value={fmtPct(avgWinRate)} sub="across analyzed wallets" />
         <StatTile
-          label="Combined realized PnL"
-          value={analyzed.length ? fmtSol(totalPnl) : '—'}
-          sub="recent window, SOL-leg swaps"
+          label="Observed PnL"
+          value={measured ? fmtSol(totalPnl) : '—'}
+          sub={`${measured} wallets with closed round trips`}
           tone={totalPnl > 0 ? 'profit' : totalPnl < 0 ? 'loss' : 'default'}
         />
       </div>
@@ -87,7 +88,7 @@ export function Dashboard() {
                     <th className="pl-4 pr-0 py-2 w-8"></th>
                     <th className="px-4 py-2 font-normal">wallet</th>
                     <th className="px-4 py-2 font-normal">win rate</th>
-                    <th className="px-4 py-2 font-normal text-right">realized PnL</th>
+                    <th className="px-4 py-2 font-normal text-right">observed PnL</th>
                     <th className="px-4 py-2 font-normal">open</th>
                     <th className="px-4 py-2 font-normal">last active</th>
                   </tr>
@@ -106,8 +107,8 @@ export function Dashboard() {
                         </Link>
                       </td>
                       <td className="px-4 py-2">{fmtPct(w.metrics?.winRate ?? null)}</td>
-                      <td className={`px-4 py-2 text-right ${(totalPnlSol(w.metrics) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {fmtSol(totalPnlSol(w.metrics) ?? 0)}
+                      <td className={`px-4 py-2 text-right ${(observedPnlSol(w) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {w.observed?.trades ? fmtSol(observedPnlSol(w) ?? 0) : <span className="text-dim">unmeasured</span>}
                       </td>
                       <td className="px-4 py-2 text-warn">{openPositions(w.metrics?.tokens ?? [], loadMinOpenSol()).length}</td>
                       <td className="px-4 py-2 text-dim" title={w.metrics?.lastSeen ?? ''}>{fmtAgo(w.metrics?.lastSeen ?? null)}</td>

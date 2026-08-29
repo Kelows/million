@@ -36,7 +36,12 @@ export function fmtAgo(iso: string | null): string {
 }
 
 /** Total realized PnL in SOL terms (usd legs converted at analysis-time price; falls back for old analyses). */
-export function totalPnlSol(m: { realizedPnlSol: number; realizedPnlTotalSol?: number } | null | undefined): number | null {
-  if (!m) return null;
-  return m.realizedPnlTotalSol ?? m.realizedPnlSol;
+/**
+ * Observed PnL: round trips we watched end to end. Replaces the historical
+ * figure, which summed a truncated scan where sells with no recorded buy
+ * counted as pure profit.
+ */
+export function observedPnlSol(w: { observed?: { realizedSol: number } } | null | undefined): number | null {
+  return w?.observed ? w.observed.realizedSol : null;
 }
+

@@ -24,7 +24,12 @@ model Wallet {
   balanceSol     Float? // cached at analysis time — stale beats a hot-path RPC for sizing
   balanceAt      DateTime?
   lastEventAt    DateTime? // live feed touch — 'last active' without rewriting the metrics blob
-  liveRealizedSol Float    @default(0) // realized PnL from live sells since the last analysis (analysis resets it)
+  // OBSERVED performance: round trips we watched end to end.Historical PnL from a
+  // truncated scan booked unbacked sells as profit; these cannot, because a
+  // trade only counts once we have seen its buy.
+  observedRealizedSol Float @default(0)
+  observedTrades      Int   @default(0)
+  observedWins        Int   @default(0)
   copyability    String? // JSON CopyabilityResult — whale edge re-simulated with copy latency
 }
 
@@ -188,4 +193,19 @@ model ConvictionSnapshot {
   ret24hPct Float?
 
   @@index([takenAt])
+}
+
+/// Every round trip we watched close: entry seen, exit seen, cost basis real.
+/// The only source for "where the roster printed" and for wallet scoring.
+model ObservedTrade {
+  id       Int      @id @default(autoincrement())
+  wallet   String
+  mint     String
+  symbol   String?
+  pnlSol   Float
+  costSol  Float
+  closedAt DateTime @default(now())
+
+  @@index([wallet])
+  @@index([mint])
 }

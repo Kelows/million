@@ -264,14 +264,16 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             }
             stats.tokensScanned++;
             credits -= scanCost;
-            // absorb by quality threshold, not top-N — a good wallet is good regardless of rank
-            const scoreOf = (x: (typeof report.candidates)[number]) =>
-              whaleScore(x.preview!.winRate, x.preview!.realizedPnlSol, false);
+            // Absorption is TRIAGE, not ranking. A preview's PnL comes from a
+            // truncated scan and cannot be trusted (unbacked sells read as pure
+            // profit), so we no longer score on it — we admit plausible traders
+            // and let observed round trips do the judging. Conviction on THIS
+            // token is the ordering: it survives truncation.
             const clean = report.candidates
               .filter((c) => !c.inRoster && c.preview && !(c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS'))
-              .filter((c) => scoreOf(c) >= config.minWhaleScore)
-              .sort((a, b) => scoreOf(b) - scoreOf(a));
-            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} clean >= score ${config.minWhaleScore}`);
+              .filter((c) => (c.preview!.closedTokens ?? 0) >= 1 || c.boughtSol >= config.discoveryMinSol * 2)
+              .sort((a, b) => b.boughtSol - a.boughtSol);
+            say(`  ${gem.symbol ?? gem.mint.slice(0, 8)}: ${useDeep ? `deep scan (${report.scannedTxs} txs, whole life)` : 'recent scan'}, ${report.candidates.length} buyers, ${clean.length} plausible traders`);
             if (!config.autoAbsorb) continue;
             for (const c of clean) {
               if (stats.walletsAbsorbed >= config.maxWalletsAbsorbed || credits < analyzePages || this.stopRequested) break;
@@ -284,16 +286,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
               // (uncopyable but watchable — they score normally).
               const row = await this.prisma.wallet.findUnique({ where: { address: c.address }, select: { metrics: true } });
               const m = row?.metrics ? (JSON.parse(row.metrics) as import('@million/shared').WalletMetrics) : null;
-              const junkFlag = m?.flags.find((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS') ?? null;
-              const finalScore = m && !junkFlag ? whaleScore(m.winRate, m.realizedPnlTotalSol ?? m.realizedPnlSol, false) : null;
-              if (m && (junkFlag || finalScore === null || finalScore < config.minWhaleScore)) {
+              // Full analysis can only REJECT on flags now: its PnL comes from
+              // the same truncated history, so scoring on it would reintroduce
+              // exactly the bias we removed. Quality is settled by observation.
+              const junkFlag = m?.flags.find((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS' || f === 'UNBACKED_HISTORY') ?? null;
+              if (m && junkFlag) {
                 await this.prisma.wallet.update({ where: { address: c.address }, data: { purgedAt: new Date() } }).catch(() => undefined);
-                say(`  rejected ${c.address.slice(0, 8)} after full analysis (${junkFlag ?? `score ${finalScore} < ${config.minWhaleScore}`}) — remembered, won't re-absorb`);
+                say(`  rejected ${c.address.slice(0, 8)} after full analysis (${junkFlag}) — remembered, won't re-absorb`);
                 continue;
               }
               stats.walletsAbsorbed++;
               const sniper = m?.flags.includes('SNIPER_SPEED') ? ' [sniper]' : '';
-              say(`  absorbed ${c.address.slice(0, 8)} (full score ${finalScore ?? '?'}, WR ${m?.winRate ?? '?'})${sniper}`);
+              say(`  absorbed ${c.address.slice(0, 8)} — unmeasured until observed round trips accumulate${sniper}`);
             }
           }
         }

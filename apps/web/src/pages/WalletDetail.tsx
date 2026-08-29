@@ -4,7 +4,7 @@ import { useAnalyzeWallet, useImportWallets, useRemoveWallet, useSetLabel, useSe
 import { StatTile } from '../components/StatTile';
 import { FlagChip } from '../components/FlagChip';
 import { Addr, classicUrl, explorerUrl } from '../components/Addr';
-import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, totalPnlSol, truncAddr } from '../lib/format';
+import { fmtAgo, fmtDate, fmtHold, fmtPct, fmtSol, observedPnlSol, truncAddr } from '../lib/format';
 import { useTableSort, type SortColumn } from '../lib/useTableSort';
 import { usePagination } from '../lib/usePagination';
 import { EyeIcon } from '../components/icons';
@@ -215,11 +215,15 @@ export function WalletDetail() {
           {/* same wrapping flex row as the Trading tiles: each tile hugs its content, the row shares the leftover width */}
           <div className="flex gap-4 *:flex-1 *:min-w-0 *:whitespace-nowrap overflow-x-auto">
             <StatTile
-              label="Realized PnL"
-              value={fmtSol(totalPnlSol(m) ?? 0)}
-              sub={`${m.realizedPnlUsd ? `incl. $${Math.round(m.realizedPnlUsd).toLocaleString('en-US')} stable legs · ` : ''}${m.lifetimeTxs ? `${m.analyzedTxCount} of ${m.lifetimeTxs.toLocaleString('en-US')}${m.lifetimeCapped ? '+' : ''} lifetime txs` : m.truncated ? `recent ${m.analyzedTxCount} txs (truncated)` : `${m.analyzedTxCount} txs`}${m.accountFirstTxAt ? ` · since ${new Date(m.accountFirstTxAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}`}
-              tone={(totalPnlSol(m) ?? 0) >= 0 ? 'profit' : 'loss'}
-              hint="Average-cost realized PnL. SOL, USDC and USDT all count as quote currencies; stable legs are converted at the SOL price fetched at analysis time. Token→token swaps and positions opened before the window are excluded."
+              label="Observed PnL"
+              value={wallet.observed?.trades ? fmtSol(observedPnlSol(wallet) ?? 0) : '—'}
+              sub={
+                wallet.observed?.trades
+                  ? `${wallet.observed.trades} round trips watched · ${wallet.observed.wins} won`
+                  : 'unmeasured — no round trip watched yet'
+              }
+              tone={(observedPnlSol(wallet) ?? 0) > 0 ? 'profit' : (observedPnlSol(wallet) ?? 0) < 0 ? 'loss' : 'default'}
+              hint="Realized PnL from round trips we watched end to end — we saw the buy and the sell, so the cost basis is real. Historical PnL from a truncated scan is not shown: sells of bags bought before our window have no cost basis and read as pure profit, which inflated 36 wallets by 5,685 SOL."
             />
             {wallet.unrealized && (
               <StatTile

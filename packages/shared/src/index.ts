@@ -95,7 +95,7 @@ export interface WalletRecord {
   subscribed: boolean;
   ownerId: number | null;
   /** other roster addresses assigned to the same owner (detail endpoint only) */
-  liveRealizedSol?: number; // realized since the last analysis, from live events
+  observed?: WalletObserved; // performance from round trips we watched end to end
   lastEventAt?: string | null;
   ownerSiblings?: { address: string; label: string | null }[];
   unrealized?: WalletUnrealized | null; // open book marked to market (detail view only)
@@ -210,10 +210,23 @@ export function isJunkWallet(m: WalletMetrics): boolean {
 }
 
 /** The whale-quality score: win rate carries most weight, realized PnL the rest, bots slammed to -100. */
-export function whaleScore(winRate: number | null, pnlSol: number, botLike: boolean): number {
+/**
+ * Score from OBSERVED trades only — round trips we watched end to end.
+ *
+ * The previous version scored historical PnL from a truncated scan, which
+ * booked unbacked sells as pure profit and pushed 36 wallets to the top of the
+ * range on 5,685 SOL that was never earned. A wallet we have not watched long
+ * enough is `null` (unmeasured), never 0 — absence of evidence was reading as
+ * evidence of worthlessness, which is how a 924-buy accumulator scored zero.
+ */
+export function whaleScore(observed: WalletObserved | undefined, botLike: boolean): number | null {
   if (botLike) return -100;
-  return Math.round((winRate ?? 0) * 100 + Math.max(-50, Math.min(200, pnlSol)) / 2);
+  if (!observed || observed.trades < MIN_OBSERVED_TRADES || observed.winRate === null) return null;
+  return Math.round(observed.winRate * 100 + Math.max(-50, Math.min(200, observed.realizedSol)) / 2);
 }
+
+/** Below this a wallet is unmeasured, not unpromising. */
+export const MIN_OBSERVED_TRADES = 3;
 
 /** Bot-ish wallets: infrastructure, machine-speed traders, or farmed-looking stats. */
 export function isBotWallet(m: WalletMetrics): boolean {
@@ -526,6 +539,27 @@ export interface PaperPositionRow {
   pnlSol: number | null;
   pnlPct: number | null;
   mode: string;
+}
+
+/**
+ * Observed performance — the only PnL we trust. A trade counts once we have
+ * seen its buy AND its sell; anything inherited from a truncated history scan
+ * is excluded, because unbacked sells read as pure profit and inflated 36
+ * wallets by 5,685 SOL.
+ */
+export interface WalletObserved {
+  realizedSol: number;
+  trades: number; // closed round trips we watched end to end
+  wins: number;
+  winRate: number | null; // null = not enough observed trades to say
+}
+
+export interface WalletActivityRow {
+  address: string;
+  lastEventAt: string | null;
+  observedRealizedSol: number;
+  observedTrades: number;
+  observedWins: number;
 }
 
 export interface WalletUnrealized {

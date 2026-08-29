@@ -203,22 +203,21 @@ export class TokensService {
       held.set(p.mint, row);
     }
 
+    // "Where the roster printed" now means round trips we WATCHED close, so it
+    // reports the same trusted number as everything else. Historical per-token
+    // PnL came from the truncated scan and inflated whatever it touched.
+    const closes = await this.prisma.observedTrade.findMany({ where: { pnlSol: { not: 0 } } });
     const earned = new Map<string, FamousTokenRow & { keys: Set<string> }>();
-    for (const w of wallets) {
-      const m = JSON.parse(w.metrics as string) as WalletMetrics;
-      if ((m.flags ?? []).includes('BOT_INFRA')) continue;
-      const key = owners.get(w.address) ?? w.address;
-      for (const t of m.tokens) {
-        if (isExcludedToken(t.mint)) continue;
-        const pnl = t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200);
-        if (t.sells === 0 || pnl === 0) continue;
-        const row = earned.get(t.mint) ?? { mint: t.mint, symbol: t.symbol, owners: 0, sol: 0, keys: new Set<string>() };
-        row.symbol = row.symbol ?? t.symbol;
-        row.keys.add(key);
-        row.owners = row.keys.size;
-        row.sol += pnl;
-        earned.set(t.mint, row);
-      }
+    for (const c of closes) {
+      if (isExcludedToken(c.mint) || infra.has(c.wallet)) continue;
+      const key = owners.get(c.wallet) ?? c.wallet;
+      const symbol = c.symbol ?? symbols.get(c.mint) ?? null;
+      const row = earned.get(c.mint) ?? { mint: c.mint, symbol, owners: 0, sol: 0, keys: new Set<string>() };
+      row.symbol = row.symbol ?? symbol;
+      row.keys.add(key);
+      row.owners = row.keys.size;
+      row.sol += c.pnlSol;
+      earned.set(c.mint, row);
     }
 
     const strip = (r: FamousTokenRow & { keys: Set<string> }): FamousTokenRow => ({ mint: r.mint, symbol: r.symbol, owners: r.owners, sol: Math.round(r.sol * 100) / 100 });

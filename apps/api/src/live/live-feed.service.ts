@@ -134,11 +134,35 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
    * reconciles periodically; this is what stops "held across the roster" from
    * being a day-old photograph between analyses.
    */
-  /** Realized PnL since the last analysis. Analysis recomputes from scratch and resets it. */
-  private async creditRealized(wallet: string, pnlSol: number): Promise<void> {
-    if (!Number.isFinite(pnlSol) || pnlSol === 0) return;
+  /**
+   * Observed performance: only counts when we watched the BUY too. A position
+   * seeded from analysis has an entry we never saw, so closing it tells us
+   * nothing trustworthy — that asymmetry is what produced 5.7k SOL of phantom
+   * profit from truncated history.
+   */
+  private async creditObserved(
+    wallet: string,
+    pnlSol: number,
+    fullyObserved: boolean,
+    closed: boolean,
+    mint?: string,
+    symbol?: string | null,
+    costSol = 0,
+  ): Promise<void> {
+    if (!fullyObserved || !Number.isFinite(pnlSol)) return;
+    if (closed && mint) {
+      await this.prisma.observedTrade
+        .create({ data: { wallet, mint, symbol: symbol ?? null, pnlSol: Math.round(pnlSol * 1000) / 1000, costSol } })
+        .catch(() => undefined);
+    }
     await this.prisma.wallet
-      .update({ where: { address: wallet }, data: { liveRealizedSol: { increment: Math.round(pnlSol * 1000) / 1000 } } })
+      .update({
+        where: { address: wallet },
+        data: {
+          observedRealizedSol: { increment: Math.round(pnlSol * 1000) / 1000 },
+          ...(closed ? { observedTrades: { increment: 1 }, observedWins: { increment: pnlSol > 0 ? 1 : 0 } } : {}),
+        },
+      })
       .catch(() => undefined);
   }
 
@@ -169,7 +193,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const remaining = existing.qty - sold;
     if (remaining <= existing.qty * 0.02) {
       await this.prisma.rosterPosition.delete({ where: { id: existing.id } }).catch(() => undefined);
-      await this.creditRealized(wallet, Math.max(0, sol) + Math.max(0, usd) / solUsd - existing.costSol);
+      await this.creditObserved(wallet, Math.max(0, sol) + Math.max(0, usd) / solUsd - existing.costSol, existing.source === 'live', true, mint, existing.symbol, existing.costSol);
       return; // position closed
     }
     // average-cost: selling a fraction of the bag retires that fraction of the basis,
@@ -180,7 +204,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       where: { id: existing.id },
       data: { qty: remaining, costSol: existing.costSol * (1 - fraction), source: 'live' },
     });
-    await this.creditRealized(wallet, proceeds - existing.costSol * fraction);
+    await this.creditObserved(wallet, proceeds - existing.costSol * fraction, existing.source === 'live', false);
   }
 
   private async deadmanCheck(): Promise<void> {

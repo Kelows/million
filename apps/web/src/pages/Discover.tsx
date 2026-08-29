@@ -17,10 +17,15 @@ function isBotCandidate(c: WhaleCandidate): boolean {
   return (c.flags ?? []).some((f) => f === 'BOT_INFRA' || f === 'HIGH_WINRATE_SUS');
 }
 
+/**
+ * Candidates are ranked by conviction on THIS token, not by a score. A preview's
+ * PnL comes from a truncated history scan, where sells with no recorded buy read
+ * as pure profit — scoring on it ranked measurement error. Quality is settled
+ * later, from round trips we watch end to end.
+ */
 function whaleScore(c: WhaleCandidate): number | null {
-  if (!c.preview) return null;
-  if (isBotCandidate(c)) return null; // not scored — flags carry the verdict
-  return sharedWhaleScore(c.preview.winRate, c.preview.realizedPnlSol, false);
+  if (!c.preview || isBotCandidate(c)) return null;
+  return Math.round(c.boughtSol * 10) / 10;
 }
 
 const DISCOVER_COLUMNS: SortColumn<WhaleCandidate>[] = [

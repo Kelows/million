@@ -9,6 +9,7 @@ import {
   type WalletMetrics,
 } from '@million/shared';
 import { PrismaService } from '../prisma.service';
+import { toObserved } from '../wallets/wallets.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { GeckoTerminalService } from '../analysis/geckoterminal.service';
 import { EventsBus } from '../common/events.bus';
@@ -45,7 +46,7 @@ export class CopyabilityService {
   async rows(): Promise<CopyabilityWalletRow[]> {
     const wallets = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
-      select: { address: true, label: true, metrics: true, copyability: true },
+      select: { address: true, label: true, metrics: true, copyability: true, observedRealizedSol: true, observedTrades: true, observedWins: true },
     });
     return wallets
       .map((w) => {
@@ -53,7 +54,7 @@ export class CopyabilityService {
         return {
           address: w.address,
           label: w.label,
-          whaleScore: whaleScore(m.winRate, m.realizedPnlTotalSol ?? m.realizedPnlSol, false),
+          whaleScore: whaleScore(toObserved(w.observedRealizedSol, w.observedTrades, w.observedWins), false),
           lastSeen: m.lastSeen ?? null,
           copyability: w.copyability ? (JSON.parse(w.copyability) as CopyabilityResult) : null,
         };
