@@ -8,6 +8,7 @@ const NAV = [
     links: [
       { to: '/', label: 'Overview' },
       { to: '/executor', label: 'Trading' },
+      { to: '/rules', label: 'Trading rules' },
       { to: '/wallets', label: 'Wallets' },
       { to: '/tokens', label: 'Tokens' },
       { to: '/opportunities', label: 'Opportunities' },

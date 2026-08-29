@@ -126,8 +126,6 @@ export function Opportunities() {
         </div>
       </div>
 
-      {config && <PresetBar config={config} setConfig={setConfig} />}
-
       <div className="panel">
         <div className="px-4 pt-4 pb-2 eyebrow">Signals · newest first</div>
         {tokenSignals.length === 0 ? (
@@ -198,167 +196,15 @@ export function Opportunities() {
         )}
       </div>
 
-      {config && (
-        <div className="panel p-4 flex flex-col gap-4">
-          <span className="eyebrow">Definition of an opportunity</span>
-          <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span>Min buy size (SOL)<span className="block text-xs text-dim">the subbed wallet's entry must be at least this</span></span>
-              <input type="number" min={0} step={0.5} value={config.minBuySol} onChange={(e) => setConfig({ ...config, minBuySol: Number(e.target.value) })} className="w-28 text-right" />
-            </label>
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input type="checkbox" className="checkbox" style={{ accentColor: 'var(--color-neon)' }} checked={config.allowWarn} onChange={(e) => setConfig({ ...config, allowWarn: e.target.checked })} />
-              WARN verdicts count too (PASS-only if off)
-            </label>
-          </div>
-
-          <div className="border-t border-line pt-4">
-            <span className="eyebrow">Trading rules · <span className="text-profit normal-case tracking-normal">paper engine live</span> · <span className="text-pulse normal-case tracking-normal">auto-trade locked</span></span>
-            <label className="flex items-center gap-3 text-sm mt-3 cursor-pointer">
-              <input type="checkbox" className="checkbox" checked={config.paperEnabled} onChange={(e) => setConfig({ ...config, paperEnabled: e.target.checked })} />
-              paper-trade every opportunity
-            </label>
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input type="checkbox" className="checkbox" checked={config.ignoreSniperTriggers} onChange={(e) => setConfig({ ...config, ignoreSniperTriggers: e.target.checked })} />
-              ignore sniper triggers (machine-speed entries are adverse selection at our latency)
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm max-w-sm">
-              <span>Max total exposure (◎)<span className="block text-xs text-dim">portfolio cap across all open positions</span></span>
-              <input type="number" min={0} step={0.5} value={config.maxTotalExposureSol} onChange={(e) => setConfig({ ...config, maxTotalExposureSol: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Skip pools older than (min, -1 = off)<Info text="A ceiling on pair age, the inverse of the age floor in the gauntlet. On a launch strategy the run happens in the first minutes, so an old pool means the move already belongs to someone else. Replaces the roster-fresh rule, which blocked 87% of signals once the position ledger went live — with 1600 wallets watching one universe, 'nobody holds this' approaches never." /></span>
-              <input type="number" min={-1} step={5} value={config.maxPairAgeMinutes} onChange={(e) => setConfig({ ...config, maxPairAgeMinutes: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Ladder: clips / window / total<Info text="Accumulation in progress: N buys of one mint by one wallet inside the window, cumulative SOL above the floor, with no sell in between. The measured ladderers buy every ~15s in ~1.4 SOL clips, so this fires within a minute of them starting — far earlier than any maturity gate allows. 0 clips = off." /></span>
-              <span className="flex items-center gap-1">
-                <input type="number" min={0} max={50} step={1} value={config.ladderBuys} onChange={(e) => setConfig({ ...config, ladderBuys: Number(e.target.value) })} className="w-14 text-right" />
-                <input type="number" min={1} max={120} step={1} value={config.ladderWindowMinutes} onChange={(e) => setConfig({ ...config, ladderWindowMinutes: Number(e.target.value) })} className="w-14 text-right" />
-                <input type="number" min={0} max={100} step={0.5} value={config.ladderMinSol} onChange={(e) => setConfig({ ...config, ladderMinSol: Number(e.target.value) })} className="w-14 text-right" />
-              </span>
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Consensus owners (0 = off)<Info text="N distinct owners (clustered wallets count once) buying ≥ the min buy inside the live window fires a CONSENSUS entry — breadth no single wallet can fake. Cyclers and top-ups can't fire direct copies but still vote. Same gauntlet, own label in the book so expectancy splits by entry logic." /></span>
-              <input type="number" min={0} max={10} step={1} value={config.consensusOwners} onChange={(e) => setConfig({ ...config, consensusOwners: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Min median hold (min)<Info text="Trigger wallet's median hold must exceed this. Copy retention is mathematically ≤0 when their holds are shorter than our latency horizon — scalpers' edge cannot be copied, only donated to. 0 = off." /></span>
-              <input type="number" min={0} max={1440} step={5} value={config.minMedianHoldMinutes} onChange={(e) => setConfig({ ...config, minMedianHoldMinutes: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Min trigger copyability %<Info text="Skip signals from wallets whose measured edge retention is below this. Unmeasured wallets pass — run Copyability on the subscribed set to grow coverage." /></span>
-              <input type="number" min={0} max={100} step={5} value={config.minEdgeRetentionPct} onChange={(e) => setConfig({ ...config, minEdgeRetentionPct: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-dim">Trailing stop % (winners)<Info text="mirror-trail mode: a whale exit cuts losers instantly but arms a trailing stop on winners. The leash is volatility-scaled per token (3× its recent 1-min swings, clamped 8–30%) — this value is the cold-start fallback until ~8 minutes of price history accumulates. Breakeven ratchet on top: once a winner reaches +25%, the stop never drops below entry+2%." /></span>
-              <input type="number" min={1} max={50} step={1} value={config.trailStopPct} onChange={(e) => setConfig({ ...config, trailStopPct: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-dim">Halt after consecutive losses</span>
-              <input type="number" min={1} max={50} step={1} value={config.maxConsecutiveLosses} onChange={(e) => setConfig({ ...config, maxConsecutiveLosses: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-dim">Weekly loss halt (% of bankroll)</span>
-              <input type="number" min={1} max={100} step={1} value={config.weeklyLossLimitPct} onChange={(e) => setConfig({ ...config, weeklyLossLimitPct: Number(e.target.value) })} className="w-24 text-right" />
-            </label>
-            <div className="flex items-center gap-2 mt-3 text-sm">
-              <span className="text-dim text-xs uppercase tracking-wider mr-1">trade signals</span>
-              {(['both', 'copy', 'consensus', 'ladder'] as const).map((sig) => (
-                <button
-                  key={sig}
-                  className={`btn py-1! px-2! text-[0.65rem]! ${config.tradeSignals === sig ? '' : 'opacity-50'}`}
-                  onClick={() => setConfig({ ...config, tradeSignals: sig })}
-                  title={sig === 'both' ? 'every passing signal opens a position' : sig === 'copy' ? 'only single-whale entries trade — consensus still shows in the feed' : 'only owner-breadth entries trade — copies still show in the feed'}
-                >
-                  {sig}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 mt-3 text-sm">
-              <span className="text-dim text-xs uppercase tracking-wider mr-1">exit strategy</span>
-              {(['rules', 'mirror', 'mirror-trail'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setConfig({ ...config, exitMode: mode })}
-                  title={mode === 'mirror'
-                    ? 'Sell when the wallet that triggered the position sells the token. Stop loss and max hold stay active as disaster brakes; take profit is disabled — the whale is the take profit.'
-                    : 'Exit purely by your own TP / SL / timeout rules.'}
-                  className={`px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-widest border cursor-pointer ${
-                    config.exitMode === mode ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
-                  }`}
-                >
-                  {mode === 'rules' ? 'our rules' : mode === 'mirror' ? 'mirror (pure copy)' : 'mirror + trail winners'}
-                </button>
-              ))}
-            </div>
-            <div className="grid sm:grid-cols-3 gap-x-8 gap-y-3 mt-3">
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>{config.sizingMode === 'whale-pct' ? 'Max position (SOL)' : 'Position (SOL)'}</span>
-                <input type="number" min={0} step={0.1} value={config.positionSol} onChange={(e) => setConfig({ ...config, positionSol: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-              <div className="flex items-center gap-2 text-sm">
-                {(['fixed', 'whale-pct', 'whale-frac'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setConfig({ ...config, sizingMode: mode })}
-                    title={mode === 'whale-frac' ? 'Normalized conviction: their buy as a share of THEIR bankroll (balance at entry, capped 25%), applied to your bankroll below' : mode === 'whale-pct' ? 'Raw % of the whale\u2019s own buy — unnormalized' : 'Every position the same size'}
-                    className={`px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-widest border cursor-pointer ${
-                      config.sizingMode === mode ? 'border-neon text-neon' : 'border-line text-dim hover:text-ink'
-                    }`}
-                  >
-                    {mode === 'fixed' ? 'fixed size' : mode === 'whale-pct' ? '% of whale' : 'normalized'}
-                  </button>
-                ))}
-                {config.sizingMode === 'whale-pct' && (
-                  <label className="flex items-center gap-1 text-xs text-dim">
-                    <input type="number" min={0.1} max={100} step={1} value={config.copyPct} onChange={(e) => setConfig({ ...config, copyPct: Number(e.target.value) })} className="w-16 text-right" />
-                    % of their entry
-                  </label>
-                )}
-              </div>
-              {config.sizingMode === 'whale-frac' && (
-                <label className="flex items-center justify-between gap-4 text-sm mt-3">
-                  <span className="text-dim">Our bankroll <span className="text-xs">— ◎ × their fraction (cap 25%)</span></span>
-                  <input type="number" min={0} step={1} value={config.bankrollSol} onChange={(e) => setConfig({ ...config, bankrollSol: Number(e.target.value) })} className="w-24 text-right" />
-                </label>
-              )}
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>Take profit %</span>
-                <input type="number" min={1} step={10} value={config.takeProfitPct} onChange={(e) => setConfig({ ...config, takeProfitPct: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>Stop loss %</span>
-                <input type="number" min={1} max={100} step={5} value={config.stopLossPct} onChange={(e) => setConfig({ ...config, stopLossPct: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>Slippage % / side</span>
-                <input type="number" min={0} max={50} step={0.5} value={config.slippagePct} onChange={(e) => setConfig({ ...config, slippagePct: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>Max hold (hours)</span>
-                <input type="number" min={1} max={720} step={6} value={config.maxHoldHours} onChange={(e) => setConfig({ ...config, maxHoldHours: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-              <label className="flex items-center justify-between gap-4 text-sm">
-                <span>Max open positions</span>
-                <input type="number" min={1} max={50} step={1} value={config.maxOpenPositions} onChange={(e) => setConfig({ ...config, maxOpenPositions: Number(e.target.value) })} className="w-24 text-right" />
-              </label>
-            </div>
-            <label className="flex items-center gap-3 text-sm mt-3 opacity-60 cursor-not-allowed" title="Locked until the paper-trade engine proves positive expectancy — see docs/closed-loop.md">
-              <input type="checkbox" disabled checked={false} className="checkbox" />
-              auto-trade new opportunities <span className="text-pulse text-xs font-bold tracking-widest ml-1">LOCKED</span>
-            </label>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="btn" disabled={save.isPending || !dirty} onClick={() => save.mutate(config)}>
-              {save.isPending ? 'Saving…' : 'Save'}
-            </button>
-            {dirty && !save.isPending && <span className="text-xs text-warn">unsaved changes</span>}
-            {save.error && <span className="text-xs text-loss">{save.error.message}</span>}
-          </div>
+      <div className="panel p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <span className="eyebrow">Rules</span>
+          <p className="text-sm text-dim mt-1">
+            What turns a signal into a trade — thresholds, sizing, exits and brakes — now lives on its own page.
+          </p>
         </div>
-      )}
+        <Link to="/rules" className="btn shrink-0">Trading rules →</Link>
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { Crawler } from './pages/Crawler';
 import { Copyability } from './pages/Copyability';
 import { Flows } from './pages/Flows';
 import { Backtest } from './pages/Backtest';
+import { Rules } from './pages/Rules';
 import { Live } from './pages/Live';
 import { Opportunities } from './pages/Opportunities';
 import { Tokens } from './pages/Tokens';
@@ -72,9 +73,10 @@ export const fundingRoute = createRoute({
 export const copyabilityRoute = createRoute({ getParentRoute: () => rootRoute, path: '/copyability', component: Copyability });
 export const flowsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/flows', component: Flows });
 export const backtestRoute = createRoute({ getParentRoute: () => rootRoute, path: '/backtest', component: Backtest });
+export const rulesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/rules', component: Rules });
 export const executorRoute = createRoute({ getParentRoute: () => rootRoute, path: '/executor', component: Executor });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute, copyabilityRoute, flowsRoute, backtestRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, walletsRoute, walletDetailRoute, tokensRoute, tokenDetailRoute, recsRoute, fundingRoute, discoverRoute, gemsRoute, opportunitiesRoute, liveRoute, crawlerRoute, screenerRoute, tokenCheckRoute, executorRoute, copyabilityRoute, flowsRoute, backtestRoute, rulesRoute]);
 
 export const router = createRouter({ routeTree });
 
