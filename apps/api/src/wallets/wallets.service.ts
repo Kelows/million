@@ -98,10 +98,35 @@ export class WalletsService {
         t.qty = live.qty || t.qty;
         t.entrySol = Math.round(live.costSol * 1000) / 1000;
         t.open = true;
+        // the per-token table reads THIS, not metrics.lastSeen — without it a
+        // token traded minutes ago still shows the analysis-era timestamp
+        const touched = live.updatedAt.toISOString();
+        if (live.source === 'live' && (!t.lastActivityAt || touched > t.lastActivityAt)) t.lastActivityAt = touched;
       } else if (t.open) {
         t.open = false; // sold out from under the snapshot
         t.qty = 0;
       }
+    }
+    // positions opened SINCE the analysis exist only in the ledger — without
+    // this they are invisible on the page that is supposed to show holdings
+    const known = new Set(record.metrics.tokens.map((t) => t.mint));
+    for (const live of rows) {
+      if (known.has(live.mint) || live.costSol <= 0) continue;
+      record.metrics.tokens.push({
+        mint: live.mint,
+        symbol: live.symbol,
+        buys: 1,
+        sells: 0,
+        solIn: Math.round(live.costSol * 1000) / 1000,
+        solOut: 0,
+        realizedPnlSol: 0,
+        entrySol: Math.round(live.costSol * 1000) / 1000,
+        qty: live.qty,
+        holdMinutes: null,
+        firstBuyAt: live.updatedAt.toISOString(),
+        lastActivityAt: live.updatedAt.toISOString(),
+        open: true,
+      });
     }
   }
 

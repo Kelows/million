@@ -13,8 +13,8 @@ export function StatTile({ label, value, sub, hint, tone = 'default' }: StatTile
   return (
     <div className="panel p-4">
       <div className="eyebrow">{label}{hint && <Info text={hint} />}</div>
-      <div className={`font-mono text-2xl font-bold mt-2 ${toneClass}`}>{value}</div>
-      {sub && <div className="text-xs text-dim mt-1">{sub}</div>}
+      <div className={`font-mono text-xl xl:text-2xl font-bold mt-2 truncate ${toneClass}`} title={value}>{value}</div>
+      {sub && <div className="text-xs text-dim mt-1 truncate" title={sub}>{sub}</div>}
     </div>
   );
 }
