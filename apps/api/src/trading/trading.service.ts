@@ -159,6 +159,18 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     if (config.exitMode === 'rules') return;
     const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint, wallet } });
     for (const p of positions) {
+      // A whale selling seconds after we bought is not a verdict on the trade —
+      // it is one clip of their ladder, or a scalp, or plain noise. Cutting on
+      // it destroys the only thing this strategy earns from: RETIREMENT was
+      // mirrored out 9 SECONDS after entry at -6%, then ran +1303%. The tail is
+      // the entire edge, and this rule was amputating it on arrival.
+      const ageSec = (Date.now() - p.openedAt.getTime()) / 1000;
+      if (ageSec < config.minHoldBeforeMirrorSec) {
+        this.decisions.push(
+          `[trading] ${p.symbol ?? mint.slice(0, 8)}: whale sold ${Math.round(ageSec)}s after our entry — too young to mirror, holding`,
+        );
+        continue;
+      }
       // pure mirror: the whale's judgment is the strategy — their exit is our exit, win or lose
       if (config.exitMode === 'mirror') {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');

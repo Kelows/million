@@ -216,6 +216,20 @@ export class OpportunitiesService {
       ),
     ];
     if (voters.length < config.consensusOwners) return false;
+    // Breadth is not agreement. On fone two wallets bought ~5 SOL between them
+    // while others dumped ~77 SOL seconds earlier — consensus fired, and we
+    // bought the exit liquidity of the whale we were copying. Buyers must
+    // outweigh sellers, not merely outnumber them.
+    if (config.consensusNetFlow) {
+      const flow = (kind: string) =>
+        events.filter((e) => e.kind === kind).reduce((sum, e) => sum + Math.abs(e.sol ?? 0) + Math.abs(e.usd ?? 0) / solUsd, 0);
+      const bought = flow('buy');
+      const sold = flow('sell');
+      if (sold >= bought) {
+        this.decisions.push(`[opps] skip ${mint.slice(0, 6)}... (consensus): ${bought.toFixed(1)} SOL bought vs ${sold.toFixed(1)} sold — distribution, not agreement`);
+        return false;
+      }
+    }
     const rows = await this.prisma.wallet.findMany({ where: { address: { in: voters } }, select: { address: true, ownerId: true } });
     const owners = new Set(rows.map((r) => (r.ownerId != null ? `o${r.ownerId}` : r.address)));
     if (owners.size < config.consensusOwners) return false;
