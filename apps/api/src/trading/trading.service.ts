@@ -54,6 +54,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     whaleEntryPriceUsd: number | null = null,
     whaleBuySol: number | null = null,
     signal: string = 'copy',
+    wouldBlock: string = '',
   ): Promise<void> {
     const config = await this.config();
     if (!config.paperEnabled || config.positionSol <= 0) return;
@@ -140,7 +141,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       if (fidelity < 1) sizeSol = Math.max(0.01, Math.round(sizeSol * fidelity * 100) / 100);
     }
     await this.prisma.paperPosition.create({
-      data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal },
+      data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal, wouldBlock: wouldBlock || null },
     });
     this.decisions.push(`[trading] OPENED ${symbol ?? mint.slice(0, 8)} — ${sizeSol}◎ (${signal}) @ $${fill.priceUsd.toPrecision(3)}`);
     this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode, signal });
@@ -331,6 +332,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         symbol: p.symbol,
         wallet: p.wallet,
         signal: p.signal,
+        wouldBlock: p.wouldBlock,
         sizeSol: p.sizeSol,
         entryPriceUsd: p.entryPriceUsd,
         openedAt: p.openedAt.toISOString(),

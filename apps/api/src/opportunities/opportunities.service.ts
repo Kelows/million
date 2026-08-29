@@ -113,7 +113,12 @@ export class OpportunitiesService {
     // included) and the shadow is only recorded if everything else passed.
     // First blocker owns the attribution.
     let blockedBy: string | null = null;
-    const block = (reason: string, why: string) => {
+    // A guard turned OFF still computes its verdict and records it here, so one
+    // run yields within-sample attribution: "how did the trades cycler would
+    // have blocked actually do?" — far cheaper than sequential experiments.
+    const wouldBlock: string[] = [];
+    const block = (reason: string, why: string, enabled = true) => {
+      if (!enabled) { wouldBlock.push(reason); return; }
       if (!blockedBy) { blockedBy = reason; skip(why); }
     };
     if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
@@ -139,10 +144,10 @@ export class OpportunitiesService {
     // ping-ponging — copying a seconds-scale scalp cycle means buying their
     // impact spike and selling into their dump. Their profit, our fee.
     const recentSell = await this.prisma.liveEvent.findFirst({
-      where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - 10 * 60_000) } },
+      where: { wallet, mint, kind: 'sell', ts: { gte: new Date(Date.now() - (config.cyclerGuardMinutes || 10) * 60_000) } },
       select: { id: true },
     });
-    if (recentSell) block('cycler', 'sold this mint <10min ago — mid scalp cycle');
+    if (recentSell) block('cycler', 'sold this mint <10min ago — mid scalp cycle', config.cyclerGuardMinutes > 0);
     const walletRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true, copyability: true } });
     // copyability gate: the one measured trigger below threshold went 0-for-3 as
     // predicted — a whale whose edge dies inside our latency is unfollowable no
@@ -157,14 +162,16 @@ export class OpportunitiesService {
       if ((m.flags ?? []).includes('BOT_INFRA')) return skip('trigger wallet is BOT_INFRA'); // inventory moves, never signal
       // retention(δ/H) is ≤0 when the wallet's holds are shorter than our latency
       // horizon — H is a property of the trader, so gate on their median hold
-      if (config.minMedianHoldMinutes > 0 && m.medianHoldMinutes !== null && m.medianHoldMinutes < config.minMedianHoldMinutes)
-        block('median-hold', `median hold ${Math.round(m.medianHoldMinutes)}m < ${config.minMedianHoldMinutes}m`);
+      // reference bar when disabled, so the counterfactual stays measurable
+      const holdBar = config.minMedianHoldMinutes > 0 ? config.minMedianHoldMinutes : 15;
+      if (m.medianHoldMinutes !== null && m.medianHoldMinutes < holdBar)
+        block('median-hold', `median hold ${Math.round(m.medianHoldMinutes)}m < ${holdBar}m`, config.minMedianHoldMinutes > 0);
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
       if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
     }
 
-    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy);
+    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy, wouldBlock);
   }
 
   /**
@@ -207,6 +214,7 @@ export class OpportunitiesService {
     config: OpportunityConfig,
     whalePriceUsd: number | null,
     blockedBy: string | null = null,
+    wouldBlock: string[] = [],
   ): Promise<void> {
     // fresh-entry gate (preset knob): the trigger must be the roster's FIRST
     // owner into this mint. If our whales already hold it, the story is
@@ -273,6 +281,6 @@ export class OpportunitiesService {
     this.decisions.push(`[opps] FIRED ${report.symbol ?? mint.slice(0, 6)} (${signal}) — ${buySol.toFixed(1)}◎ by ${wallet.slice(0, 6)}…, verdict ${report.verdict}`);
     this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
-    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol, signal).catch(() => undefined);
+    void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol, signal, wouldBlock.join(',')).catch(() => undefined);
   }
 }

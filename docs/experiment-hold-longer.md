@@ -20,11 +20,36 @@ correctly blocking losers.
 Both point the same way: **the tokens fast traders pick keep running after they
 leave.** Our edge may be patience, not imitation.
 
-## The change (one variable)
+## The change — restarted 12:52, both fast-trader guards off
 
-`minMedianHoldMinutes: 15 → 0` — fast-trading wallets can trigger entries again.
-Everything else identical: mirror-trail exits, trail 15% (volatility-scaled),
-`fill-deflation`/`roster-fresh`/`cycler` guards untouched, same sizing.
+`minMedianHoldMinutes: 15 → 0` **and** `cyclerGuardMinutes: 10 → 0`.
+
+Why both at once, rather than sequentially: last night's trades ranged −57% to
++52%, so isolating a few-hundredths-of-a-SOL expectancy shift would need
+hundreds of trades per variable — weeks at ~12/night, by which point the market
+regime has moved. The two guards are also the same hypothesis in different
+clothes (one blocks a wallet for *being* a fast trader, the other for *acting*
+like one), both born from the same two trades.
+
+Attribution is preserved a cheaper way: a disabled guard still computes its
+verdict and stamps `wouldBlock` on the position. One run now answers both
+questions as within-sample subgroups under identical market conditions.
+
+`fill-deflation` and `roster-fresh` stay ON — 169 and 11 samples respectively,
+both clearly blocking losers. Note `cycler` was the *predictive* proxy for a bad
+fill while `fill-deflation` is the *measured* one; because of first-blocker-wins
+ordering those 9 cycler phantoms were never fill-tested, so this run finally
+measures the overlap instead of guessing at it.
+
+## How to read the result
+
+Split closed trades by `wouldBlock`:
+- trades tagged `median-hold` / `cycler` = what the guards were costing us
+- trades tagged neither = the baseline that was getting through before
+
+If the tagged subgroups outperform the untagged ones, the guards were the
+mistake. If they underperform, the guards were right and the +15.2% shadow
+figure was a 6h buy-and-hold mirage.
 
 ## Predictions (falsifiable)
 

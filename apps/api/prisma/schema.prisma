@@ -130,6 +130,7 @@ model PaperPosition {
   @@index([status])
   peakPriceUsd      Float? // set when a whale exit arms the trailing stop on a winner
   signal            String   @default("copy") // which entry logic opened this — expectancy splits by it
+  wouldBlock        String? // guards that WOULD have blocked this entry, had they been enabled — within-run attribution
 }
 
 model ShadowPosition {

@@ -464,6 +464,7 @@ export const OpportunityConfigSchema = z.object({
   consensusOwners: z.coerce.number().int().min(0).max(10).default(2), // N distinct owners buying in the live window fires a consensus entry (0 = off)
   tradeSignals: z.enum(['both', 'copy', 'consensus']).default('both'), // which signal kinds may OPEN positions — the feed always shows both
   minMedianHoldMinutes: z.coerce.number().min(0).max(1440).default(15), // trigger wallet's median hold must exceed this — retention(δ/H) is ≤0 for scalpers (0 = off)
+  cyclerGuardMinutes: z.coerce.number().min(0).max(120).default(10), // skip a trigger that SOLD this mint within N minutes (0 = off)
   freshEntriesOnly: z.boolean().default(false), // trigger must be the roster's FIRST owner in — if our whales already hold it, the story is mid-flight
   strategyPreset: z.string().nullable().default(null), // which preset these settings started from — a label, not a lock
 });
@@ -501,6 +502,7 @@ export interface PaperPositionRow {
   id: number;
   mint: string;
   signal?: string; // copy | consensus
+  wouldBlock?: string | null; // guards that would have blocked this entry
   symbol: string | null;
   wallet: string | null; // triggering wallet
   sizeSol: number;
