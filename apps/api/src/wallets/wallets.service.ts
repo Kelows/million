@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
 import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics,
@@ -12,6 +12,19 @@ import { EventsBus } from '../common/events.bus';
 import { computeMetrics } from '../analysis/metrics';
 
 /** Observed stats need a minimum sample before a win rate means anything. */
+/** One computation path: the 5-minute sweep writes it, everything reads it. */
+export function storedUnrealized(w: Wallet): WalletUnrealized | null {
+  if (w.unrealizedSol == null || w.unrealizedCostSol == null) return null;
+  return {
+    positions: w.unrealizedPositions ?? 0,
+    priced: w.unrealizedPriced ?? 0,
+    costSol: w.unrealizedCostSol,
+    valueSol: Math.round((w.unrealizedCostSol + w.unrealizedSol) * 1000) / 1000,
+    pnlSol: w.unrealizedSol,
+    pnlPct: w.unrealizedCostSol > 0 ? Math.round((w.unrealizedSol / w.unrealizedCostSol) * 1000) / 10 : null,
+  };
+}
+
 export function toObserved(realizedSol: number, trades: number, wins: number): WalletObserved {
   return {
     realizedSol: Math.round(realizedSol * 1000) / 1000,
@@ -22,7 +35,7 @@ export function toObserved(realizedSol: number, trades: number, wins: number): W
 }
 
 @Injectable()
-export class WalletsService {
+export class WalletsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly helius: HeliusService,
@@ -32,6 +45,61 @@ export class WalletsService {
     private readonly config: ConfigService,
     private readonly bus: EventsBus,
   ) {}
+
+  private readonly log = new Logger(WalletsService.name);
+  private markTimer: ReturnType<typeof setInterval> | null = null;
+
+  onModuleInit() {
+    setTimeout(() => void this.markOpenBooks(), 45_000);
+    this.markTimer = setInterval(() => void this.markOpenBooks(), 5 * 60_000);
+  }
+
+  onModuleDestroy() {
+    if (this.markTimer) clearInterval(this.markTimer);
+  }
+
+  /**
+   * Mark every wallet's open book to market in one pass. Pricing 1600 wallets
+   * per list request is impossible; one sweep prices each distinct mint once
+   * (30 per call, free) and writes the result, so the roster list gets
+   * unrealized PnL for nothing.
+   */
+  private async markOpenBooks(): Promise<void> {
+    const positions = await this.prisma.rosterPosition.findMany({ where: { qty: { gt: 0 }, costSol: { gt: 0 } } });
+    if (!positions.length) return;
+    const prices = await this.dexscreener.fetchPrices([...new Set(positions.map((p) => p.mint))]).catch(() => new Map<string, number>());
+    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+    const byWallet = new Map<string, { value: number; cost: number; positions: number; priced: number }>();
+    for (const p of positions) {
+      const agg = byWallet.get(p.wallet) ?? { value: 0, cost: 0, positions: 0, priced: 0 };
+      agg.positions++;
+      const price = prices.get(p.mint);
+      if (price !== undefined) {
+        // unpriceable positions count toward `positions` but not the maths, so
+        // the ratio shows coverage instead of the number quietly dropping losers
+        agg.priced++;
+        agg.value += (p.qty * price) / solUsd;
+        agg.cost += p.costSol;
+      }
+      byWallet.set(p.wallet, agg);
+    }
+    const now = new Date();
+    for (const [wallet, agg] of byWallet) {
+      await this.prisma.wallet
+        .update({
+          where: { address: wallet },
+          data: {
+            unrealizedSol: Math.round((agg.value - agg.cost) * 1000) / 1000,
+            unrealizedCostSol: Math.round(agg.cost * 1000) / 1000,
+            unrealizedPositions: agg.positions,
+            unrealizedPriced: agg.priced,
+            unrealizedAt: now,
+          },
+        })
+        .catch(() => undefined);
+    }
+    this.log.log(`marked ${byWallet.size} open books to market`);
+  }
 
   private pendingJob = { running: false, done: 0, total: 0 };
 
@@ -63,33 +131,35 @@ export class WalletsService {
    * zero sells, 1547 SOL deployed — scores zero and reads as a dead wallet,
    * because every metric we compute needs a completed round trip.
    */
-  private async unrealized(record: WalletRecord): Promise<WalletUnrealized | null> {
-    // every open position counts toward `positions`; only those we can actually
-    // value count toward `priced`, and cost is only summed for the priced ones
-    // so the PnL compares like with like. The ratio is shown, never hidden.
-    const open = (record.metrics?.tokens ?? []).filter((t) => t.open);
-    if (!open.length) return null;
-    const prices = await this.dexscreener.fetchPrices(open.map((t) => t.mint));
-    const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
-    let valueSol = 0, costSol = 0, priced = 0;
-    for (const t of open) {
-      const price = prices.get(t.mint);
-      const cost = t.entrySol ?? 0;
-      const qty = t.qty ?? 0;
-      if (price === undefined || qty <= 0) continue; // unquotable, or no quantity to value — excluded, and the priced/total ratio says so
-      priced++;
-      costSol += cost;
-      valueSol += (qty * price) / solUsd;
-    }
-    const r = (n: number) => Math.round(n * 100) / 100;
-    return {
-      positions: open.length,
-      priced,
-      costSol: r(costSol),
-      valueSol: r(valueSol),
-      pnlSol: r(valueSol - costSol),
-      pnlPct: costSol > 0 ? r(((valueSol - costSol) / costSol) * 100) : null,
-    };
+  async activity(): Promise<WalletActivityRow[]> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { purgedAt: null, OR: [{ lastEventAt: { not: null } }, { observedTrades: { gt: 0 } }] },
+      select: { address: true, lastEventAt: true, observedRealizedSol: true, observedTrades: true, observedWins: true },
+    });
+    return rows.map((r) => ({
+      address: r.address,
+      lastEventAt: r.lastEventAt?.toISOString() ?? null,
+      observedRealizedSol: r.observedRealizedSol,
+      observedTrades: r.observedTrades,
+      observedWins: r.observedWins,
+    }));
+  }
+
+  /** Analysis is the periodic truth: replace this wallet's ledger rows wholesale. */
+  private async seedPositions(address: string, metrics: WalletMetrics): Promise<void> {
+    const open = metrics.tokens.filter((t) => t.open && (t.qty ?? 0) > 0);
+    await this.prisma.rosterPosition.deleteMany({ where: { wallet: address } });
+    if (!open.length) return;
+    await this.prisma.rosterPosition.createMany({
+      data: open.map((t) => ({
+        wallet: address,
+        mint: t.mint,
+        symbol: t.symbol,
+        qty: t.qty ?? 0,
+        costSol: t.entrySol ?? t.solIn,
+        source: 'analysis',
+      })),
+    });
   }
 
   /**
@@ -140,43 +210,12 @@ export class WalletsService {
     }
   }
 
-  /** Analysis is the periodic truth: replace this wallet's ledger rows wholesale. */
-  private async seedPositions(address: string, metrics: WalletMetrics): Promise<void> {
-    const open = metrics.tokens.filter((t) => t.open && (t.qty ?? 0) > 0);
-    await this.prisma.rosterPosition.deleteMany({ where: { wallet: address } });
-    if (!open.length) return;
-    await this.prisma.rosterPosition.createMany({
-      data: open.map((t) => ({
-        wallet: address,
-        mint: t.mint,
-        symbol: t.symbol,
-        qty: t.qty ?? 0,
-        costSol: t.entrySol ?? t.solIn,
-        source: 'analysis',
-      })),
-    });
-  }
-
-  async activity(): Promise<WalletActivityRow[]> {
-    const rows = await this.prisma.wallet.findMany({
-      where: { purgedAt: null, OR: [{ lastEventAt: { not: null } }, { observedTrades: { gt: 0 } }] },
-      select: { address: true, lastEventAt: true, observedRealizedSol: true, observedTrades: true, observedWins: true },
-    });
-    return rows.map((r) => ({
-      address: r.address,
-      lastEventAt: r.lastEventAt?.toISOString() ?? null,
-      observedRealizedSol: r.observedRealizedSol,
-      observedTrades: r.observedTrades,
-      observedWins: r.observedWins,
-    }));
-  }
-
   async get(address: string): Promise<WalletRecord> {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
     const record = this.toRecord(wallet);
     await this.overlayLivePositions(address, record).catch(() => undefined);
-    record.unrealized = await this.unrealized(record).catch(() => null);
+    record.unrealized = storedUnrealized(wallet);
     record.ownerSiblings = await this.owners.siblings(address);
     if (wallet.ownerId && record.ownerSiblings.length > 0) {
       record.ownerAggregate = await this.ownerAggregate(wallet.ownerId);
@@ -411,6 +450,8 @@ export class WalletsService {
       status: w.status as WalletStatus,
       metrics,
       observed: toObserved(w.observedRealizedSol, w.observedTrades, w.observedWins),
+      unrealizedSol: w.unrealizedSol,
+      unrealizedCostSol: w.unrealizedCostSol,
       lastEventAt: w.lastEventAt?.toISOString() ?? null,
       error: w.error,
       subscribed: w.subscribed,

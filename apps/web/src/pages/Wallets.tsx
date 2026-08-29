@@ -75,8 +75,10 @@ function groupAgg(members: WalletRecord[]) {
 const rowGet = {
   label: (r: RosterRow) => (r.kind === 'wallet' ? r.w.label : (r.members.find((m) => m.label)?.label ?? null)),
   score: (r: RosterRow) => (r.kind === 'wallet' ? rosterScore(r.w) : groupAgg(r.members).score),
-  winRate: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.winRate ?? null) : groupAgg(r.members).winRate),
+  winRate: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.observed?.winRate ?? null) : groupAgg(r.members).winRate),
   pnl: (r: RosterRow) => (r.kind === 'wallet' ? observedPnlSol(r.w) : groupAgg(r.members).pnl),
+  unrealized: (r: RosterRow) =>
+    r.kind === 'wallet' ? (r.w.unrealizedSol ?? null) : r.members.reduce((sum, m) => sum + (m.unrealizedSol ?? 0), 0),
   hold: (r: RosterRow) => (r.kind === 'wallet' ? (r.w.metrics?.medianHoldMinutes ?? null) : null),
   open: (r: RosterRow) => (r.kind === 'wallet' ? openCount(r.w) : groupAgg(r.members).open),
   lastSeen: (r: RosterRow) =>
@@ -88,8 +90,9 @@ const ROW_COLUMNS: SortColumn<RosterRow>[] = Object.entries(rowGet).map(([key, g
 const ROSTER_COLUMNS: SortColumn<WalletRecord>[] = [
   { key: 'label', get: (w) => w.label },
   { key: 'score', get: (w) => rosterScore(w) },
-  { key: 'winRate', get: (w) => w.metrics?.winRate ?? null },
+  { key: 'winRate', get: (w) => w.observed?.winRate ?? null },
   { key: 'pnl', get: (w) => observedPnlSol(w) },
+  { key: 'unrealized', get: (w) => w.unrealizedSol ?? null },
   { key: 'hold', get: (w) => w.metrics?.medianHoldMinutes ?? null },
   { key: 'open', get: (w) => openCount(w) },
   { key: 'lastSeen', get: (w) => (w.metrics?.lastSeen ? new Date(w.metrics.lastSeen).getTime() : null) },
@@ -404,9 +407,10 @@ export function Wallets() {
                   <th className="pl-4 pr-0 py-2 w-8"></th>
                   <th className="px-4 py-2 font-normal">wallet</th>
                   <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="score" colKey="score" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Whale-quality score: win rate + realized PnL, bots and farmed wallets slammed to -100. Same formula as Discover." />
-                  <SortHeader label="win rate" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of fully closed tokens that ended profitable. Open positions don't count either way." />
-                  <SortHeader label="realized PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Average-cost realized PnL over the analyzed window. SOL and USDC/USDT legs combined, stable legs converted at the SOL price at analysis time. Open positions not included." />
+                  <SortHeader label="score" colKey="score" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Observed win rate + observed PnL. Blank until the wallet has closed at least 3 round trips in front of us — unmeasured, not unpromising. Bots and farmed wallets are unscored; their flags say why." />
+                  <SortHeader label="obs. WR" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of WATCHED round trips that ended profitable — we saw both the buy and the sell." />
+                  <SortHeader label="observed PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Realized PnL from round trips we watched end to end, so the cost basis is real." />
+                  <SortHeader label="unrealized" colKey="unrealized" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Open book marked to market, refreshed every 5 minutes. Positions we cannot price are excluded from both value and cost, so the number never flatters itself by dropping its losers." />
                   <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Positions bought and never sold, excluding stablecoins and entries under the min size set in Screener → Analytics." />
                   <SortHeader label="last active" colKey="lastSeen" sortKey={sortKey} dir={dir} onToggle={toggle} />
@@ -487,6 +491,9 @@ export function Wallets() {
                       <td className={`px-4 py-2 text-right ${(observedPnlSol(w) ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {w.observed?.trades ? fmtSol(observedPnlSol(w) ?? 0) : <span className="text-dim">unmeasured</span>}
                       </td>
+                      <td className={`px-4 py-2 text-right ${(w.unrealizedSol ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {w.unrealizedSol == null ? <span className="text-dim">—</span> : fmtSol(w.unrealizedSol)}
+                      </td>
                       <td className="px-4 py-2">{fmtHold(w.metrics?.medianHoldMinutes ?? null)}</td>
                       <td className="px-4 py-2">
                         {(() => {
@@ -517,13 +524,15 @@ export function Wallets() {
                             {w.subscribed ? 'sub ●' : 'sub'}
                           </button>
                         )}
-                        <button
-                          className="btn mr-2 py-1! px-2! text-[0.6rem]!"
-                          disabled={!heliusOk || busy}
-                          onClick={() => runAnalysis([w.address])}
-                        >
-                          {busy ? '…' : w.metrics ? 're-run' : 'analyze'}
-                        </button>
+                        {!w.metrics && (
+                          <button
+                            className="btn mr-2 py-1! px-2! text-[0.6rem]!"
+                            disabled={!heliusOk || busy}
+                            onClick={() => runAnalysis([w.address])}
+                          >
+                            {busy ? '…' : 'analyze'}
+                          </button>
+                        )}
                         <button
                           className="text-xs text-dim hover:text-loss"
                           title="Remove from roster"

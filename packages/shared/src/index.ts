@@ -96,6 +96,8 @@ export interface WalletRecord {
   ownerId: number | null;
   /** other roster addresses assigned to the same owner (detail endpoint only) */
   observed?: WalletObserved; // performance from round trips we watched end to end
+  unrealizedSol?: number | null; // open book marked to market by the periodic sweep
+  unrealizedCostSol?: number | null;
   lastEventAt?: string | null;
   ownerSiblings?: { address: string; label: string | null }[];
   unrealized?: WalletUnrealized | null; // open book marked to market (detail view only)

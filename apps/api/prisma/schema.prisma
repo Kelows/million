@@ -30,6 +30,13 @@ model Wallet {
   observedRealizedSol Float @default(0)
   observedTrades      Int   @default(0)
   observedWins        Int   @default(0)
+  // open book marked to market by a periodic sweep — too expensive to price
+  // 1600 wallets on every list request, cheap as a background pass
+  unrealizedSol       Float?
+  unrealizedCostSol   Float?
+  unrealizedPositions Int?
+  unrealizedPriced    Int?
+  unrealizedAt        DateTime?
   copyability    String? // JSON CopyabilityResult — whale edge re-simulated with copy latency
 }
 
