@@ -151,6 +151,12 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     costSol = 0,
   ): Promise<void> {
     if (!fullyObserved || !Number.isFinite(pnlSol)) return;
+    if (costSol < 0.01) return; // no basis, no measurable result
+    // Unanalyzed wallets carry no flags, so infra sits among them and its
+    // inventory moves read as trades — 183 such trades cost -182 SOL, including
+    // one at -144. Judge only wallets we have actually looked at.
+    const w = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } }).catch(() => null);
+    if (!w?.metrics) return;
     if (closed && mint) {
       void this.freezeCohortBaseline(wallet);
       await this.prisma.observedTrade
@@ -203,6 +209,10 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const existing = await this.prisma.rosterPosition.findUnique({ where: { wallet_mint: { wallet, mint } } });
     if (tokenDelta > 0) {
       const spent = Math.max(0, -sol) + Math.max(0, -usd) / solUsd;
+      // A "buy" with no quote currency leaving is a transfer, an airdrop, or a
+      // swap we misparsed — not a position. Recording it with ~zero cost makes
+      // the eventual sale read as pure profit: 28 such trades invented +80 SOL.
+      if (spent < 0.01) return;
       await this.prisma.rosterPosition.upsert({
         where: { wallet_mint: { wallet, mint } },
         create: { wallet, mint, qty: tokenDelta, costSol: spent, source: 'live' },
