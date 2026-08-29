@@ -572,9 +572,15 @@ export class BacktestService {
       return ruleExit(trail, arm, stop, i + 1)(p);
     };
 
+    // NOT "gauntlet-only": on this sample the authority checks exclude NOTHING
+    // (0 of 225 minute-path mints have a live mint/freeze authority), so
+    // filtering on them is identical to filtering on "we hold a report at all".
+    // And we hold a report only where the backfill found a live DexScreener
+    // pair TODAY -- which is survivorship, not a gate. Named for what it
+    // measures so nobody reads it as a filter that earned its keep.
     const entries: [string, (p: P) => boolean][] = [
       ['all entries', () => true],
-      ['gauntlet-only', (p) => p.clean === true],
+      ['still-quotable today (survivorship)', (p) => p.clean === true],
     ];
     const exits: [string, (p: P) => number | null][] = [
       ['mirror (their exit)', mirror],
