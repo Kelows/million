@@ -225,9 +225,9 @@ export function WalletDetail() {
               <StatTile
                 label="Unrealized PnL"
                 value={`${wallet.unrealized.pnlSol > 0 ? '+' : ''}${wallet.unrealized.pnlSol} \u25ce`}
-                sub={`${wallet.unrealized.positions} open \u00b7 ${wallet.unrealized.costSol} \u25ce at cost${wallet.unrealized.pnlPct !== null ? ` \u00b7 ${wallet.unrealized.pnlPct > 0 ? '+' : ''}${wallet.unrealized.pnlPct}%` : ''}`}
+                sub={`${wallet.unrealized.priced}/${wallet.unrealized.positions} valued \u00b7 ${wallet.unrealized.costSol} \u25ce at cost${wallet.unrealized.pnlPct !== null ? ` \u00b7 ${wallet.unrealized.pnlPct > 0 ? '+' : ''}${wallet.unrealized.pnlPct}%` : ''}`}
                 tone={wallet.unrealized.pnlSol > 0 ? 'profit' : wallet.unrealized.pnlSol < 0 ? 'loss' : 'default'}
-                hint={`Open positions marked to market right now. ${wallet.unrealized.priced}/${wallet.unrealized.positions} could be priced; the rest are unquotable (delisted or dead pools) and counted as worthless. Realized PnL only ever sees completed round trips \u2014 a wallet still accumulating shows 0 there no matter how well it is doing.`}
+                hint={`Open positions marked to market right now: ${wallet.unrealized.priced} of ${wallet.unrealized.positions} could be valued. Unquotable mints (delisted, dead pools) count as worthless; positions analysed before quantities were recorded are held at cost until re-analysis, so they neither flatter nor penalise the number. Realized PnL only ever sees completed round trips \u2014 a wallet still accumulating shows 0 there no matter how well it is doing.`}
               />
             )}
             <StatTile label="Win rate" value={fmtPct(m.winRate)} sub={`${m.closedTokens} closed tokens`} hint="Profitable closed tokens / all closed tokens. A token counts as closed once it has at least one buy and one sell in the window." />

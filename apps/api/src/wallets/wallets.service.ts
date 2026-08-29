@@ -54,7 +54,10 @@ export class WalletsService {
    * because every metric we compute needs a completed round trip.
    */
   private async unrealized(record: WalletRecord): Promise<WalletUnrealized | null> {
-    const open = (record.metrics?.tokens ?? []).filter((t) => t.open && (t.qty ?? 0) > 0);
+    // every open position counts toward `positions`; only those we can actually
+    // value count toward `priced`. Dropping the unvaluable ones from the
+    // denominator would make a 1-of-8 sample look like a full book.
+    const open = (record.metrics?.tokens ?? []).filter((t) => t.open);
     if (!open.length) return null;
     const prices = await this.dexscreener.fetchPrices(open.map((t) => t.mint));
     const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
@@ -63,9 +66,16 @@ export class WalletsService {
       const price = prices.get(t.mint);
       const cost = t.entrySol ?? 0;
       costSol += cost;
+      const qty = t.qty ?? 0;
       if (price === undefined) continue; // delisted/unquotable — counted as cost, worth nothing
+      if (qty <= 0) {
+        // analysed before quantities were recorded: assume it held its value
+        // rather than inventing a loss. Re-analysis replaces this with truth.
+        valueSol += cost;
+        continue;
+      }
       priced++;
-      valueSol += ((t.qty ?? 0) * price) / solUsd;
+      valueSol += (qty * price) / solUsd;
     }
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
@@ -76,6 +86,29 @@ export class WalletsService {
       pnlSol: r(valueSol - costSol),
       pnlPct: costSol > 0 ? r(((valueSol - costSol) / costSol) * 100) : null,
     };
+  }
+
+  /**
+   * The per-token table is part of the same photograph as the rest of metrics.
+   * Overlay the live ledger so held quantities, cost and open/closed reflect
+   * what has happened since the analysis rather than what was true at it.
+   */
+  private async overlayLivePositions(address: string, record: WalletRecord): Promise<void> {
+    if (!record.metrics) return;
+    const rows = await this.prisma.rosterPosition.findMany({ where: { wallet: address } });
+    if (!rows.length) return; // nothing seeded yet — trust the snapshot rather than closing everything
+    const ledger = new Map(rows.map((r) => [r.mint, r]));
+    for (const t of record.metrics.tokens) {
+      const live = ledger.get(t.mint);
+      if (live) {
+        t.qty = live.qty || t.qty;
+        t.entrySol = Math.round(live.costSol * 1000) / 1000;
+        t.open = true;
+      } else if (t.open) {
+        t.open = false; // sold out from under the snapshot
+        t.qty = 0;
+      }
+    }
   }
 
   /** Analysis is the periodic truth: replace this wallet's ledger rows wholesale. */
@@ -99,6 +132,7 @@ export class WalletsService {
     const wallet = await this.prisma.wallet.findUnique({ where: { address } });
     if (!wallet) throw new NotFoundException(`wallet ${address} is not in the roster`);
     const record = this.toRecord(wallet);
+    await this.overlayLivePositions(address, record).catch(() => undefined);
     record.unrealized = await this.unrealized(record).catch(() => null);
     record.ownerSiblings = await this.owners.siblings(address);
     if (wallet.ownerId && record.ownerSiblings.length > 0) {
