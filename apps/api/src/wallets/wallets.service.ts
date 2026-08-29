@@ -223,7 +223,7 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
     return record;
   }
 
-  /** Pooled stats across every member of an owner cluster — from cached metrics, no API cost. */
+  /** Pooled stats across an owner cluster — observed round trips, no API cost. */
   private async ownerAggregate(ownerId: number): Promise<OwnerAggregate> {
     const members = await this.prisma.wallet.findMany({ where: { ownerId, purgedAt: null } });
     let pnl = 0;
@@ -233,11 +233,13 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
     let subscribedCount = 0;
     for (const w of members) {
       if (w.subscribed) subscribedCount++;
+      // owner totals aggregate OBSERVED round trips, same basis as every other
+      // number on the page — a cluster must never look better than its evidence
+      pnl += w.observedRealizedSol;
+      closed += w.observedTrades;
+      wins += w.observedWins;
       if (!w.metrics) continue;
       const m = JSON.parse(w.metrics) as WalletMetrics;
-      pnl += m.realizedPnlTotalSol ?? m.realizedPnlSol;
-      closed += m.closedTokens;
-      if (m.winRate !== null) wins += Math.round(m.winRate * m.closedTokens);
       for (const t of openPositions(m.tokens, 0)) openMints.add(t.mint);
     }
     return {
@@ -319,13 +321,13 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
     const selected = new Set(flags);
     const rows = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
-      select: { address: true, metrics: true },
+      select: { address: true, metrics: true, observedRealizedSol: true },
     });
     const junk = rows
       .filter((w) => {
         const m = JSON.parse(w.metrics as string) as WalletMetrics;
         if (m.flags.some((f) => selected.has(f))) return true;
-        if (maxPnlSol !== undefined && (m.realizedPnlTotalSol ?? m.realizedPnlSol) < maxPnlSol) return true;
+        if (maxPnlSol !== undefined && w.observedRealizedSol < maxPnlSol) return true; // observed, not the historical scan
         if (maxMedianHoldMin !== undefined && m.medianHoldMinutes !== null && m.medianHoldMinutes < maxMedianHoldMin) return true;
         return false;
       })
@@ -363,16 +365,21 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
     return this.pendingJob;
   }
 
-  /** The cohort experiment: does score-at-absorption predict FORWARD realized PnL? */
+  /**
+   * The cohort experiment: does a wallet's score, frozen the moment it FIRST
+   * became measurable, predict what it earns afterwards? Baseline and forward
+   * PnL are both observed, so the question is answered on one consistent basis.
+   */
   async cohorts(): Promise<import('@million/shared').CohortRow[]> {
     const rows = await this.prisma.wallet.findMany({
-      where: { purgedAt: null, metrics: { not: null }, scoreAtAbsorb: { not: null } },
-      select: { metrics: true, scoreAtAbsorb: true, pnlAtAbsorb: true },
+      where: { purgedAt: null, scoreAtAbsorb: { not: null } },
+      select: { scoreAtAbsorb: true, pnlAtAbsorb: true, observedRealizedSol: true },
     });
     const buckets: Record<string, { scores: number[]; fwd: number[] }> = {};
     for (const w of rows) {
-      const m = JSON.parse(w.metrics as string) as WalletMetrics;
-      const fwd = (m.realizedPnlTotalSol ?? m.realizedPnlSol) - (w.pnlAtAbsorb ?? 0);
+      // forward PnL is OBSERVED since the baseline was frozen — the old version
+      // subtracted historical PnL, which moved for reasons unrelated to skill
+      const fwd = w.observedRealizedSol - (w.pnlAtAbsorb ?? 0);
       const sc = w.scoreAtAbsorb ?? 0;
       const bucket = sc < 40 ? '<40' : sc < 70 ? '40-70' : sc < 110 ? '70-110' : '110+';
       (buckets[bucket] ??= { scores: [], fwd: [] });
@@ -402,7 +409,7 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
   async subscribeAll(): Promise<number> {
     const rows = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null, subscribed: false },
-      select: { address: true, metrics: true },
+      select: { address: true, metrics: true, observedRealizedSol: true },
     });
     const eligible = rows
       .filter((w) => !((JSON.parse(w.metrics as string) as WalletMetrics).flags ?? []).includes('BOT_INFRA'))

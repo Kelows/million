@@ -1,9 +1,10 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { LiveStatus } from '@million/shared';
+import { whaleScore, type LiveStatus, type WalletMetrics } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { OpportunitiesService } from '../opportunities/opportunities.service';
 import { TradingService } from '../trading/trading.service';
+import { toObserved } from '../wallets/wallets.service';
 import { EventsBus } from '../common/events.bus';
 import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
 import type { HeliusTx } from '../analysis/helius.service';
@@ -151,6 +152,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     if (!fullyObserved || !Number.isFinite(pnlSol)) return;
     if (closed && mint) {
+      void this.freezeCohortBaseline(wallet);
       await this.prisma.observedTrade
         .create({ data: { wallet, mint, symbol: symbol ?? null, pnlSol: Math.round(pnlSol * 1000) / 1000, costSol } })
         .catch(() => undefined);
@@ -163,6 +165,26 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
           ...(closed ? { observedTrades: { increment: 1 }, observedWins: { increment: pnlSol > 0 ? 1 : 0 } } : {}),
         },
       })
+      .catch(() => undefined);
+  }
+
+  /**
+   * The cohort experiment needs a baseline frozen at one comparable moment.
+   * "At absorption" no longer works — a wallet is unmeasured then. The honest
+   * equivalent is the moment it FIRST becomes scoreable, so score and forward
+   * PnL are separated by the same event for every wallet.
+   */
+  private async freezeCohortBaseline(wallet: string): Promise<void> {
+    const w = await this.prisma.wallet
+      .findUnique({ where: { address: wallet }, select: { scoreAtAbsorb: true, observedRealizedSol: true, observedTrades: true, observedWins: true, metrics: true } })
+      .catch(() => null);
+    if (!w || w.scoreAtAbsorb !== null) return; // already frozen — never re-freeze
+    const observed = toObserved(w.observedRealizedSol, w.observedTrades, w.observedWins);
+    const flags = w.metrics ? ((JSON.parse(w.metrics) as WalletMetrics).flags ?? []) : [];
+    const score = whaleScore(observed, flags.includes('BOT_INFRA'));
+    if (score === null) return; // not measurable yet
+    await this.prisma.wallet
+      .update({ where: { address: wallet }, data: { scoreAtAbsorb: score, pnlAtAbsorb: observed.realizedSol } })
       .catch(() => undefined);
   }
 
