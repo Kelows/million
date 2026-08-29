@@ -666,6 +666,7 @@ export interface ShadowGuardStat {
   closed: number;
   avgPnlPct: number | null; // what the skipped trades did — negative means the guard saved money
   avoidedSol: number; // -sum(pnlSol): positive = the guard earned its keep
+  avgPeakPct?: number | null; // best the skipped trades ever showed — what a trailing exit could have caught
 }
 
 // ── strategy presets: named starting points, not locks — apply, then tweak ──

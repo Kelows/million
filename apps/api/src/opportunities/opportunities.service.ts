@@ -126,7 +126,6 @@ export class OpportunitiesService {
       if (!enabled) { wouldBlock.push(reason); return; }
       if (!blockedBy) { blockedBy = reason; skip(why); }
     };
-    if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
       const trigRow = await this.prisma.wallet.findUnique({ where: { address: wallet }, select: { metrics: true } });
@@ -135,13 +134,17 @@ export class OpportunitiesService {
     }
     if (isExcludedToken(mint)) return; // majors/stables — silent, uninteresting
 
-    // consensus voting happens BEFORE the per-wallet novelty gates: a top-up or
-    // repeat buy can't fire a direct copy, but it still counts toward breadth
+    // CUMULATIVE detectors run before the per-clip floor. minBuySol asks "is
+    // this one buy big enough to mean something", which is the wrong question
+    // for accumulation: the measured ladderers use ~1.4 SOL clips, so a 1.5
+    // floor hid every one of them from the detector built to find them. These
+    // two judge the total, and carry their own floors.
     await this.tryConsensus(mint, wallet, buySol, ts, config).catch(() => undefined);
-    // ladder: accumulation IN PROGRESS. The measured ladderers buy the same
-    // mint every ~15s in ~1.4 SOL clips, so this trips within a minute of them
-    // starting — hours before a maturity gate would let us near the token.
     await this.tryLadder(mint, wallet, buySol, ts, config).catch(() => undefined);
+
+    // from here the COPY path only: one buy, judged on its own size
+    if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
+
 
     // recency: must be NEW for this wallet — no prior live buy, not in its analyzed history
     const priorLive = await this.prisma.liveEvent.findFirst({

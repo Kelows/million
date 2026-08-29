@@ -18,6 +18,7 @@ const DEDUPE_MS = 10 * 60_000; // a cycler can trip its guard every few seconds 
 export class ShadowService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(ShadowService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
+  private peakTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,10 +27,12 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.timer = setInterval(() => void this.sweep(), SWEEP_MS);
+    this.peakTimer = setInterval(() => void this.trackPeaks(), 60_000);
   }
 
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+    if (this.peakTimer) clearInterval(this.peakTimer);
   }
 
   /** Fire-and-forget from the gates — never let the audit slow the pipeline. */
@@ -48,6 +51,28 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
         data: { mint, symbol, wallet, reason, allReasons: allReasons || reason, entryPriceUsd: pair.priceUsd, sizeSol: cfg.positionSol },
       });
     })().catch((e) => this.log.warn(`shadow record ${mint.slice(0, 8)}: ${e}`));
+  }
+
+  /**
+   * Track the high-water mark of every open phantom. Marking only at the 6h
+   * horizon measures buy-and-hold, but we trade with a trailing stop — a token
+   * that ran +28% and then died reads as a loss when the trail would have left
+   * green. Without this, every guard's "avoided" number is biased against us.
+   */
+  private async trackPeaks(): Promise<void> {
+    const open = await this.prisma.shadowPosition.findMany({ where: { status: 'open' }, take: 60 });
+    if (!open.length) return;
+    const prices = await this.dexscreener.fetchPrices([...new Set(open.map((p) => p.mint))]).catch(() => new Map<string, number>());
+    for (const p of open) {
+      const price = prices.get(p.mint);
+      if (price === undefined || price <= (p.peakPriceUsd ?? 0)) continue;
+      await this.prisma.shadowPosition
+        .update({
+          where: { id: p.id },
+          data: { peakPriceUsd: price, peakRetPct: p.entryPriceUsd > 0 ? Math.round((price / p.entryPriceUsd - 1) * 1000) / 10 : null },
+        })
+        .catch(() => undefined);
+    }
   }
 
   /** Close phantoms past the horizon at market. Unquotable at close = the pool died: -100%. */
@@ -94,9 +119,10 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
 
   async stats(): Promise<ShadowGuardStat[]> {
     const rows = await this.prisma.shadowPosition.findMany();
-    const by = new Map<string, { open: number; closed: number; pnlPcts: number[]; pnlSol: number }>();
+    const by = new Map<string, { open: number; closed: number; pnlPcts: number[]; peaks: number[]; pnlSol: number }>();
     for (const r of rows) {
-      const g = by.get(r.reason) ?? { open: 0, closed: 0, pnlPcts: [], pnlSol: 0 };
+      const g = by.get(r.reason) ?? { open: 0, closed: 0, pnlPcts: [], peaks: [], pnlSol: 0 };
+      if (r.peakRetPct != null) g.peaks.push(r.peakRetPct); // open or closed — the path matters either way
       if (r.status === 'open') g.open++;
       else {
         g.closed++;
@@ -111,6 +137,7 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
         open: g.open,
         closed: g.closed,
         avgPnlPct: g.pnlPcts.length ? Math.round((g.pnlPcts.reduce((a, b) => a + b, 0) / g.pnlPcts.length) * 10) / 10 : null,
+        avgPeakPct: g.peaks.length ? Math.round((g.peaks.reduce((a, b) => a + b, 0) / g.peaks.length) * 10) / 10 : null,
         avoidedSol: Math.round(-g.pnlSol * 1000) / 1000,
       }))
       .sort((a, b) => b.avoidedSol - a.avoidedSol);

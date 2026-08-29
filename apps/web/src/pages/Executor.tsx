@@ -190,6 +190,7 @@ function ShadowPanel() {
               <th className="px-4 py-2 font-normal text-right">watching</th>
               <th className="px-4 py-2 font-normal text-right">resolved</th>
               <th className="px-4 py-2 font-normal text-right">skipped trades avg</th>
+              <th className="px-4 py-2 font-normal text-right">avg peak</th>
               <th className="px-4 py-2 font-normal text-right">avoided ◎</th>
             </tr>
           </thead>
@@ -202,6 +203,9 @@ function ShadowPanel() {
                 <td className={`px-4 py-2 text-right ${g.avgPnlPct == null ? 'text-dim' : g.avgPnlPct < 0 ? 'text-profit' : 'text-loss'}`}>
                   {g.avgPnlPct == null ? '—' : `${g.avgPnlPct > 0 ? '+' : ''}${g.avgPnlPct}%`}
                 </td>
+                <td className={`px-4 py-2 text-right ${(g.avgPeakPct ?? 0) > 0 ? 'text-loss' : 'text-dim'}`} title="best the skipped trades ever showed — what a trailing exit could have caught">
+                  {g.avgPeakPct == null ? '—' : `+${g.avgPeakPct}%`}
+                </td>
                 <td className={`px-4 py-2 text-right font-bold ${g.avoidedSol > 0 ? 'text-profit' : g.avoidedSol < 0 ? 'text-loss' : 'text-dim'}`}>
                   {g.avoidedSol > 0 ? '+' : ''}{g.avoidedSol}
                 </td>
@@ -211,7 +215,8 @@ function ShadowPanel() {
         </table>
       </div>
       <p className="px-4 py-3 text-xs text-dim">
-        Every skipped signal that would OTHERWISE have traded becomes a phantom position, marked to market 6h later —
+        Every skipped signal that would OTHERWISE have traded becomes a phantom position. The 6h mark is buy-and-hold;
+        "avg peak" is the best it ever showed, which is closer to what our trailing exit would have caught —
         the signal walks every remaining gate (gauntlet included) before the phantom is recorded, so a guard is never
         credited for junk another gate would have caught. A guard whose skipped trades average red is earning its keep;
         one whose phantoms keep winning deserves loosening.

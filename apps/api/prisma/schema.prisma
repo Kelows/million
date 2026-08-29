@@ -162,6 +162,8 @@ model ShadowPosition {
   pnlPct        Float?
   pnlSol        Float?
   allReasons    String? // EVERY guard that objected, not just the first — the co-occurrence matrix
+  peakPriceUsd Float? // highest price seen while the phantom was open
+  peakRetPct   Float? // what a trailing exit could have captured — buy-and-hold hides the path
 }
 
 /// Live position ledger: seeded from each analysis, incremented by every live
