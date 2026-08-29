@@ -23,6 +23,8 @@ model Wallet {
   pnlAtAbsorb    Float? // realized PnL at that moment; forward PnL = current - this
   balanceSol     Float? // cached at analysis time — stale beats a hot-path RPC for sizing
   balanceAt      DateTime?
+  lastEventAt    DateTime? // live feed touch — 'last active' without rewriting the metrics blob
+  liveRealizedSol Float    @default(0) // realized PnL from live sells since the last analysis (analysis resets it)
   copyability    String? // JSON CopyabilityResult — whale edge re-simulated with copy latency
 }
 

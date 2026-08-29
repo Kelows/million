@@ -93,6 +93,8 @@ export interface WalletRecord {
   subscribed: boolean;
   ownerId: number | null;
   /** other roster addresses assigned to the same owner (detail endpoint only) */
+  liveRealizedSol?: number; // realized since the last analysis, from live events
+  lastEventAt?: string | null;
   ownerSiblings?: { address: string; label: string | null }[];
   unrealized?: WalletUnrealized | null; // open book marked to market (detail view only)
   /** aggregate across all owner members (detail endpoint only, when clustered) */

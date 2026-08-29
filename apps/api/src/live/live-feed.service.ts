@@ -31,6 +31,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private walletByReqId = new Map<number, string>(); // pending subscribe request id -> wallet
   private nextReqId = 1;
   private lastEventAt: Date | null = null;
+  private readonly lastTouch = new Map<string, number>(); // wallet -> ms, throttles the activity write
   private edgeDead = false; // webhook registered but deliveries not arriving (e.g. tunnel quota 403)
   private lastSyncKey = ''; // address-set + URL of the last successful PUT — identical sets skip the call
   private lastSyncAt = 0;
@@ -133,6 +134,23 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
    * reconciles periodically; this is what stops "held across the roster" from
    * being a day-old photograph between analyses.
    */
+  /** Realized PnL since the last analysis. Analysis recomputes from scratch and resets it. */
+  private async creditRealized(wallet: string, pnlSol: number): Promise<void> {
+    if (!Number.isFinite(pnlSol) || pnlSol === 0) return;
+    await this.prisma.wallet
+      .update({ where: { address: wallet }, data: { liveRealizedSol: { increment: Math.round(pnlSol * 1000) / 1000 } } })
+      .catch(() => undefined);
+  }
+
+  /** 'Last active' without rewriting the metrics blob — throttled to one write per wallet per 30s. */
+  private async touchWallet(wallet: string): Promise<void> {
+    const last = this.lastTouch.get(wallet) ?? 0;
+    if (Date.now() - last < 30_000) return;
+    this.lastTouch.set(wallet, Date.now());
+    if (this.lastTouch.size > 5_000) this.lastTouch.clear(); // bounded
+    await this.prisma.wallet.update({ where: { address: wallet }, data: { lastEventAt: new Date() } }).catch(() => undefined);
+  }
+
   private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number): Promise<void> {
     if (tokenDelta === 0) return;
     const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
@@ -151,14 +169,18 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const remaining = existing.qty - sold;
     if (remaining <= existing.qty * 0.02) {
       await this.prisma.rosterPosition.delete({ where: { id: existing.id } }).catch(() => undefined);
+      await this.creditRealized(wallet, Math.max(0, sol) + Math.max(0, usd) / solUsd - existing.costSol);
       return; // position closed
     }
-    // average-cost: selling a fraction of the bag retires that fraction of the basis
+    // average-cost: selling a fraction of the bag retires that fraction of the basis,
+    // and the difference between proceeds and retired cost IS the realized PnL
     const fraction = existing.qty > 0 ? sold / existing.qty : 0;
+    const proceeds = Math.max(0, sol) + Math.max(0, usd) / solUsd;
     await this.prisma.rosterPosition.update({
       where: { id: existing.id },
       data: { qty: remaining, costSol: existing.costSol * (1 - fraction), source: 'live' },
     });
+    await this.creditRealized(wallet, proceeds - existing.costSol * fraction);
   }
 
   private async deadmanCheck(): Promise<void> {
@@ -384,6 +406,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       .catch(() => null); // duplicate race is fine
     if (event) this.bus.emit('live_event');
     if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd).catch(() => undefined);
+    if (event) void this.touchWallet(wallet).catch(() => undefined);
     if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
     if (event && kind === 'buy' && mint) {
       // live rate: a stale constant here biases the fill-fidelity gap directly

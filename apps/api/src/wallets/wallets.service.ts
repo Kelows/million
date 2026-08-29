@@ -184,6 +184,7 @@ export class WalletsService {
           status: 'done',
           metrics: JSON.stringify(metrics),
           lastAnalyzedAt: new Date(),
+          liveRealizedSol: 0, // analysis recomputed realized from scratch — the live delta is now baked in
           error: null,
           ...cohort,
           ...(balanceSol !== null ? { balanceSol, balanceAt: new Date() } : {}),
@@ -318,6 +319,20 @@ export class WalletsService {
   }
 
   private toRecord(w: Wallet): WalletRecord {
+    const metrics = w.metrics ? (JSON.parse(w.metrics) as WalletMetrics) : null;
+    // fold the live delta into the snapshot so the UI shows the CURRENT truth:
+    // metrics is a photograph taken at the last analysis, events happened since
+    if (metrics) {
+      if (w.lastEventAt && (!metrics.lastSeen || w.lastEventAt.toISOString() > metrics.lastSeen)) {
+        metrics.lastSeen = w.lastEventAt.toISOString();
+      }
+      if (w.liveRealizedSol !== 0) {
+        metrics.realizedPnlSol = Math.round((metrics.realizedPnlSol + w.liveRealizedSol) * 1000) / 1000;
+        if (metrics.realizedPnlTotalSol !== undefined && metrics.realizedPnlTotalSol !== null) {
+          metrics.realizedPnlTotalSol = Math.round((metrics.realizedPnlTotalSol + w.liveRealizedSol) * 1000) / 1000;
+        }
+      }
+    }
     return {
       address: w.address,
       label: w.label,
@@ -325,7 +340,9 @@ export class WalletsService {
       createdAt: w.createdAt.toISOString(),
       lastAnalyzedAt: w.lastAnalyzedAt?.toISOString() ?? null,
       status: w.status as WalletStatus,
-      metrics: w.metrics ? (JSON.parse(w.metrics) as WalletMetrics) : null,
+      metrics,
+      liveRealizedSol: w.liveRealizedSol,
+      lastEventAt: w.lastEventAt?.toISOString() ?? null,
       error: w.error,
       subscribed: w.subscribed,
       ownerId: w.ownerId,
