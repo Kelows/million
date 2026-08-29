@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { BacktestMarginal, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
+import type { BacktestMarginal, HoldBand, BacktestResult, BacktestStrategyRow, BacktestTuneResult, BacktestTuneRow, WalletMetrics } from '@million/shared';
 
 interface TuneParams { trailPct: number; armAtPct: number; minHoldMin: number; stopLossPct: number }
 import { isExcludedToken } from '@million/shared';
@@ -176,6 +176,51 @@ export class BacktestService {
       best: candidates.slice(0, 10),
       marginals,
     };
+  }
+
+  /**
+   * Where the roster's profit lives, by how long they held. This is the fact
+   * that invalidated the first backtest: median hold is under an hour, but the
+   * money is in a long tail the horizon could not see. Worth having on screen
+   * before anyone reasons about exits again.
+   */
+  async holdDistribution(): Promise<HoldBand[]> {
+    const wallets = await this.prisma.wallet.findMany({
+      where: { metrics: { not: null }, purgedAt: null },
+      select: { metrics: true },
+    });
+    const bands: { label: string; max: number }[] = [
+      { label: '< 5 min', max: 5 },
+      { label: '5-30 min', max: 30 },
+      { label: '30-120 min', max: 120 },
+      { label: '2-8 hours', max: 480 },
+      { label: '8-24 hours', max: 1440 },
+      { label: '1-3 days', max: 4320 },
+      { label: '3+ days', max: Infinity },
+    ];
+    const acc = bands.map((b) => ({ ...b, trades: 0, pnlSol: 0, wins: 0 }));
+    for (const w of wallets) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      if ((m.flags ?? []).includes('BOT_INFRA')) continue;
+      for (const t of m.tokens) {
+        if (!t.holdMinutes || t.sells === 0 || t.solIn < 1) continue;
+        const band = acc.find((b) => (t.holdMinutes as number) <= b.max);
+        if (!band) continue;
+        band.trades++;
+        band.pnlSol += t.realizedPnlSol;
+        if (t.realizedPnlSol > 0) band.wins++;
+      }
+    }
+    const total = acc.reduce((sum, b) => sum + b.pnlSol, 0) || 1;
+    return acc
+      .filter((b) => b.trades > 0)
+      .map((b) => ({
+        band: b.label,
+        trades: b.trades,
+        pnlSol: Math.round(b.pnlSol),
+        shareOfPnlPct: Math.round((b.pnlSol / total) * 1000) / 10,
+        winRate: Math.round((b.wins / b.trades) * 100),
+      }));
   }
 
   private async run(sample: number): Promise<void> {

@@ -10,6 +10,11 @@ export class BacktestController {
     return this.backtest.status();
   }
 
+  @Get('holds')
+  holds() {
+    return this.backtest.holdDistribution();
+  }
+
   @Post('tune')
   @HttpCode(200)
   tune() {

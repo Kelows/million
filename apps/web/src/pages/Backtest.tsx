@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBacktest, useRunBacktest, useTuneBacktest } from '../api';
+import { useBacktest, useHoldBands, useRunBacktest, useTuneBacktest } from '../api';
 import { Info } from '../components/Info';
 
 export function Backtest() {
@@ -92,7 +92,60 @@ export function Backtest() {
           </p>
         </div>
       )}
+      <HoldPanel />
       {tune.data && <TunePanel result={tune.data} />}
+    </div>
+  );
+}
+
+function HoldPanel() {
+  const { data: bands = [] } = useHoldBands();
+  if (bands.length === 0) return null;
+  const peak = Math.max(...bands.map((b) => Math.abs(b.shareOfPnlPct)), 1);
+  return (
+    <div className="panel">
+      <div className="px-4 pt-4 pb-2 eyebrow">
+        Where the roster's profit lives, by hold time
+        <Info text="Every closed roster trade of 1+ SOL, bucketed by how long it was held. This is the fact that invalidated our first backtest: the median hold is under an hour, but most of the profit sits in a long tail — so a short replay horizon measures the least profitable slice and concludes the strategy loses. PnL here comes from historical analysis, so treat the shape as the signal rather than the absolute SOL." />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm font-mono">
+          <thead>
+            <tr className="text-left text-dim text-xs">
+              <th className="px-4 py-2 font-normal">held for</th>
+              <th className="px-4 py-2 font-normal text-right">trades</th>
+              <th className="px-4 py-2 font-normal text-right">win rate</th>
+              <th className="px-4 py-2 font-normal text-right">PnL ◎</th>
+              <th className="px-4 py-2 font-normal">share of profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bands.map((b) => (
+              <tr key={b.band} className="border-t border-line">
+                <td className="px-4 py-2 text-bright">{b.band}</td>
+                <td className="px-4 py-2 text-right text-dim">{b.trades}</td>
+                <td className="px-4 py-2 text-right text-dim">{b.winRate}%</td>
+                <td className={`px-4 py-2 text-right ${b.pnlSol >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {b.pnlSol > 0 ? '+' : ''}{b.pnlSol}
+                </td>
+                <td className="px-4 py-2">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`h-2 inline-block ${b.shareOfPnlPct >= 0 ? 'bg-profit' : 'bg-loss'}`}
+                      style={{ width: `${Math.max(2, (Math.abs(b.shareOfPnlPct) / peak) * 100)}%` }}
+                    />
+                    <span className="text-xs text-dim">{b.shareOfPnlPct}%</span>
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-4 py-3 text-xs text-dim">
+        Our replay horizon is 8.3 hours — the most GeckoTerminal returns per call. Bands beyond that are invisible to
+        the backtest, so any exit rule it recommends is only judged on trades that resolve inside the window.
+      </p>
     </div>
   );
 }

@@ -782,3 +782,12 @@ export interface BacktestTuneResult {
   best: BacktestTuneRow[];
   marginals: BacktestMarginal[];
 }
+
+/** Roster trades bucketed by how long they were held — where the profit lives. */
+export interface HoldBand {
+  band: string;
+  trades: number;
+  pnlSol: number;
+  shareOfPnlPct: number;
+  winRate: number;
+}

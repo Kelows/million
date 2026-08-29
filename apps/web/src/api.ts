@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BacktestResult, BacktestTuneResult, ConvictionCohortRow, CopyabilityJobStatus, RosterFlows, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
+import type { BacktestResult, BacktestTuneResult, HoldBand, ConvictionCohortRow, CopyabilityJobStatus, RosterFlows, CopyabilityWalletRow, FamousTokens, ShadowGuardStat, TradingHalt, WalletImport, WalletRecord } from '@million/shared';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -592,4 +592,8 @@ export function useTuneBacktest() {
   return useMutation({
     mutationFn: () => request<BacktestTuneResult>('/backtest/tune', { method: 'POST' }),
   });
+}
+
+export function useHoldBands() {
+  return useQuery({ queryKey: ['backtest', 'holds'], queryFn: () => request<HoldBand[]>('/backtest/holds') });
 }
