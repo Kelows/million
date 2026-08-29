@@ -117,7 +117,12 @@ export class OpportunitiesService {
     // run yields within-sample attribution: "how did the trades cycler would
     // have blocked actually do?" — far cheaper than sequential experiments.
     const wouldBlock: string[] = [];
+    // EVERY objection, enabled or not — first-blocker-wins hides overlap, and
+    // overlap is the question: are two guards refusing the same signals, or
+    // different ones? Purely observational; the block decision is unchanged.
+    const objections: string[] = [];
     const block = (reason: string, why: string, enabled = true) => {
+      objections.push(reason);
       if (!enabled) { wouldBlock.push(reason); return; }
       if (!blockedBy) { blockedBy = reason; skip(why); }
     };
@@ -171,7 +176,7 @@ export class OpportunitiesService {
       if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
     }
 
-    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy, wouldBlock);
+    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy, wouldBlock, objections);
   }
 
   /**
@@ -215,11 +220,14 @@ export class OpportunitiesService {
     whalePriceUsd: number | null,
     blockedBy: string | null = null,
     wouldBlock: string[] = [],
+    objections: string[] = [],
   ): Promise<void> {
     // fresh-entry gate (preset knob): the trigger must be the roster's FIRST
     // owner into this mint. If our whales already hold it, the story is
     // mid-flight — we'd be buying the crowd's position, not the discovery.
-    if (config.freshEntriesOnly) {
+    // compute when enabled, or when a shadow is coming anyway — the matrix needs
+    // roster-fresh's verdict even on signals another guard claimed first
+    if (config.freshEntriesOnly || objections.length > 0) {
       const holders = await this.prisma.wallet.findMany({
         where: { metrics: { contains: mint }, purgedAt: null },
         select: { address: true, metrics: true },
@@ -229,7 +237,8 @@ export class OpportunitiesService {
         const m = JSON.parse(w.metrics as string) as WalletMetrics;
         return m.tokens.some((t) => t.mint === mint && t.open);
       });
-      if (held && !blockedBy) {
+      if (held) objections.push('roster-fresh');
+      if (held && config.freshEntriesOnly && !blockedBy) {
         blockedBy = 'roster-fresh';
         this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): roster already holds this — not a fresh discovery`);
       }
@@ -262,6 +271,7 @@ export class OpportunitiesService {
     if (report.liquidityUsd && report.liquidityUsd > 0) {
       const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
       const impactPct = ((buySol * solUsd) / report.liquidityUsd) * 100;
+      if (impactPct > 5) objections.push('impact');
       if (impactPct > 5 && !blockedBy) {
         blockedBy = 'impact';
         this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
@@ -271,7 +281,7 @@ export class OpportunitiesService {
     // the honest counterfactual: everything else passed, so this WOULD have
     // traded — the phantom is now a fair test of the guard that stopped it
     if (blockedBy) {
-      this.shadow.record(mint, report.symbol, wallet, blockedBy);
+      this.shadow.record(mint, report.symbol, wallet, blockedBy, objections.join(','));
       return;
     }
 

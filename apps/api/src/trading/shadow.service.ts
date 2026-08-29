@@ -33,7 +33,7 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Fire-and-forget from the gates — never let the audit slow the pipeline. */
-  record(mint: string, symbol: string | null, wallet: string, reason: string): void {
+  record(mint: string, symbol: string | null, wallet: string, reason: string, allReasons = ''): void {
     void (async () => {
       const dupe = await this.prisma.shadowPosition.findFirst({
         where: { mint, wallet, reason, openedAt: { gte: new Date(Date.now() - DEDUPE_MS) } },
@@ -45,7 +45,7 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
       const row = await this.prisma.opportunityConfig.findUnique({ where: { id: 1 } });
       const cfg = OpportunityConfigSchema.parse(row ? JSON.parse(row.data) : {});
       await this.prisma.shadowPosition.create({
-        data: { mint, symbol, wallet, reason, entryPriceUsd: pair.priceUsd, sizeSol: cfg.positionSol },
+        data: { mint, symbol, wallet, reason, allReasons: allReasons || reason, entryPriceUsd: pair.priceUsd, sizeSol: cfg.positionSol },
       });
     })().catch((e) => this.log.warn(`shadow record ${mint.slice(0, 8)}: ${e}`));
   }
@@ -71,6 +71,25 @@ export class ShadowService implements OnModuleInit, OnModuleDestroy {
         },
       });
     }
+  }
+
+  /**
+   * Guard co-occurrence: how often two guards refuse the SAME signal. A pair
+   * near 100% overlap means one of them is redundant; near 0% means each is
+   * catching something the other misses. Diagonal = that guard's total blocks.
+   */
+  async matrix(): Promise<{ guards: string[]; counts: Record<string, Record<string, number>>; totals: Record<string, number> }> {
+    const rows = await this.prisma.shadowPosition.findMany({ select: { allReasons: true } });
+    const sets = rows.map((r) => [...new Set((r.allReasons ?? '').split(',').filter(Boolean))]);
+    const guards = [...new Set(sets.flat())].sort();
+    const counts: Record<string, Record<string, number>> = {};
+    const totals: Record<string, number> = {};
+    for (const a of guards) {
+      counts[a] = {};
+      totals[a] = sets.filter((s) => s.includes(a)).length;
+      for (const b of guards) counts[a][b] = sets.filter((s) => s.includes(a) && s.includes(b)).length;
+    }
+    return { guards, counts, totals };
   }
 
   async stats(): Promise<ShadowGuardStat[]> {

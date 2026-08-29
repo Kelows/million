@@ -16,6 +16,11 @@ export class TradingController {
     return this.decisions.tail(Math.min(150, Math.max(1, Number(n) || 150)));
   }
 
+  @Get('shadow/matrix')
+  shadowMatrix() {
+    return this.shadow.matrix();
+  }
+
   @Get('shadow')
   shadowStats() {
     return this.shadow.stats();
@@ -39,3 +44,4 @@ export class TradingController {
     return { closed: id };
   }
 }
+

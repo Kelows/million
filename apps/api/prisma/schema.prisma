@@ -147,4 +147,5 @@ model ShadowPosition {
   exitPriceUsd  Float?
   pnlPct        Float?
   pnlSol        Float?
+  allReasons    String? // EVERY guard that objected, not just the first — the co-occurrence matrix
 }
