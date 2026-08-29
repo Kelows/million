@@ -38,6 +38,15 @@ const GRID = {
  * Entries come from the roster's own history (firstBuyAt per token) — thousands
  * of moments we could have copied — not our dozen fired signals.
  */
+/** Fisher-Yates. A comparator returning random is not a shuffle — it biases
+ * toward the original order, which would quietly skew every sample. */
+function shuffle<T>(xs: T[]): void {
+  for (let i = xs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [xs[i], xs[j]] = [xs[j], xs[i]];
+  }
+}
+
 @Injectable()
 export class BacktestService {
   private readonly log = new Logger(BacktestService.name);
@@ -242,7 +251,7 @@ export class BacktestService {
         entries.push({ mint: t.mint, at: t.firstBuyAt });
       }
     }
-    entries.sort(() => Math.random() - 0.5);
+    shuffle(entries);
     const picked = entries.slice(0, sample);
     this.job = { running: true, done: 0, total: picked.length };
     const poolCache = new Map<string, string | null>();
@@ -278,17 +287,22 @@ export class BacktestService {
     const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'hour' } });
     const paths = rows.map((r) => ({ entry: r.entryPrice, closes: JSON.parse(r.closes) as number[] })).filter((p) => p.entry > 0 && p.closes.length >= 6);
     if (!paths.length) return [];
-    const hold = (hours: number) => (e: number, c: number[]) => (c[Math.min(hours, c.length - 1)] / e - 1) * 100;
+    // A horizon you cannot observe is not a result: a 14-day hold scored on a
+    // 20-hour path is silently a 20-hour hold. Returning null drops the path
+    // from that strategy instead, so `trades` shows what each row really saw.
+    const hold = (hours: number) => (e: number, c: number[]) => (c.length > hours ? (c[hours] / e - 1) * 100 : null);
+    // stop = 0 disables the stop. Treating it as a level makes it "sell the
+    // moment price touches entry", which is a different strategy entirely.
     const trail = (pct: number, arm = 20, stop = 50) => (e: number, c: number[]) => {
       let peak = e;
       for (const x of c) {
         peak = Math.max(peak, x);
-        if (x <= e * (1 - stop / 100)) return -stop;
+        if (stop > 0 && x <= e * (1 - stop / 100)) return -stop;
         if (peak >= e * (1 + arm / 100) && x <= peak * (1 - pct / 100)) return (x / e - 1) * 100;
       }
       return (c[c.length - 1] / e - 1) * 100;
     };
-    const strategies: [string, (e: number, c: number[]) => number][] = [
+    const strategies: [string, (e: number, c: number[]) => number | null][] = [
       ['swing: hold 6h', hold(6)],
       ['swing: hold 24h', hold(24)],
       ['swing: hold 3 days', hold(72)],
@@ -301,7 +315,8 @@ export class BacktestService {
     ];
     return strategies
       .map(([strategy, f]) => {
-        const xs = paths.map((p) => f(p.entry, p.closes));
+        const xs = paths.map((p) => f(p.entry, p.closes)).filter((x): x is number => x !== null);
+        if (!xs.length) return { strategy, trades: 0, avgRetPct: 0, medianRetPct: 0, winRate: 0, bestPct: 0, worstPct: 0 };
         const sorted = [...xs].sort((a, b) => a - b);
         return {
           strategy,
@@ -313,7 +328,9 @@ export class BacktestService {
           worstPct: Math.round(sorted[0]),
         };
       })
-      .sort((a, b) => b.avgRetPct - a.avgRetPct);
+      // horizons no path is long enough to reach score 0 by default — park them
+      // at the bottom rather than letting an unmeasured row top the table
+      .sort((a, b) => Number(b.trades > 0) - Number(a.trades > 0) || b.avgRetPct - a.avgRetPct);
   }
 
   async holdDistribution(): Promise<HoldBand[]> {
@@ -369,7 +386,7 @@ export class BacktestService {
         entries.push({ mint: t.mint, at: t.firstBuyAt });
       }
     }
-    entries.sort(() => Math.random() - 0.5);
+    shuffle(entries);
     const picked = entries.slice(0, sample);
     this.job.total = picked.length;
     this.log.log(`backtest: replaying ${picked.length} whale entries`);
