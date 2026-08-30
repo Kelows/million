@@ -844,6 +844,9 @@ export interface ConvictionCohortRow {
   medianRet6hPct: number | null;
   resolved24h: number;
   avgRet24hPct: number | null;
+  resolved72h: number;
+  avgRet72hPct: number | null;
+  medianRet72hPct: number | null;
   medianRet24hPct: number | null;
 }
 

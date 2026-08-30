@@ -207,6 +207,8 @@ model ConvictionSnapshot {
   ret6hPct  Float?
   price24h  Float?
   ret24hPct Float?
+  price72h  Float?
+  ret72hPct Float?
 
   @@index([takenAt])
 }

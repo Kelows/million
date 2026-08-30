@@ -11,7 +11,7 @@ const CONTROL_SIZE = 10;
 /**
  * Phase 1 of the accumulation strategy: is "held across the roster" PREDICTIVE
  * or merely descriptive? Snapshot the conviction ranking hourly against a
- * random control group of tracked tokens, mark both to market at +6h and +24h.
+ * random control group of tracked tokens, mark both to market at +6h, +24h and +72h.
  *
  * The control matters more than it looks: without it a rising market makes
  * every cohort look clairvoyant. One batched price call per hour — free.
@@ -76,6 +76,11 @@ export class ConvictionService implements OnModuleInit, OnModuleDestroy {
     for (const [ageMs, priceField, retField] of [
       [6 * 3_600_000, 'price6h', 'ret6hPct'],
       [24 * 3_600_000, 'price24h', 'ret24hPct'],
+      // 72h because 6h measures the window where the roster's edge is WEAKEST:
+      // 61% of their profit comes from holds past 24 hours. At 6h every cohort
+      // trails a random control, which says the holdings decay — not that the
+      // conviction is worthless. The horizon has to reach the band they earn in.
+      [72 * 3_600_000, 'price72h', 'ret72hPct'],
     ] as const) {
       const due = await this.prisma.convictionSnapshot.findMany({
         where: { [priceField]: null, takenAt: { lt: new Date(Date.now() - ageMs) } },
@@ -106,6 +111,7 @@ export class ConvictionService implements OnModuleInit, OnModuleDestroy {
         const mine = rows.filter((r) => r.cohort === cohort);
         const r6 = mine.map((r) => r.ret6hPct).filter((x): x is number => x !== null);
         const r24 = mine.map((r) => r.ret24hPct).filter((x): x is number => x !== null);
+        const r72 = mine.map((r) => r.ret72hPct).filter((x): x is number => x !== null);
         return {
           cohort,
           snapshots: mine.length,
@@ -115,6 +121,9 @@ export class ConvictionService implements OnModuleInit, OnModuleDestroy {
           resolved24h: r24.length,
           avgRet24hPct: avg(r24),
           medianRet24hPct: median(r24),
+          resolved72h: r72.length,
+          avgRet72hPct: avg(r72),
+          medianRet72hPct: median(r72),
         };
       })
       .filter((c) => c.snapshots > 0);
