@@ -77,7 +77,7 @@ export function Rules() {
             hint="Execution floor, separate from the gauntlet's discovery floor below. Measured over 32 fills: under $20k liquidity our recorded entry sat a median +30.5% ABOVE the candle close and the price was −30.7% a minute later, for a −39.3% median outcome. The whale's own buy spikes a thin pool, the feed reports the spike, and we book a fill nobody could have got. Above $50k the premium is +1.6%. −1 disables."
             off={c.minTradeLiquidityUsd < 0}
           >
-            <Num value={c.minTradeLiquidityUsd} onChange={(v) => set({ minTradeLiquidityUsd: v })} min={-1} step={5000} suffix="$" />
+            <Num value={c.minTradeLiquidityUsd} onChange={(v) => set({ minTradeLiquidityUsd: v })} min={-1} step={25000} suffix="$" width="w-28" />
           </RuleField>
           <RuleField label="Consensus owners" hint="Distinct owners (clustered wallets count once) buying the same token in the live window. 0 turns consensus off." off={c.consensusOwners === 0}>
             <Num value={c.consensusOwners} onChange={(v) => set({ consensusOwners: v })} min={0} max={10} />
