@@ -70,7 +70,7 @@ taken through at least one.
 ```
 exitMode              trail        whales ignored; price is the only exit
 trail / arm / stop    10 / 20 / 50
-minTradeLiquidityUsd  250,000      ~1.5-2% real cost instead of 2.8%
+minTradeLiquidityUsd  100,000      ~2.4% real cost; see note below
 maxHoldHours          168
 positionSol           0.5          max 50 open, 10 SOL total exposure
 ```
@@ -82,6 +82,14 @@ assumption that was charging ~5.8% where the truth is 0.6%.
 intraday (+8.2% median vs +4.7%, 62% win vs 55%). The earlier 50->30 change came
 from an optimizer marginal averaged across wide trails, where the trail is inert
 and the stop does all the work — a confounded number.
+
+**Why $100k and not $500k.** The cost cliff really is at $500k (0.64% vs 2.11%
+below it), but only 2% of the tokens the roster touches are that deep — the
+median is $10,313. A $500k floor yields ~30 trades a week and a $250k floor
+~110, neither of which can resolve a 1% outlier base rate. $100k costs ~2.4%
+and yields ~250-300, which is the number the experiment needs. The fill
+deflation that motivated a floor at all lived under $20k; the $20-100k band
+measured +0.7% entry premium, so $100k clears the actual problem with margin.
 
 **Kill criterion, set before the data exists:** after ~300 trades, if the median
 is below -10% AND no single trade cleared +100%, the tail is not reachable at
