@@ -481,7 +481,7 @@ export const OpportunityConfigSchema = z.object({
   // hold length (50% under 5 min -> 62% past 3 days). 7 days lets that tail run.
   maxHoldHours: z.coerce.number().min(1).max(720).default(168),
   maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
-  exitMode: z.enum(['rules', 'mirror', 'mirror-trail']).default('mirror'), // mirror = faithful copy, their exit is our exit; mirror-trail = their exit cuts losers but arms a trailing stop on winners
+  exitMode: z.enum(['rules', 'mirror', 'mirror-trail', 'consensus-trail']).default('mirror'), // mirror = faithful copy, their exit is our exit; mirror-trail = their exit cuts losers but arms a trailing stop on winners
   ignoreSniperTriggers: z.boolean().default(true), // machine-speed entries are adverse selection at human latency
   maxTotalExposureSol: z.coerce.number().nonnegative().default(1), // portfolio cap across open positions // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
   followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub
@@ -514,6 +514,14 @@ export const OpportunityConfigSchema = z.object({
   // later, for a median outcome of -39.3%. Above $50k the premium is +1.6% and
   // the median outcome -3.2%. The whale's own buy spikes a thin pool, the feed
   // reports the spike, and we book a fill nobody could have got. -1 disables.
+  // consensus-trail: ONE wallet leaving is noise, the crowd leaving is signal.
+  // fone is the case that motivated it — the trigger wallet sold 45 min in and
+  // mirror-trail cut us at +8% because we were under the +20% arm bar. The token
+  // then ground between +11% and +33% for eleven more hours and sits at +23.5%.
+  // Under this mode the trigger wallet's exit does nothing on its own; we leave
+  // when N distinct OWNERS sell the mint inside the window, or the trail/stop hits.
+  consensusExitOwners: z.coerce.number().int().min(1).max(10).default(2),
+  consensusExitWindowMinutes: z.coerce.number().min(1).max(240).default(30),
   minTradeLiquidityUsd: z.coerce.number().min(-1).default(50_000),
   strategyPreset: z.string().nullable().default(null), // which preset these settings started from — a label, not a lock
 });

@@ -468,7 +468,11 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event) this.bus.emit('live_event');
     if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd).catch(() => undefined);
     if (event) void this.touchWallet(wallet).catch(() => undefined);
-    if (event && kind === 'sell' && mint) void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
+    if (event && kind === 'sell' && mint) {
+      void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
+      // every roster sell is a distribution vote, not just the wallet we copied
+      void this.trading.onRosterSell(mint).catch(() => undefined);
+    }
     if (event && kind === 'buy' && mint) {
       // live rate: a stale constant here biases the fill-fidelity gap directly
       const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);

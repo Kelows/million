@@ -161,6 +161,13 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     if (config.exitMode === 'rules') return;
     const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint, wallet } });
     for (const p of positions) {
+      // consensus-trail: one wallet leaving is noise. They took profit on their
+      // own schedule and their size, neither of which is ours. We leave when the
+      // CROWD leaves, or the trail/stop fires — never on one exit.
+      if (config.exitMode === 'consensus-trail') {
+        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: trigger wallet exited — holding, consensus-trail ignores a single seller`);
+        continue;
+      }
       // pure mirror: the whale's judgment is the strategy — their exit is our exit, win or lose
       if (config.exitMode === 'mirror') {
         await this.closeWithFill(p.id, p.mint, p.sizeSol, 'mirror');
@@ -197,7 +204,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         if (price !== null) {
           const hist = this.priceHistory.get(p.id) ?? [];
           hist.push(price);
-          if (hist.length > 30) hist.shift();
+          if (hist.length > 240) hist.shift(); // 4h at a 60s tick — long enough to contain the swing band
           this.priceHistory.set(p.id, hist);
         }
         if (price === null) {
@@ -245,6 +252,35 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Distribution exit: ANY roster wallet selling a mint we hold is a vote. When
+   * enough DISTINCT OWNERS vote inside the window, the position closes.
+   *
+   * Owners, not wallets — one operator running five addresses must not be able
+   * to constitute a crowd by itself, the same clustering the consensus ENTRY
+   * uses. Only meaningful in consensus-trail mode; the other modes already have
+   * their own answer to when we leave.
+   */
+  async onRosterSell(mint: string): Promise<void> {
+    const config = await this.config();
+    if (config.exitMode !== 'consensus-trail') return;
+    const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint } });
+    if (!positions.length) return;
+    const since = new Date(Date.now() - config.consensusExitWindowMinutes * 60_000);
+    const sells = await this.prisma.liveEvent.findMany({ where: { mint, kind: 'sell', ts: { gte: since } }, select: { wallet: true } });
+    if (!sells.length) return;
+    const rows = await this.prisma.wallet.findMany({
+      where: { address: { in: [...new Set(sells.map((e) => e.wallet))] } },
+      select: { address: true, ownerId: true },
+    });
+    const owners = new Set(rows.map((w) => w.ownerId ?? w.address)); // unclustered wallet = its own owner
+    if (owners.size < config.consensusExitOwners) return;
+    for (const p of positions) {
+      this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: ${owners.size} owners sold within ${config.consensusExitWindowMinutes}m — distribution, closing`);
+      await this.closeWithFill(p.id, p.mint, p.sizeSol, 'consensus-exit');
+    }
+  }
+
   private async closeWithFill(id: number, mint: string, sizeSol: number, reason: string): Promise<void> {
     const fill = await this.executor.sell(mint, sizeSol);
     if (!fill) return; // retry next tick
@@ -286,13 +322,33 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Volatility-scaled trail width: clamp(3σ of 1-min returns, 8%, 30%); fallback until the buffer warms. */
+  /**
+   * Trail width from the position's OWN drawdown band, not from tick-to-tick
+   * sigma. The old formula measured volatility at the wrong timescale: over a
+   * 60s tick sigma is tiny, 3*sigma fell under the 8% floor essentially always,
+   * and the trail sat permanently at its minimum.
+   *
+   * That is the fone failure in one number. fone's routine drawdown from its
+   * running peak ran a median 17.2% and a p90 of 21.6% WHILE IT CLIMBED — an
+   * 8-10% trail lives inside that band, so it does not exit on a reversal, it
+   * exits on an ordinary dip. A trail must clear the noise a token makes on the
+   * way up or it is just a slow market order.
+   *
+   * So: p90 of the drawdowns actually observed from the running peak, plus a
+   * fifth for headroom, never tighter than the configured floor.
+   */
   private dynamicTrailPct(positionId: number, fallbackPct: number): number {
     const hist = this.priceHistory.get(positionId) ?? [];
-    if (hist.length < 8) return fallbackPct;
-    const returns = hist.slice(1).map((v, i) => v / hist[i] - 1);
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const sigma = Math.sqrt(returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length) * 100;
-    return Math.min(30, Math.max(8, 3 * sigma));
+    if (hist.length < 20) return fallbackPct; // too early to know its band
+    let peak = hist[0];
+    const drawdowns: number[] = [];
+    for (const px of hist) {
+      peak = Math.max(peak, px);
+      drawdowns.push((1 - px / peak) * 100);
+    }
+    drawdowns.sort((a, b) => a - b);
+    const p90 = drawdowns[Math.floor(drawdowns.length * 0.9)];
+    return Math.min(35, Math.max(fallbackPct, p90 * 1.2));
   }
 
   /**

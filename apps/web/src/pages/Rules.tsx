@@ -144,10 +144,20 @@ export function Rules() {
           <RuleField label="Exit strategy" hint="rules = our TP/SL only · mirror = their exit is our exit, a faithful copy · mirror+trail = their exit cuts losers, winners hand over to a trailing stop.">
             <Choice value={c.exitMode} options={['rules', 'mirror', 'mirror-trail'] as const} onChange={(v) => set({ exitMode: v })} labels={{ rules: 'our rules', 'mirror-trail': 'mirror+trail' }} />
           </RuleField>
+          <RuleField
+            label="Owners selling that closes a position"
+            off={c.exitMode !== 'consensus-trail'}
+            hint="consensus-trail only. One wallet leaving is noise — they took profit on their own schedule and their own size, neither of which is ours. This closes when that many DISTINCT owners sell the mint inside the window. fone is the case: the trigger wallet sold 45 min in, mirror-trail cut us at +8% for being under the +20% arm bar, and the token then ground between +11% and +33% for eleven more hours."
+          >
+            <Num value={c.consensusExitOwners} onChange={(v) => set({ consensusExitOwners: v })} min={1} max={10} step={1} />
+          </RuleField>
+          <RuleField off={c.exitMode !== 'consensus-trail'} label="Distribution window" hint="How far back the owner-sell votes are counted for the consensus exit.">
+            <Num value={c.consensusExitWindowMinutes} onChange={(v) => set({ consensusExitWindowMinutes: v })} min={1} max={240} step={5} suffix="min" />
+          </RuleField>
           <RuleField label="Trail arms at" hint="How far up a position must go before the trailing stop engages at all. Swept over 242 replayed entries: +20% was most robust and the only setting with a positive median and a majority win rate. Higher bars leave most winners unprotected — the median peak is only ~+14% — and they ride back to the stop." off={c.exitMode === 'rules'}>
             <Num value={c.trailArmPct} onChange={(v) => set({ trailArmPct: v })} min={0} max={100} step={5} suffix="%" />
           </RuleField>
-          <RuleField label="Trailing stop" hint="Fallback width — the live trail is volatility-scaled per token (3× its recent 1-min swings, clamped 8–30%) and this is used until price history accumulates. Peak tracks from entry, so a winner is protected whether or not the whale has moved." off={c.exitMode === 'rules'}>
+          <RuleField label="Trailing stop" hint="Fallback width — the live trail widens to the token's own drawdown band (p90 of drawdowns from its running peak × 1.2, capped 35%) and never goes tighter than this. fone routinely gave back 17% on the way up, so a fixed 10% trail exits on an ordinary dip rather than a reversal. Peak tracks from entry, so a winner is protected whether or not the whale has moved." off={c.exitMode === 'rules'}>
             <Num value={c.trailStopPct} onChange={(v) => set({ trailStopPct: v })} min={1} max={50} suffix="%" />
           </RuleField>
           <RuleField label="Take profit" hint="Only used in rules mode; the mirror modes let the whale or the trail decide." off={c.exitMode !== 'rules'}>
