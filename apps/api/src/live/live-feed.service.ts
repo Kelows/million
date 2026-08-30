@@ -79,17 +79,12 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
   private async syncWebhook(): Promise<void> {
     const key = this.env.get<string>('HELIUS_API_KEY');
     const url = `${this.env.get<string>('WEBHOOK_URL')}/api/live/webhook`;
-    // ANALYZED ONLY. `subscribed` is sticky: a wallet subscribed while it had
-    // metrics stays subscribed after a data reset wipes them, which is how 762
-    // of 795 subscriptions ended up pointing at wallets we know nothing about —
-    // paying webhook cost for a feed no filter can reason about, since every
-    // entry gate (median hold, flags, score) reads metrics that are not there.
-    // Requiring metrics here makes those subscriptions inert without deleting
-    // the flag, so analysing a wallet restores it rather than re-subscribing.
-    const subs = await this.prisma.wallet.findMany({
-      where: { subscribed: true, purgedAt: null, metrics: { not: null } },
-      select: { address: true },
-    });
+    // `subscribed` is the whole decision. Filtering it further here would make
+    // the flag mean something different from what the UI shows — and watching a
+    // brand-new unanalyzed wallet is a legitimate thing to want (following a
+    // launch's insiders is exactly that). If a subscription should not exist,
+    // unsubscribe it; do not quietly drop it from the feed.
+    const subs = await this.prisma.wallet.findMany({ where: { subscribed: true, purgedAt: null }, select: { address: true } });
     const addresses = subs.map((w) => w.address);
     // idle economy: an unchanged set needs no management call — resync only on
     // drift, or hourly as insurance against Helius-side surprises
