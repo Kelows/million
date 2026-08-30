@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useAnalyzePendingJob, useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useSetSubscribed, useStartAnalyzePending, useWallets } from '../api';
+import { useCleanChurn, useAnalyzePendingJob, useAnalyzeWallet, useHealth, useImportWallets, usePurgeJunk, useRemoveWallet, useSetSubscribed, useStartAnalyzePending, useWallets } from '../api';
 import { createPortal } from 'react-dom';
 import { FlagChip, FLAG_OPTIONS } from '../components/FlagChip';
 import { Addr } from '../components/Addr';
@@ -105,6 +105,7 @@ export function Wallets() {
   const analyze = useAnalyzeWallet();
   const removeWallet = useRemoveWallet();
   const purgeJunk = usePurgeJunk();
+  const cleanChurn = useCleanChurn();
   const pendingJob = useAnalyzePendingJob();
   const startPending = useStartAnalyzePending();
   const setSubscribed = useSetSubscribed();
@@ -270,6 +271,24 @@ export function Wallets() {
           <span className="eyebrow">Roster · {sorted.length !== wallets.length ? `${sorted.length} / ${wallets.length}` : wallets.length}</span>
           <span className="mr-auto flex items-center gap-3">
             <FilterModal fields={ROSTER_FILTERS} state={filters} onChange={setFilters} />
+            <button
+              className="btn py-1! px-2! text-[0.6rem]!"
+              disabled={cleanChurn.isPending}
+              title={
+                'Unsubscribe wallets whose style cannot produce a tail: snipers (<5 min, uncopyable at our latency), ' +
+                'the 30 min–2 h dead zone (0.25% tail rate, negative median), and infra/distributor/unbacked wallets. ' +
+                'Keeps 5–30 min and 2 h+ — both earn their place. Unsubscribes rather than purges, so they stay visible ' +
+                'as known-bad and this is reversible.'
+              }
+              onClick={() => cleanChurn.mutate()}
+            >
+              {cleanChurn.isPending ? 'cleaning…' : 'clean churn'}
+            </button>
+            {cleanChurn.data && (
+              <span className="text-[0.6rem] text-dim" title={cleanChurn.data.byReason.map((r) => `${r.count} × ${r.reason}`).join('\n')}>
+                −{cleanChurn.data.unsubscribed} · {cleanChurn.data.remainingSubscribed} streaming
+              </span>
+            )}
             <button
               className="btn btn-danger py-1! px-2! text-[0.6rem]!"
               title="Choose which flags to sweep from the roster (soft-delete — knowledge kept)"

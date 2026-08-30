@@ -2,7 +2,7 @@ import { ConflictException, Injectable, Logger, NotFoundException, OnModuleDestr
 import { ConfigService } from '@nestjs/config';
 import type { Wallet } from '@prisma/client';
 import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type WalletImport, type WalletMetrics,
-  type WalletActivityRow, type WalletObserved, type WalletUnrealized, type WalletRecord, type WalletStatus } from '@million/shared';
+  type WalletActivityRow, type WalletObserved, type WalletUnrealized, type WalletRecord, type WalletStatus, type CleanChurnResult, CHURN_FLAGS, CHURN_SNIPER_MAX_MIN, CHURN_DEAD_ZONE_MIN, CHURN_DEAD_ZONE_MAX } from '@million/shared';
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -334,6 +334,43 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
       .map((w) => w.address);
     if (junk.length) await this.prisma.wallet.updateMany({ where: { address: { in: junk } }, data: { purgedAt: new Date() } });
     return { purged: junk.length };
+  }
+
+  /**
+   * Unsubscribe wallets whose trading STYLE cannot produce a tail. Deliberately
+   * option-free: the bands come from measurement, not preference, and a knob
+   * would only invite tuning them by feel.
+   *
+   * Unsubscribes rather than purges — the webhook cost stops, but the wallet
+   * stays visible as known-bad so it is not re-absorbed later, and so this is
+   * reversible if the style finding changes.
+   *
+   * Style is the ONLY stable predictor we have: realized returns anti-predict
+   * (corr -0.44 between a wallet's first and second half), while median hold is
+   * a property of how it trades. See docs/edge-findings.md.
+   */
+  async cleanChurn(): Promise<CleanChurnResult> {
+    const rows = await this.prisma.wallet.findMany({
+      where: { subscribed: true, purgedAt: null, metrics: { not: null } },
+      select: { address: true, metrics: true },
+    });
+    const reasons = new Map<string, string>();
+    for (const w of rows) {
+      const m = JSON.parse(w.metrics as string) as WalletMetrics;
+      const flag = CHURN_FLAGS.find((f) => (m.flags ?? []).includes(f));
+      const h = m.medianHoldMinutes;
+      if (flag) reasons.set(w.address, flag.toLowerCase().replace(/_/g, ' '));
+      else if (h !== null && h < CHURN_SNIPER_MAX_MIN) reasons.set(w.address, 'sniper (<5 min) — uncopyable at our latency');
+      else if (h !== null && h >= CHURN_DEAD_ZONE_MIN && h < CHURN_DEAD_ZONE_MAX)
+        reasons.set(w.address, 'dead zone (30 min-2 h) — 0.25% tail rate, negative median');
+    }
+    const addresses = [...reasons.keys()];
+    if (addresses.length) await this.prisma.wallet.updateMany({ where: { address: { in: addresses } }, data: { subscribed: false } });
+    const byReason = [...new Set(reasons.values())]
+      .map((reason) => ({ reason, count: [...reasons.values()].filter((r) => r === reason).length }))
+      .sort((a, b) => b.count - a.count);
+    const remainingSubscribed = await this.prisma.wallet.count({ where: { subscribed: true, purgedAt: null } });
+    return { unsubscribed: addresses.length, byReason, remainingSubscribed };
   }
 
   /** Server-side batch: analyze everything pending, survives the browser leaving. */

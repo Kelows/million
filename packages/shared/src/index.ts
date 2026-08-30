@@ -691,6 +691,32 @@ export interface StrategyPreset {
   thresholds: Partial<TokenCheckThresholds>;
 }
 
+/**
+ * Hold-time bands that cannot produce a tail, measured on 3,197 observed round
+ * trips. 87% of all roster profit sits in the top 1% of trades, so a wallet
+ * whose style makes a 10x impossible contributes cost and noise but no upside.
+ *
+ *   < 5 min      1.89% outlier rate, -6.9% median — uncopyable at our latency
+ *   5-30 min     0.98%, +0.4% median — KEPT, four times the dead-zone rate
+ *   30 min-2 h   0.25%, -0.9% median — the dead zone: half of all volume
+ *   2-12 h       6.86%, +1.0% median — KEPT
+ *   > 12 h       4.00%, +8.5% median — KEPT, best median of any band
+ *
+ * This is a band, not a threshold: cutting on "fast = bad" would throw away the
+ * 5-30 min group, which is one of the better ones.
+ */
+export const CHURN_SNIPER_MAX_MIN = 5;
+export const CHURN_DEAD_ZONE_MIN = 30;
+export const CHURN_DEAD_ZONE_MAX = 120;
+/** Flags whose wallets are not producing measurements at all. */
+export const CHURN_FLAGS: WalletFlag[] = ['BOT_INFRA', 'DISTRIBUTOR', 'UNBACKED_HISTORY'];
+
+export interface CleanChurnResult {
+  unsubscribed: number;
+  byReason: { reason: string; count: number }[];
+  remainingSubscribed: number;
+}
+
 export const STRATEGY_PRESETS: StrategyPreset[] = [
   {
     id: 'swing-copy',

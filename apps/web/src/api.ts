@@ -254,6 +254,14 @@ export function usePurgeJunk() {
   });
 }
 
+export function useCleanChurn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<import('@million/shared').CleanChurnResult>('/wallets/clean-churn', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  });
+}
+
 export function usePurgeJunkTokens() {
   const qc = useQueryClient();
   return useMutation({

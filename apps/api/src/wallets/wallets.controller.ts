@@ -112,6 +112,14 @@ export class WalletsController {
     return this.wallets.getAnalyzePendingStatus();
   }
 
+  @Post('wallets/clean-churn')
+  @HttpCode(200)
+  async cleanChurn() {
+    const result = await this.wallets.cleanChurn();
+    void this.live.resync();
+    return result;
+  }
+
   @Post('wallets/purge-junk')
   @HttpCode(200)
   purgeJunk(
