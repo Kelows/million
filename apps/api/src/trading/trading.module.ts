@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { HeliusService } from '../analysis/helius.service';
 import { PrismaService } from '../prisma.service';
+import { JupiterService } from '../analysis/jupiter.service';
 import { TRADE_EXECUTOR } from './executor.interface';
 import { LocalExecutor } from './local.executor';
 import { PaperExecutor } from './paper.executor';
@@ -12,7 +13,7 @@ import { TradingService } from './trading.service';
 
 @Module({
   controllers: [TradingController],
-  providers: [
+  providers: [JupiterService, 
     TradingService,
     DexScreenerService,
     HeliusService,

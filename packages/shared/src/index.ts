@@ -481,7 +481,7 @@ export const OpportunityConfigSchema = z.object({
   // hold length (50% under 5 min -> 62% past 3 days). 7 days lets that tail run.
   maxHoldHours: z.coerce.number().min(1).max(720).default(168),
   maxOpenPositions: z.coerce.number().int().min(1).max(50).default(10),
-  exitMode: z.enum(['rules', 'mirror', 'mirror-trail', 'consensus-trail']).default('mirror'), // mirror = faithful copy, their exit is our exit; mirror-trail = their exit cuts losers but arms a trailing stop on winners
+  exitMode: z.enum(['rules', 'mirror', 'mirror-trail', 'consensus-trail', 'trail']).default('trail'), // mirror = faithful copy, their exit is our exit; mirror-trail = their exit cuts losers but arms a trailing stop on winners
   ignoreSniperTriggers: z.boolean().default(true), // machine-speed entries are adverse selection at human latency
   maxTotalExposureSol: z.coerce.number().nonnegative().default(1), // portfolio cap across open positions // mirror = sell when the triggering wallet sells; SL+timeout stay as brakes
   followRotations: z.boolean().default(true), // subscribed wallet funds a fresh wallet -> absorb + inherit the sub

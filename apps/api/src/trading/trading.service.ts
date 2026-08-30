@@ -164,8 +164,8 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       // consensus-trail: one wallet leaving is noise. They took profit on their
       // own schedule and their size, neither of which is ours. We leave when the
       // CROWD leaves, or the trail/stop fires — never on one exit.
-      if (config.exitMode === 'consensus-trail') {
-        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: trigger wallet exited — holding, consensus-trail ignores a single seller`);
+      if (config.exitMode === 'consensus-trail' || config.exitMode === 'trail') {
+        this.decisions.push(`[trading] ${p.symbol ?? mint.slice(0, 8)}: trigger wallet exited — holding, ${config.exitMode} ignores a single seller`);
         continue;
       }
       // pure mirror: the whale's judgment is the strategy — their exit is our exit, win or lose
