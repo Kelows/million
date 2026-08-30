@@ -67,12 +67,51 @@ it didn't pay, at deep-pool cost it starts to.
 First experiment with no known measurement bug in it. Every earlier number was
 taken through at least one.
 
+### Config as it stands
+
 ```
-exitMode              trail        whales ignored; price is the only exit
-trail / arm / stop    10 / 20 / 50
-minTradeLiquidityUsd  100,000      ~2.4% real cost; see note below
-maxHoldHours          168
-positionSol           0.5          max 50 open, 10 SOL total exposure
+ENTRY
+  tradeSignals            both          copy + consensus + ladder may open
+  minBuySol               1.5 ◎         copy path only; cumulative detectors run before it
+  consensusOwners         2             distinct owners, cluster-deduped
+  consensusNetFlow        true          buyers must outweigh sellers, not just outnumber
+  ladder                  3 / 15m / 3 ◎ clips / window / cumulative floor
+  minTradeLiquidityUsd    $100,000      EXECUTION floor, separate from discovery
+  maxPairAgeMinutes       -1            no age ceiling
+  minMedianHoldMinutes    0             off — style filtering now happens at the roster
+  ignoreSniperTriggers    false
+  cyclerGuardMinutes      0             off
+  minEdgeRetentionPct     40            copyability floor; unmeasured wallets pass
+  allowWarn               true
+
+EXIT
+  exitMode                trail         whales ignored; price is the only exit signal
+  trailStopPct            10            floor — live trail widens to the token's drawdown band
+  trailArmPct             20            below this only the stop protects
+  stopLossPct             50
+  breakeven ratchet       1.25 -> 1.02  hardcoded; won 640-combo sweep on both horizons
+  maxHoldHours            168
+  takeProfitPct           100           INERT — only fires in 'rules' mode
+
+SIZING
+  sizingMode              whale-frac    their clip as a share of their bankroll, applied to ours
+  positionSol             0.5 ◎         hard cap per position
+  bankrollSol             10 ◎
+  copyPct                 5%
+  maxOpenPositions        50
+  maxTotalExposureSol     10 ◎
+
+SAFETY
+  autoTrade               false         live execution locked
+  paperEnabled            true
+  maxConsecutiveLosses    50
+  weeklyLossLimitPct      50%
+
+GAUNTLET (crawler thresholds — DISCOVERY, not execution)
+  minLiquidityUsd         $5,000
+  minMarketCapUsd         $25,000
+  maxTop10Pct             30%
+  minTokenAgeMinutes      1
 ```
 
 Fill cost now comes from Jupiter's own round-trip quote rather than a flat 2%
@@ -90,6 +129,10 @@ median is $10,313. A $500k floor yields ~30 trades a week and a $250k floor
 and yields ~250-300, which is the number the experiment needs. The fill
 deflation that motivated a floor at all lived under $20k; the $20-100k band
 measured +0.7% entry premium, so $100k clears the actual problem with margin.
+
+**Two settings that are dead weight and should be removed rather than tuned:**
+`takeProfitPct` never fires outside `rules` mode, and `strategyPreset` still
+reads "Launch Surf" though none of these values came from it.
 
 **Kill criterion, set before the data exists:** after ~300 trades, if the median
 is below -10% AND no single trade cleared +100%, the tail is not reachable at
