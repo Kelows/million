@@ -505,6 +505,16 @@ export const OpportunityConfigSchema = z.object({
   consensusNetFlow: z.boolean().default(true), // buyers must outweigh sellers, not merely outnumber them
   cyclerGuardMinutes: z.coerce.number().min(0).max(120).default(10), // skip a trigger that SOLD this mint within N minutes (0 = off)
   maxPairAgeMinutes: z.coerce.number().min(-1).default(-1), // skip pools older than this; -1 = no ceiling. The inverse of the age FLOOR: on a launch-tier strategy the run happens early, and a maturity gate makes you buy after it
+  // EXECUTION floor, separate from the crawler's DISCOVERY floor. They are not
+  // the same question: discovery wants to find small tokens early, execution
+  // needs a pool deep enough that the quoted price is obtainable.
+  //
+  // Measured over 32 fills: below $20k liquidity the recorded entry sits a
+  // median +30.5% above the candle close and the price is -30.7% one minute
+  // later, for a median outcome of -39.3%. Above $50k the premium is +1.6% and
+  // the median outcome -3.2%. The whale's own buy spikes a thin pool, the feed
+  // reports the spike, and we book a fill nobody could have got. -1 disables.
+  minTradeLiquidityUsd: z.coerce.number().min(-1).default(50_000),
   strategyPreset: z.string().nullable().default(null), // which preset these settings started from — a label, not a lock
 });
 export type OpportunityConfig = z.infer<typeof OpportunityConfigSchema>;

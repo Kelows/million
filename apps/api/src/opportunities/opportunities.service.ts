@@ -300,6 +300,19 @@ export class OpportunitiesService {
       return;
     }
 
+    // EXECUTION floor. The gauntlet's liquidity check answers "is this token
+    // real"; this answers "can we actually fill at the price we are about to
+    // record". Thin pools fail the second even when they pass the first: the
+    // whale's own buy spikes the quote, we book the spike, and it reverts
+    // within a minute — five of seven such fills stopped out inside 60 seconds.
+    if (config.minTradeLiquidityUsd >= 0 && (report.liquidityUsd ?? 0) < config.minTradeLiquidityUsd) {
+      this.decisions.push(
+        `[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): pool too thin to fill — ` +
+          `$${Math.round(report.liquidityUsd ?? 0).toLocaleString('en-US')} < $${config.minTradeLiquidityUsd.toLocaleString('en-US')}`,
+      );
+      return;
+    }
+
     // pair-age ceiling: on a launch strategy the run happens in the first
     // minutes, so an old pool means the move already belongs to someone else
     if (config.maxPairAgeMinutes >= 0 && report.pairCreatedAt) {

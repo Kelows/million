@@ -72,6 +72,13 @@ export function Rules() {
           <RuleField label="Min buy size (copy only)" hint="A single buy must be at least this large to count as conviction. Applies ONLY to the copy path — consensus and ladder judge cumulative totals and run before this gate, so small clips still reach them.">
             <Num value={c.minBuySol} onChange={(v) => set({ minBuySol: v })} min={0} step={0.5} suffix="◎" />
           </RuleField>
+          <RuleField
+            label="Min pool liquidity to trade"
+            hint="Execution floor, separate from the gauntlet's discovery floor below. Measured over 32 fills: under $20k liquidity our recorded entry sat a median +30.5% ABOVE the candle close and the price was −30.7% a minute later, for a −39.3% median outcome. The whale's own buy spikes a thin pool, the feed reports the spike, and we book a fill nobody could have got. Above $50k the premium is +1.6%. −1 disables."
+            off={c.minTradeLiquidityUsd < 0}
+          >
+            <Num value={c.minTradeLiquidityUsd} onChange={(v) => set({ minTradeLiquidityUsd: v })} min={-1} step={5000} suffix="$" />
+          </RuleField>
           <RuleField label="Consensus owners" hint="Distinct owners (clustered wallets count once) buying the same token in the live window. 0 turns consensus off." off={c.consensusOwners === 0}>
             <Num value={c.consensusOwners} onChange={(v) => set({ consensusOwners: v })} min={0} max={10} />
           </RuleField>
