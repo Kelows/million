@@ -83,8 +83,9 @@ export class OpportunitiesService {
     }));
   }
 
-  /** Owner rotation: a subscribed wallet funds a FRESH unknown wallet — absorb it,
-   * inherit the subscription, and surface it as a wallet-kind opportunity. */
+  /** Owner rotation: a subscribed wallet funds a FRESH unknown wallet — absorb it
+   * and surface it as a wallet-kind opportunity. It is NOT subscribed: absorbing
+   * is a note that the wallet exists, not a decision to stream it. */
   async evaluateRotation(funder: string, recipient: string, fundedSol: number, ts: Date): Promise<void> {
     const config = await this.getConfig();
     if (!config.followRotations || fundedSol < config.minFundSol) return;
@@ -93,7 +94,6 @@ export class OpportunitiesService {
     // freshness: a rotation target has a thin history; hubs/exchanges have thousands
     const sigs = await this.helius.signatureIndex(recipient, 0, 1).catch(() => null);
     if (!sigs || sigs.length > 50) return;
-    const funderRow = await this.prisma.wallet.findUnique({ where: { address: funder }, select: { subscribed: true, label: true } });
     await this.prisma.wallet.create({
       // absorbed, NOT subscribed: an unanalyzed wallet in the feed is a blank
       // cheque — one spray bot inherited a sub overnight and burned 300k credits.
