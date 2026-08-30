@@ -69,6 +69,23 @@ export class DexScreenerService {
     return out;
   }
 
+  /**
+   * Distinguishes "this token has no pairs" from "we could not ask". fetchBestPair
+   * collapses both into null, and a caller that treats null as death will book a
+   * total loss on a healthy token every time DexScreener rate-limits us — which
+   * is exactly what happened: five positions closed at -100% while every one of
+   * them was still quoting normally, one of them a $46M market cap.
+   */
+  async probePairs(mint: string): Promise<'has-pairs' | 'no-pairs' | 'unreachable'> {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    if (!res) return 'unreachable';
+    if (!res.ok) return 'unreachable'; // 429 and 5xx are OUR problem, never the token's
+    const body = (await res.json().catch(() => null)) as { pairs?: { chainId: string; baseToken?: { address?: string } }[] } | null;
+    if (!body) return 'unreachable';
+    const pairs = (body.pairs ?? []).filter((x) => x.chainId === 'solana' && x.baseToken?.address === mint);
+    return pairs.length ? 'has-pairs' : 'no-pairs';
+  }
+
   async fetchBestPair(mint: string): Promise<DexPair | null> {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
     if (!res?.ok) return null;

@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingHalt, type TradingStats } from '@million/shared';
 import { PrismaService } from '../prisma.service';
+import { DexScreenerService } from '../analysis/dexscreener.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
 import { ShadowService } from './shadow.service';
@@ -27,6 +28,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     private readonly bus: EventsBus,
     private readonly shadow: ShadowService,
     private readonly decisions: DecisionLog,
+    private readonly dexscreener: DexScreenerService,
   ) {}
 
   // last ~30 tick quotes per open position: realized volatility for the dynamic
@@ -199,8 +201,17 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
           this.priceHistory.set(p.id, hist);
         }
         if (price === null) {
-          // unquotable = likely dead pool; close at total loss rather than pretend
-          if (Date.now() - p.openedAt.getTime() > 3_600_000) await this.close(p.id, 'dead', 0);
+          // A missing quote is NOT evidence of death. Booking -100% on it cost
+          // us 2.36 SOL of fabricated loss in one night across five positions
+          // that were all still quoting -- including a $46M market cap that we
+          // recorded as a total loss while it was up 3%. Confirm with a probe
+          // that separates "no pairs exist" from "we could not reach the API",
+          // and only the first one closes the position.
+          if (Date.now() - p.openedAt.getTime() > 3_600_000) {
+            const probe = await this.dexscreener.probePairs(p.mint).catch(() => 'unreachable' as const);
+            if (probe === 'no-pairs') await this.close(p.id, 'dead', 0);
+            else this.decisions.push(`[trade] ${p.mint.slice(0, 6)}… unquotable but ${probe} — holding, not booking a loss`);
+          }
           continue;
         }
         const changePct = (price / p.entryPriceUsd - 1) * 100;
