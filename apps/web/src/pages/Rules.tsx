@@ -141,8 +141,8 @@ export function Rules() {
         </RuleSection>
 
         <RuleSection title="4 · Exits" subtitle="Where the roster's edge actually lives — 61% of their profit comes from holds past 24 hours.">
-          <RuleField label="Exit strategy" hint="rules = our TP/SL only · mirror = their exit is our exit, a faithful copy · mirror+trail = their exit cuts losers, winners hand over to a trailing stop.">
-            <Choice value={c.exitMode} options={['rules', 'mirror', 'mirror-trail'] as const} onChange={(v) => set({ exitMode: v })} labels={{ rules: 'our rules', 'mirror-trail': 'mirror+trail' }} />
+          <RuleField label="Exit strategy" hint="rules = our TP/SL only · mirror = their exit is our exit, a faithful copy · mirror+trail = their exit cuts losers, winners hand over to a trailing stop · consensus+trail = one wallet's exit is ignored entirely; we leave when the crowd distributes, or the trail/stop fires.">
+            <Choice value={c.exitMode} options={['rules', 'mirror', 'mirror-trail', 'consensus-trail'] as const} onChange={(v) => set({ exitMode: v })} labels={{ rules: 'our rules', 'mirror-trail': 'mirror+trail', 'consensus-trail': 'consensus+trail' }} />
           </RuleField>
           <RuleField
             label="Owners selling that closes a position"
