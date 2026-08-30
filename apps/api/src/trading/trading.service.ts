@@ -230,10 +230,21 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
         const peak = Math.max(p.peakPriceUsd ?? p.entryPriceUsd, price);
         if (peak > (p.peakPriceUsd ?? 0)) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
         if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * (1 + config.trailArmPct / 100)) {
-          // trailing stop on any position that has been a real winner (>=+10%).
-          // The leash is volatility-scaled — a coin wicking 6%/min gets room a
-          // calm one doesn't — with the configured pct as cold-start fallback,
-          // and a breakeven ratchet: once a real winner (+25%), never red again.
+          // The leash widens to the token's OWN drawdown band (see
+          // dynamicTrailPct), with the configured pct as a floor and cold-start
+          // fallback, plus a breakeven ratchet: once a real winner, never red.
+          //
+          // 1.25 -> 1.02 is measured, not chosen. An exhaustive sweep of 640
+          // combinations across both horizons — trail × arm × stop × ratchet,
+          // where the ratchet options were none, 1.25->1.02, 1.50->1.10 and
+          // 2.00->1.30 — put 1.25->1.02 in nearly every top-ranked row on
+          // minute AND hourly paths. The later ratchets arm too rarely to
+          // matter; no ratchet gives back the whole peak on a fader.
+          //
+          // What that sweep could NOT fix is the giveback: median 29-35% of the
+          // peak handed back in every one of the 640 combinations. A trailing
+          // exit only reacts after the turn, so cutting that requires knowing
+          // which positions will not run — prediction, not parameters.
           const trailPct = this.dynamicTrailPct(p.id, config.trailStopPct);
           const trailLine = peak * (1 - trailPct / 100);
           const breakevenLine = peak >= p.entryPriceUsd * 1.25 ? p.entryPriceUsd * 1.02 : 0;
