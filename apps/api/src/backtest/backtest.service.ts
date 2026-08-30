@@ -578,17 +578,31 @@ export class BacktestService {
     // And we hold a report only where the backfill found a live DexScreener
     // pair TODAY -- which is survivorship, not a gate. Named for what it
     // measures so nobody reads it as a filter that earned its keep.
+    // Entry cohorts by the TRIGGERING WALLET'S STYLE, because style is the only
+    // stable predictor we have: realized returns anti-predict (corr -0.44
+    // first-half vs second-half), while median hold time is a property of how a
+    // wallet trades. A wallet that flips in 45 minutes is structurally unable to
+    // catch a 10x -- and 87% of all profit lives in the top 1% of trades.
     const entries: [string, (p: P) => boolean][] = [
       ['all entries', () => true],
-      ['still-quotable today (survivorship)', (p) => p.clean === true],
+      ['fast whale (<30m)', (p) => p.hold !== null && p.hold < 30],
+      ['dead zone (30m-2h)', (p) => p.hold !== null && p.hold >= 30 && p.hold < 120],
+      ['patient whale (2h+)', (p) => p.hold !== null && p.hold >= 120],
     ];
+    // Trail widths from tight to loose. A 10% trail on a wallet that holds 12
+    // hours cuts the position long before they are done -- selecting for runners
+    // and then exiting them early is the worst of both. This is where that gets
+    // measured instead of assumed.
     const exits: [string, (p: P) => number | null][] = [
       ['mirror (their exit)', mirror],
+      ['trail 10 · stop 30', ruleExit(10, 20, 30)],
+      ['trail 20 · stop 30', ruleExit(20, 20, 30)],
+      ['trail 30 · stop 30', ruleExit(30, 20, 30)],
+      ['trail 40 · stop 30', ruleExit(40, 20, 30)],
+      ['trail 50 · stop 30', ruleExit(50, 20, 30)],
       ['mirror-trail 10/20 (ours)', mirrorTrail(10, 20, 30)],
-      ['mirror-trail 20/20', mirrorTrail(20, 20, 30)],
-      ['trail 10 · arm 20 · stop 30', ruleExit(10, 20, 30)],
-      ['trail 20 · arm 20 · stop 30', ruleExit(20, 20, 30)],
-      ['trail 20 · arm 0 · stop 30', ruleExit(20, 0, 30)],
+      ['mirror-trail 30/20', mirrorTrail(30, 20, 30)],
+      ['mirror-trail 50/20', mirrorTrail(50, 20, 30)],
       ['no exit (ride the path)', ruleExit(100, 999, 100)],
     ];
     const out: BacktestStrategyRow[] = [];
