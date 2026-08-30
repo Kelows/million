@@ -62,6 +62,32 @@ it didn't pay, at deep-pool cost it starts to.
 - 209 wallets unsubscribed by style; `clean churn` button ships the rule
 - Book cleared; all 851 pending wallets analyzed
 
+## The clean run — started 2026-08-30
+
+First experiment with no known measurement bug in it. Every earlier number was
+taken through at least one.
+
+```
+exitMode              trail        whales ignored; price is the only exit
+trail / arm / stop    10 / 20 / 50
+minTradeLiquidityUsd  250,000      ~1.5-2% real cost instead of 2.8%
+maxHoldHours          168
+positionSol           0.5          max 50 open, 10 SOL total exposure
+```
+
+Fill cost now comes from Jupiter's own round-trip quote rather than a flat 2%
+assumption that was charging ~5.8% where the truth is 0.6%.
+
+**Stop at 50, not 30.** Paired with trail 10 it wins on all three measures
+intraday (+8.2% median vs +4.7%, 62% win vs 55%). The earlier 50->30 change came
+from an optimizer marginal averaged across wide trails, where the trail is inert
+and the stop does all the work — a confounded number.
+
+**Kill criterion, set before the data exists:** after ~300 trades, if the median
+is below -10% AND no single trade cleared +100%, the tail is not reachable at
+our latency and we stop. If the median is near zero and at least one outlier
+landed, it is a sample-size problem, not a strategy problem.
+
 ## Next actions
 
 1. **Replace mirror-trail with trail** — drop the mirror leg entirely. Simpler,
