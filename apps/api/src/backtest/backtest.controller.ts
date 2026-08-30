@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { BacktestService } from './backtest.service';
 
 @Controller('backtest')
@@ -36,6 +36,11 @@ export class BacktestController {
   @Get('matrix')
   matrix() {
     return this.backtest.exitMatrix();
+  }
+
+  @Get('capture')
+  capture(@Query('minPeak') minPeak?: string) {
+    return this.backtest.peakCapture(Math.max(0, Number(minPeak) || 100));
   }
 
   @Get('holds')

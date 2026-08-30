@@ -629,6 +629,87 @@ export class BacktestService {
     return out;
   }
 
+  /**
+   * Peak capture, scored as a HIERARCHY rather than a single number.
+   *
+   * Mean return is the wrong objective for an exit rule: it is dominated by
+   * whichever path happened to run furthest, which is how a `trail 50%` topped
+   * the grid on train and scored -4.1% on test. It also cannot distinguish the
+   * two ways an exit fails, which need opposite fixes.
+   *
+   *   1. Did we still HOLD when the peak happened? (survived-to-peak)
+   *      Failing this means we left before the move — a wider trail fixes it.
+   *   2. Given that, how much of the peak did we keep? (capture)
+   *      Failing this means we gave it back — a tighter trail fixes it.
+   *
+   * Measured on the cached paths, a fixed 10% trail — what we run — is holding
+   * at the peak on 4% of runners. That is the "we exit at +40% on a 10x"
+   * complaint, quantified. Buying that up to ~36% costs about five points of
+   * median, which is the real trade and the reason this reports both.
+   */
+  async peakCapture(minPeakPct = 100): Promise<BacktestStrategyRow[]> {
+    const rows = await this.prisma.backtestPath.findMany({ where: { resolution: 'minute' } });
+    const paths = rows
+      .filter((r) => r.entryPrice > 0)
+      .map((r) => {
+        const closes = JSON.parse(r.closes) as number[];
+        let pi = 0;
+        for (let i = 1; i < closes.length; i++) if (closes[i] > closes[pi]) pi = i;
+        return { entry: r.entryPrice, closes, peakIdx: pi, peak: closes[pi] };
+      })
+      .filter((p) => p.closes.length >= 10 && (p.peak / p.entry - 1) * 100 >= minPeakPct);
+    if (!paths.length) return [];
+
+    // t1 below l1, t2 up to l2, t3 beyond — a trail that widens as the gain
+    // proves itself. Round numbers only; the tail subsample is far too small to
+    // spend precision on.
+    const rules: [string, number, number, number, number, number][] = [
+      ['fixed 10 (current)', 10, 10, 10, 50, 200],
+      ['fixed 20', 20, 20, 20, 50, 200],
+      ['fixed 30', 30, 30, 30, 50, 200],
+      ['fixed 50', 50, 50, 50, 50, 200],
+      ['tier 20/30/50 @ 50/150', 20, 30, 50, 50, 150],
+      ['tier 20/40/50 @ 100/150', 20, 40, 50, 100, 150],
+      ['tier 15/40/50 @ 50/150', 15, 40, 50, 50, 150],
+      ['tier 20/30/40 @ 50/150', 20, 30, 40, 50, 150],
+    ];
+    return rules.map(([strategy, t1, t2, t3, l1, l2]) => {
+      const rets: number[] = [];
+      let survived = 0;
+      const caps: number[] = [];
+      for (const p of paths) {
+        let peak = p.entry;
+        let xi = p.closes.length - 1;
+        let xp = p.closes[xi];
+        for (let i = 0; i < p.closes.length; i++) {
+          const x = p.closes[i];
+          peak = Math.max(peak, x);
+          const g = (peak / p.entry - 1) * 100;
+          const t = g < l1 ? t1 : g < l2 ? t2 : t3;
+          if (x <= p.entry * 0.7) { xi = i; xp = p.entry * 0.7; break; }
+          if (g >= 20 && x <= peak * (1 - t / 100)) { xi = i; xp = x; break; }
+        }
+        rets.push((xp / p.entry - 1) * 100);
+        if (xi >= p.peakIdx) survived++;
+        const pg = p.peak / p.entry - 1;
+        if (pg > 0.01) caps.push(((xp / p.entry - 1) / pg) * 100);
+      }
+      const sorted = [...rets].sort((a, b) => a - b);
+      const capSorted = [...caps].sort((a, b) => a - b);
+      return {
+        strategy,
+        trades: paths.length,
+        // winRate carries survived-to-peak %, the first objective in the hierarchy
+        winRate: Math.round((survived / paths.length) * 100),
+        // bestPct carries median capture % — how much of the peak we kept
+        bestPct: Math.round(capSorted[Math.floor(capSorted.length / 2)]),
+        avgRetPct: Math.round((rets.reduce((a, b) => a + b, 0) / rets.length) * 10) / 10,
+        medianRetPct: Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10,
+        worstPct: Math.round(sorted[0]),
+      };
+    });
+  }
+
   async holdDistribution(): Promise<HoldBand[]> {
     const wallets = await this.prisma.wallet.findMany({
       where: { metrics: { not: null }, purgedAt: null },
