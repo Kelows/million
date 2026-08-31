@@ -47,24 +47,39 @@ distinguishable from each other on this sample.
 Note the sample sizes. The configured strategy has been replayed on **35 paths**,
 because the $100k execution floor postdates the path cache.
 
-**2. Minute and hourly bars disagree about the sign, on the same tokens.**
+**2. The minute/hourly gap is a coarse-bar artefact, not a contradiction.**
+
+A first pass paired the two caches by mint alone and reported that the same
+tokens gave opposite answers. That pairing was wrong: of 190 shareable pairs
+only **48 share an entry timestamp**, the rest averaging 65h apart with entry
+prices 167% apart. Pairing on mint compares different trades.
+
+Redone on the 48 exact (mint, entryTs) pairs, and decomposed by replaying the
+hourly path over the *same window* the minute path covers
+(`tools/resolution-check.mjs`):
 
 ```
-same 97 mints, same rule, same 168h max hold
-  minute bars   mean +17.3%   median  +9.4%   win 69%
-  hourly bars   mean  +7.3%   median -14.3%   win 42%
+A  minute bars, ~5h window    mean +17.6%   median +14.1%   win 69%
+B  hourly bars, SAME window   mean  +4.6%   median -31.2%   win 29%
+C  hourly bars, full 168h     mean  +9.8%   median -19.5%   win 38%
+
+A - B   resolution effect     +12.9 pts   <- the whole gap
+B - C   horizon effect         -5.2 pts   <- holding longer helps slightly
 ```
 
-It is not a hold-time effect — stretching the hourly max hold from 8h to 168h
-moves the mean 11 points and leaves the median flat at -19%. It is the exit rule
-itself: a trailing stop reacts to the *close* of whatever bar it is given, so on
-hourly candles it cannot see the intra-hour peak it exists to trail. Stop-out
-rate doubles, 36% against 18%.
+The gap is bar size, not data coverage, and it is ~2.5x the horizon effect.
+A trailing stop can only act on the closes it is shown; on hourly candles it
+never sees the intra-hour peak it exists to trail, and by the time an hourly
+close confirms a retrace the price has fallen well past the trail line.
 
-The live tick loop runs every ~60s, so **minute bars are the closer analogue**
-and the projections default to them. But minute paths stop at 8.3h while the
-config permits 168h — the favourable evidence and the long-horizon evidence come
-from disjoint datasets. Neither covers the strategy as configured.
+**The live tick loop runs every ~60s, so minute bars are the right analogue.**
+The hourly row in the table above is a measurement artefact and should not be
+read as a 68% chance of ruin.
+
+Still genuinely unknown: minute paths reach a median of 5.3h and the config
+permits 168h. Nothing measures minute-resolution behaviour past ~8h. The
+horizon effect hints that holding longer is mildly positive, but it was
+measured at the wrong resolution to settle it.
 
 **3. The published backtest numbers were measured under an accidental exit rule.**
 23% of minute paths run out of candles before the rule fires, at a mean of -13.9%.
@@ -90,13 +105,35 @@ Those positions are unresolved, not closed. Booking them at the last close gives
 - Entry filters are not replayed; the gauntlet is present-tense and cannot be.
 - Trade rate (30.6/day) comes from 25 positions over ~20 hours.
 
+## How long until this resolves itself
+
+Power to get a 95% CI that clears zero, assuming the observed distribution IS
+the truth (generous — that sample's own CI contains zero):
+
+| live trades | days at 30.6/day | P(CI clears zero) |
+|---|---|---|
+| 214 | 7 | 21% |
+| 300 | 10 | 26% |
+| 600 | 20 | 48% |
+| 1,000 | 33 | 68% |
+| 2,000 | 65 | 96% |
+
+**A week is not a decision point.** ~1,000 trades (five weeks) is where the odds
+pass two in three.
+
+But the kill criterion is far cheaper than the confirm criterion. At a 3.15%
+base rate for a trade clearing +100%, seeing *none* in 214 trades has a 0.1%
+probability if the edge is real. A week can plausibly kill this; it cannot
+confirm it. Check in weekly as a safety check, decide at ~1,000 trades.
+
 ## What would narrow it, in order
 
 1. **Resolve the 20 open positions and reach ~300 trades.** Nothing else moves
    the interval as fast.
-2. **Backfill minute candles past 8.3h** for tokens held long — the one
-   measurement that settles the minute/hourly contradiction.
-3. **Fetch minute paths for $100k+ pools specifically.** n=35 is the binding
+2. **Fetch minute paths for $100k+ pools specifically.** n=35 is the binding
    constraint on the configured strategy.
+3. **Extend minute candles past 8.3h** for tokens held long — the only way to
+   measure the 8-168h band at the resolution the live system actually runs at.
+   Slow to fetch; not urgent now that the hourly result is understood.
 4. **Record entry-time liquidity** on every path, to remove the survivorship
    flattery.
