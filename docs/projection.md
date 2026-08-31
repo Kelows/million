@@ -137,3 +137,68 @@ confirm it. Check in weekly as a safety check, decide at ~1,000 trades.
    Slow to fetch; not urgent now that the hourly result is understood.
 4. **Record entry-time liquidity** on every path, to remove the survivorship
    flattery.
+
+---
+
+## What hourly candles are for, and what they cannot answer
+
+**Why they exist (a good reason).** The GeckoTerminal minute endpoint reaches
+only ~8.3 hours. `backtest.service.ts` puts it plainly: *"holds past 24h carry
+61% of their profit, and every conclusion we have drawn so far was blind to
+it."* Hourly bars are the only instrument that reaches the band where most of
+the roster's money actually is. They should not be deleted.
+
+**What they cannot do.** A trailing stop acts on the closes it is shown. Scoring
+a peak-relative rule on hourly bars measures the bar size as much as the rule.
+`tools/exit-rank-by-resolution.mjs` scores the same rules at both resolutions
+over the same wall-clock window, on paths paired by `(mint, entryTs)`:
+
+```
+rule                                 minute  rank | hourly  rank | moved
+trail 30 · arm 20 · stop 50          +17.0%     1 |  +1.9%     8 |   +7
+trail 10 · arm 20 · stop 50 · ratch  +12.9%     2 | +12.9%     2 |    -
+trail 20 · arm 40 · stop 50          +12.5%     4 |  +5.2%     6 |   +2
+trail 20 · arm 20 · stop 50          +11.2%     5 |  +5.2%     5 |    -
+trail 10 · arm 20 · stop 30           +9.1%     6 | +19.7%     1 |   -5
+trail 20 · arm 20 · stop 30           +8.4%     7 | +12.4%     4 |   -3
+hold to bar 4 (FIXED HORIZON)         +5.7%     8 |  +4.1%     7 |   -1
+
+Spearman rank correlation: -0.05
+```
+
+**The orderings are unrelated.** The rule hourly likes best (stop 30) is sixth
+on minute bars; the rule minute likes best (trail 30) is last on hourly. Note
+the one stable row: the fixed-horizon rule, which does not depend on the
+intra-bar path, barely moves. That is the dividing line.
+
+### The rule of thumb
+
+| Question | Hourly OK? |
+|---|---|
+| How much profit is in the 24h+ band; hold-time distribution | **yes** — path-independent |
+| Fixed-horizon markouts (`exit @240m`, `hold 500m`) | **yes** |
+| Entry-filter cohorts, *if* scored with a fixed-horizon exit | **yes** |
+| Trail %, arm %, breakeven ratchet, stop-loss width | **no** — measures the bars |
+
+### Two places this contaminates current conclusions
+
+1. **`entryCohorts()` scores every entry filter through an hourly trail.** The
+   fixed exit at `backtest.service.ts:462` is trail 20 / arm 20 / stop 50 on
+   hourly bars. The comparison is at least common-mode across cohorts, so the
+   *ranking* of filters is probably survivable, but the absolute returns are
+   not. Swapping that exit for a fixed-horizon markout would remove the
+   objection entirely and costs nothing — the cohorts differ by entry, not exit.
+
+2. **The stop-30 robustness claim rests partly on hourly.** `docs/state.md`
+   cites `stopLossPct 30` as *"reproduced independently on hourly bars"*. That
+   reproduction is exactly what coarse bars produce — hourly ranks stop 30
+   first, minute ranks it sixth. The live setting is already 50, which minute
+   favours, so the setting is fine; the recorded justification is not.
+
+Neither of these is urgent, and neither changes a live value today. Both should
+be corrected before anyone cites them again.
+
+**Caveat:** n=48 paired paths. The individual means carry wide error bars and
+the −0.05 correlation is itself noisy. What is solid is the mechanism and the
+direction — the fixed-horizon control behaving differently from every
+path-dependent rule is the part that would be hard to get by chance.
