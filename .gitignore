@@ -15,3 +15,5 @@ id.json
 
 # monte-carlo output — regenerate with tools/monte-carlo.mjs, don't version the run
 docs/monte-carlo.json
+docs/decision-clocks.json
+docs/kill-criterion.json

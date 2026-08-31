@@ -202,3 +202,79 @@ be corrected before anyone cites them again.
 the −0.05 correlation is itself noisy. What is solid is the mechanism and the
 direction — the fixed-horizon control behaving differently from every
 path-dependent rule is the part that would be hard to get by chance.
+
+---
+
+## Two clocks, not one
+
+"Five weeks" is the answer to one question. There are two, and they run at very
+different speeds.
+
+**Fill clock — nearly done.** Our entry against the trigger wallet's own
+on-chain fill, over the 17 positions that recorded both:
+
+```
+mean -0.70%   median -0.47%   sd 1.10%   range -4.09% .. +1.30%
+```
+
+We fill *cheaper* than the whale on average. The fill deflation that motivated
+a liquidity floor at all is not visible at the current config. Entry premium
+has low variance, so it converges fast:
+
+| pin the mean to | trades | days |
+|---|---|---|
+| ±1.00% | 5 | 0.2 |
+| **±0.50%** | **19** | **0.6** |
+| ±0.25% | 75 | 2.5 |
+
+We have 17 of the ~19 needed for ±0.5%.
+
+**Edge clock — cannot be hurried.** ~1,000 trades for 68% power. It counts
+*trades, not dollars*: paper and live both fill ~30/day, so switching to real
+money does not move it at all. What real money changes is that modelled fills
+become measured ones — and that is the fill clock, which is nearly finished.
+
+## The kill criterion cannot fire
+
+`docs/state.md` sets it as: after ~300 trades, stop if the median is below -10%
+AND no single trade has cleared +100%. Simulated against two worlds — the
+observed distribution, and the same fat tails with the drift removed:
+
+```
+trades   P(fire | edge real)   P(fire | NO edge)
+    50                 0.2%                1.5%
+   100                 0.0%                0.0%
+   300                 0.0%                0.0%
+  1000                 0.0%                0.0%
+```
+
+**Past ~100 trades it fires in neither world, so it carries no information.**
+The two clauses pull against each other: fat tails put a +100% trade on the
+board almost immediately (3.15% base rate), so the "no outlier" clause is
+essentially never true; and a distribution with a -0.9% median does not produce
+a -10% *median* over hundreds of trades.
+
+### A replacement that does fire
+
+Calibrate to the optimistic world: **stop when the book falls below the 5th
+percentile of where "the edge is real" would have put it by now.** False kills
+are fixed at 5% by construction at every checkpoint.
+
+| checkpoint | days | stop if book below | catches a dead edge |
+|---|---|---|---|
+| 100 | 3.3 | 0.79x | 23% |
+| **300** | **9.8** | **0.82x** | **43%** |
+| 500 | 16.3 | 0.93x | 59% |
+| 1,000 | 32.7 | 1.47x | 82% |
+| 2,000 | 65.4 | 4.51x | 97% |
+
+It gets teeth well before the confidence interval does — 43% at ten days
+against the interval's 26%. It is strictly a stop-loss on the *hypothesis*:
+passing it never means the edge is real.
+
+`tools/decision-clocks.mjs` and `tools/kill-criterion.mjs`; both read
+`docs/monte-carlo.json`, so run `tools/monte-carlo.mjs` first.
+
+**Book as of 2026-08-31:** 5 closed trades, 1.029x, median +9.2%, best +24.6%,
+none over +100%. Above every kill line above, on a sample far too small to mean
+anything.
