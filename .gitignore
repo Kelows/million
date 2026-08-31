@@ -12,3 +12,6 @@ keypair*.json
 *.keypair.json
 id.json
 .million/
+
+# monte-carlo output — regenerate with tools/monte-carlo.mjs, don't version the run
+docs/monte-carlo.json
