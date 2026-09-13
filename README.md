@@ -72,11 +72,10 @@ Everything feeds everything.
 ## Setup
 
 ```sh
-nvm use                                    # Node 22 from .nvmrc, in the same terminal as the rest
-npm install                                # also builds packages/shared
-cp apps/api/.env.example apps/api/.env     # then add HELIUS_API_KEY
-npm run db:push                            # creates the SQLite database
-mprocs                                     # or: npm run dev
+nvm use         # Node 22 from .nvmrc, in the same terminal as the rest
+npm install     # builds packages/shared, creates apps/api/.env and the database
+                # then add your HELIUS_API_KEY to apps/api/.env
+mprocs          # or: npm run dev
 ```
 
 The deck is at http://localhost:5173.

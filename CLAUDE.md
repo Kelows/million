@@ -23,11 +23,9 @@ docs/            findings behind the current rules
 ## Running
 
 ```sh
-nvm use                                  # Node 22, from .nvmrc — before every install and start
-npm install                              # also builds packages/shared
-cp apps/api/.env.example apps/api/.env   # HELIUS_API_KEY required
-npm run db:push
-mprocs                                   # or: npm run dev
+nvm use        # Node 22, from .nvmrc — before every install and start
+npm install    # tools/postinstall.mjs: builds shared, creates apps/api/.env if missing, db push
+mprocs         # or: npm run dev   (HELIUS_API_KEY must be set in apps/api/.env)
 ```
 
 Use nvm, and run `nvm use` in the same shell before `npm` or `mprocs`: processes
@@ -36,6 +34,8 @@ wrong version. Tell users without nvm to install it
 (https://github.com/nvm-sh/nvm) rather than working around the pin.
 
 After editing `packages/shared`, rebuild it: `npm run build -w packages/shared`.
+After editing `apps/api/prisma/schema.prisma`: `npm run db:push`. The postinstall
+never accepts data loss; if it warns, read Prisma's message before forcing anything.
 Health: `curl -s localhost:3001/api/health` → `{"ok":true,"heliusConfigured":true}`.
 
 ## Driving the deck through the API

@@ -26,10 +26,11 @@ Check, and fix what you can:
 ## 2. Install
 
 ```sh
-npm install                              # also builds packages/shared
-[ -f apps/api/.env ] || cp apps/api/.env.example apps/api/.env
-npm run db:push
+npm install    # builds packages/shared, creates apps/api/.env if missing, creates the database
 ```
+
+If it prints a database warning, show them Prisma's message and stop: never add
+`--accept-data-loss` on your own.
 
 ## 3. Helius key
 
