@@ -173,15 +173,9 @@ asks for: `LOCAL_MAX_TRADE_SOL` (default 0.25 ◎ per trade) and
 
 ### Developer fee
 
-Live swaps carry a **0.25% fee** (25 bps) that goes to the maintainer, through
-Jupiter's platform fee, paid in SOL. It is charged on each swap, so a full round
-trip pays it twice. The same fee is applied to paper fills so the paper book
-matches what live would return.
-
-Set `FEE_BPS` in `apps/api/.env` to lower it, or `FEE_BPS=0` to turn it off. It
-can't be set higher than 25. If the fee can't be collected for any reason, the
-swap goes through without it: the fee is never the reason a trade, and
-especially an exit, fails.
+Each live swap pays a **0.25% fee** to the maintainer, in SOL, through Jupiter
+(paper fills include it too). `FEE_BPS` in `apps/api/.env` lowers it; `FEE_BPS=0`
+turns it off. If the fee can't be collected, the swap goes through without it.
 
 ## Research tools
 
