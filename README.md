@@ -4,12 +4,7 @@ A self-hosted Solana whale tracker that grew into a trading loop. It watches
 wallets, finds more wallets through the tokens they buy, filters out bots and
 rugs, and turns what's left into trade signals — paper first, live if you choose.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.svg">
-  <img alt="The loop: 1,917 wallets and 24,115 tokens feed each other, pass through their filters down to 51 subscribed wallets and 47 clean tokens, merge into 143 opportunities and 26 positions, and every trade's outcome loops back to re-score wallets and re-tune the rules." src="docs/loop-light.svg">
-</picture>
-
-<sub>Counts from the first instance. Ribbon height is proportional to log(count): the narrowing is the filter.</sub>
+![The million deck: roster, open positions and PnL at a glance](docs/deck.png)
 
 > **Experimental. Provided as is, with no warranty.** This is a research tool,
 > not a money printer, and nothing in it is financial advice. Trading meme coins
@@ -18,6 +13,13 @@ rugs, and turns what's left into trade signals — paper first, live if you choo
 > Start on paper.
 
 ## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.svg">
+  <img alt="The loop: 1,917 wallets and 24,115 tokens feed each other, pass through their filters down to 51 subscribed wallets and 47 clean tokens, merge into 143 opportunities and 26 positions, and every trade's outcome loops back to re-score wallets and re-tune the rules." src="docs/loop-light.svg">
+</picture>
+
+<sub>Counts from the first instance. Ribbon height is proportional to log(count): the narrowing is the filter.</sub>
 
 Everything feeds everything.
 
@@ -183,7 +185,7 @@ especially an exit, fails.
 
 ## Research tools
 
-`tools/` holds the scripts behind the decisions in `docs/`:
+`tools/` holds research and check scripts:
 
 | Script | What it answers |
 |---|---|
@@ -211,5 +213,9 @@ apps/api         NestJS API — Prisma + SQLite, Helius, Jupiter, DexScreener
 apps/web         React deck — Vite, TanStack Router and Query, Tailwind
 packages/shared  zod schemas and types shared by both
 tools/           research and check scripts
-docs/            findings, and the reasoning behind the current rules
+docs/            README images
 ```
+
+## License
+
+[MIT](LICENSE). Provided as is, without warranty: see the status note at the top.

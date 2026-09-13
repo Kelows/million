@@ -10,7 +10,7 @@
  *  EDGE CLOCK — is the mean positive? Counts trades, not dollars, so going
  *  live does not speed it up. ~1,000 trades for 68% power.
  *
- * Also scores the kill criterion from docs/state.md against two worlds: one
+ * Also scores that kill criterion against two worlds: one
  * drawn from the observed distribution, one with the same fat tails and the
  * drift removed.
  *

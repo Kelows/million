@@ -17,7 +17,7 @@ apps/api         NestJS + Prisma (SQLite). Everything the deck does is an HTTP r
 apps/web         React deck (Vite, TanStack Router/Query, Tailwind). http://localhost:5173
 packages/shared  zod schemas + types, incl. OpportunityConfigSchema and STRATEGY_PRESETS
 tools/           research and check scripts (find-whales, check-accounting, monte-carlo…)
-docs/            findings behind the current rules
+docs/            README images
 ```
 
 ## Running

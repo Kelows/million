@@ -14,7 +14,7 @@
  *     rate, compounding through the live sizing rules and circuit breakers.
  *
  * Why bootstrap rather than a closed form: 87% of profit sits in 1% of trades
- * (docs/edge-findings.md). A mean and a sigma describe a normal distribution;
+ * in the roster's observed trades. A mean and a sigma describe a normal distribution;
  * this one is nothing like normal, so the percentile fan IS the answer and any
  * single "expected return" number is actively misleading.
  *
@@ -77,7 +77,7 @@ const LIVE = {
 
 /**
  * Round-trip cost by pool depth, measured with real Jupiter quotes at our 0.5◎
- * clip (docs/state.md). A cliff at ~$500k, not a slope — so this is a lookup,
+ * clip. A cliff at ~$500k, not a slope — so this is a lookup,
  * not an interpolation.
  */
 function roundTripCostPct(liqUsd) {

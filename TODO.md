@@ -6,7 +6,7 @@
 - [ ] Additive multi-column sort on tables (shift-click to add a secondary sort key)
 - [ ] Bulk "analyze all" queue with rate limiting on the API side (frontend loops for now)
 - [ ] Copyability metric: re-simulate each whale entry with +2 blocks latency — does the edge survive?
-- [ ] Wallet overlap graph / clustering (PROMOTED — consensus correctness): co-entry edges + funding + fee-payer -> clusters; consensus counts clusters, not wallets. See docs/closed-loop.md v2 item 4b
+- [ ] Wallet overlap graph / clustering (PROMOTED — consensus correctness): co-entry edges + funding + fee-payer -> clusters; consensus counts clusters, not wallets.
 - [ ] Track NEW addresses of known whales (funding graph: old wallet funds fresh wallet)
 
 ## Learned from the 2snHH deep dive (2026-08-27)
@@ -16,9 +16,9 @@
 - [ ] Exclusion module (design agreed, build when clear): per-wallet infra score from cheap signals (tx/day, buys-without-sells + outbound deliveries, unique counterparty count, external fee-payer share, constant skim address, relay round-trips) -> BOT_INFRA flag + manual "exclude" toggle; excluded wallets drop out of recs/watch/consensus. Later: configurable-hop crawl to find sibling wallets of an excluded one
 - [ ] type=SWAP fetch misses custom-program swaps (43% were UNKNOWN in the case study) — consider all-type fetch + own classification for deep analysis
 
-## From memecoinbible.dev notes (docs/memecoinbible-notes.md, 2026-08-27)
+## Further ideas
 - [ ] Wallet roles (trader/sniper/rugger/insider/infra) — labels with role-aware Sub semantics
-- [ ] OWNER entity (v2, unifies clustering work): one owner ↔ many addresses; evidence = funding + fee-payer + co-entry + block-0 sigs; stats/subs/purges aggregate at owner level — see docs/definitions.md
+- [ ] OWNER entity (v2, unifies clustering work): one owner ↔ many addresses; evidence = funding + fee-payer + co-entry + block-0 sigs; stats/subs/purges aggregate at owner level
 - [ ] Rugger avoid-list: a subbed rugger touching a token auto-FAILs it in the gauntlet
 - [ ] Deployer profitability scoring: per-launch first-candle->ATH trajectory over last 10 launches (>=3 at +100% = predictable operator), not just dead-count
 - [ ] Overlap-graph heuristics: block-0 double signature, identical-amount same-block bundles, big-candle wallet extraction

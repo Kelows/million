@@ -11,7 +11,7 @@ const SAFETY_CHECK_IDS = new Set(['mint-authority', 'freeze-authority', 'rugchec
 
 /**
  * The closed loop's output: consensus tokens pushed through the full token
- * gauntlet, ranked by verdict then whale conviction. Read docs/closed-loop.md.
+ * gauntlet, ranked by verdict then whale conviction.
  */
 @Injectable()
 export class GemsService {

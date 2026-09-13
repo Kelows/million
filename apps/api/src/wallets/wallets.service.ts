@@ -347,7 +347,7 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
    *
    * Style is the ONLY stable predictor we have: realized returns anti-predict
    * (corr -0.44 between a wallet's first and second half), while median hold is
-   * a property of how it trades. See docs/edge-findings.md.
+   * a property of how it trades.
    */
   async cleanChurn(): Promise<CleanChurnResult> {
     const rows = await this.prisma.wallet.findMany({

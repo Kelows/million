@@ -2,7 +2,7 @@
 /**
  * A kill criterion that actually fires.
  *
- * The rule in docs/state.md ("median < -10% AND no trade over +100%") triggers
+ * The rule "median < -10% AND no trade over +100%" triggers
  * in 0.0% of runs past ~100 trades whether or not the edge is real -- the two
  * clauses pull against each other, so it carries no information. See
  * tools/decision-clocks.mjs for that measurement.
