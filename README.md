@@ -12,6 +12,77 @@ rugs, and turns what's left into trade signals — paper first, live if you choo
 > your decision and your risk: the authors are not responsible for any loss.
 > Start on paper.
 
+## Talk to it: million is the engine, Claude is the operator
+
+You don't need to know what a webhook is. You don't need to read a single line
+of this repo. If you can type a sentence, you can run a whale deck.
+
+Every whale you've watched buy a coin at 3am, while you were asleep, reading
+charts or doing it all by hand: that's the gap. million watches the wallets
+without blinking. Claude Code sits on top of it and does the part that used to
+need a developer: installing it, wiring it up, explaining what it did, changing
+it when you ask.
+
+```text
+you     set it up. I have 5 SOL, I want to paper trade patient whales first
+claude  installs the deck, checks your Helius key, asks three questions,
+        applies the Swing Copy preset, sizes it to your 5 SOL, starts the feed
+
+you     how's it going?
+claude  Paper, feed healthy, 2 positions open. STONK closed +7% on the
+        trailing stop. CATE fired a ladder signal but was already bought an
+        hour ago, so it waited.
+
+you     why didn't it buy K7Pa…pump? everyone was talking about it
+claude  Only one wallet you follow bought it, with 0.4 SOL: under your
+        1.5 SOL minimum for a copy signal. Lowering it would also let in
+        every small, noisy buy. Want to change it?
+
+you     find me whales from this token: <address>
+claude  pulls its biggest buyers, analyzes them, flags the four wallets
+        that are really one operator, and adds the rest for you to pick
+
+you     watch it and tell me when it buys
+claude  OPENED FRIES · 0.2 SOL (paper) · copy signal from AgmL…zN51,
+        a wallet you follow that bought 1.8 SOL of it a second ago
+```
+
+(An illustration of the conversation, not a record of trades.)
+
+**Start in three lines:**
+
+```sh
+git clone https://github.com/Kelows/million && cd million
+claude
+> set me up
+```
+
+That's it. Claude reads the project, follows the setup skill, and asks you for
+what only you can decide: your Helius key, your size, your style, the wallets to
+start from. Everything it runs is in the open, in this repo.
+
+What Claude can do with it:
+
+| You say | Claude runs |
+|---|---|
+| "set me up" | `/setup-million`: install, key, questions, presets, wallets, feed |
+| "how's it going?" | `/million-brief`: health, positions, results, the most telling skip |
+| "why didn't it buy X?" | `/why-not-bought`: the decision log for that token, in plain words |
+| "make it safer" / "0.2 SOL per trade" | `/tune-rules`: shows the before → after, then saves |
+| "watch it" | `/watch-deck`: live updates in the chat when it opens, closes or goes blind |
+| "find me whales from this token" | `/find-first-whales`: a token's buyers, analyzed, clusters flagged |
+
+When you open Claude Code in the repo, a hook tells Claude the deck's state
+before you type anything, so "how's it going?" works from the first message.
+
+Some things stay yours no matter how you ask. Claude never switches paper to
+live on its own: you have to type
+`I understand every signal will spend real SOL and I can lose all of it`
+yourself. It creates a trading wallet without ever showing its secret key, and
+it never prints your API keys back.
+
+No Claude Code? Everything below works by hand too.
+
 ## How it works
 
 <picture>
