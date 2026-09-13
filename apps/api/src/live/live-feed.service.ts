@@ -8,6 +8,7 @@ import { toObserved } from '../wallets/wallets.service';
 import { EventsBus } from '../common/events.bus';
 import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
 import { ledgerStep } from '../analysis/ledger';
+import { DecisionLog } from '../common/decision-log';
 import type { HeliusTx } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 
@@ -46,6 +47,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     private readonly bus: EventsBus,
     private readonly trading: TradingService,
     private readonly dexscreener: DexScreenerService,
+    private readonly decisions: DecisionLog,
   ) {}
 
   private get webhookMode(): boolean {
@@ -224,6 +226,32 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     this.lastTouch.set(wallet, Date.now());
     if (this.lastTouch.size > 5_000) this.lastTouch.clear(); // bounded
     await this.prisma.wallet.update({ where: { address: wallet }, data: { lastEventAt: new Date() } }).catch(() => undefined);
+  }
+
+  /**
+   * A subscribed wallet touched a token without that being a buy or a sell, so
+   * it never reaches the opportunity gates — and used to leave no trace. The
+   * common case is a relay: a bot buys for someone else and forwards the tokens
+   * in the same transaction, which looks like a whale buying if you only read
+   * the swap. Say so in the decision log.
+   */
+  private explainNonBuy(wallet: string, mint: string, tokenDelta: number, txType: string): void {
+    if (tokenDelta === 0) {
+      this.decisions.record({
+        mint, wallet, stage: 'event', outcome: 'skip', code: 'passthrough',
+        reason: 'tokens came in and went straight back out in the same transaction: bought for another wallet (a relay or trading bot), not a position',
+      });
+    } else if (tokenDelta > 0) {
+      this.decisions.record({
+        mint, wallet, stage: 'event', outcome: 'skip', code: 'received-free', quiet: true,
+        reason: `received tokens without paying for them (${txType === 'SWAP' ? 'a swap where no SOL or stablecoin left the wallet' : 'a transfer or airdrop'}), not a buy`,
+      });
+    } else {
+      this.decisions.record({
+        mint, wallet, stage: 'event', outcome: 'skip', code: 'transfer-out', quiet: true,
+        reason: 'sent tokens out without being paid: moved to another wallet, not a sale',
+      });
+    }
   }
 
   private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number, txType: string): Promise<void> {
@@ -476,6 +504,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event) this.bus.emit('live_event');
     if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd, tx.type).catch(() => undefined);
     if (event) void this.touchWallet(wallet).catch(() => undefined);
+    if (event && mint && kind === 'other') this.explainNonBuy(wallet, mint, tokens.get(mint) ?? 0, tx.type);
     if (event && kind === 'sell' && mint) {
       void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
       // every roster sell is a distribution vote, not just the wallet we copied

@@ -2,7 +2,7 @@ import { Global, Injectable, Module } from '@nestjs/common';
 import { Subject } from 'rxjs';
 
 export interface BusEvent {
-  type: 'live_event' | 'opportunity' | 'paper_trade' | 'crawler_run' | 'wallet_analyzed' | 'token_checked' | 'copyability';
+  type: 'live_event' | 'opportunity' | 'paper_trade' | 'crawler_run' | 'wallet_analyzed' | 'token_checked' | 'copyability' | 'decision';
   data?: unknown; // event payload — trade toasts carry symbol/pnl through here
 }
 

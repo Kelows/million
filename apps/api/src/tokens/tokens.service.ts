@@ -247,24 +247,32 @@ export class TokensService {
 
   /** Which roster wallets hold or traded this token, from their cached analyses. */
   private async intel(mint: string): Promise<TokenRosterIntel> {
-    const rows = await this.prisma.wallet.findMany({ where: { metrics: { not: null }, purgedAt: null }, select: { address: true, label: true, metrics: true } });
-    const holders: TokenRosterIntel['holders'] = [];
-    const traders: TokenRosterIntel['traders'] = [];
-    for (const w of rows) {
-      const m = JSON.parse(w.metrics as string) as WalletMetrics;
-      const t = m.tokens.find((tok) => tok.mint === mint);
-      if (!t) continue;
-      const sp = m.solPriceUsd ?? 200;
-      // remaining basis, never total-in: pre-entrySol metrics get in-minus-out
-      // (clamped at 0 — a profitable exit-heavy wallet needs re-analysis for truth)
-      const stillIn = t.entrySol ?? Math.max(0, t.solIn + (t.usdIn ?? 0) / sp - (t.solOut + (t.usdOut ?? 0) / sp));
-      if (t.open) holders.push({ address: w.address, label: w.label, entrySol: stillIn });
-      else if (t.sells > 0) traders.push({ address: w.address, label: w.label, realizedPnlSol: t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / (m.solPriceUsd ?? 200) });
-    }
+    // Same sources as "Held across the roster", for the same reason: an analysis
+    // snapshot says what a wallet held when we last looked, and PnL from the
+    // truncated history scan inflated whatever it touched. Holders are live
+    // ledger rows of wallets whose sells we would see; traders are round trips
+    // we actually watched close.
+    const [positions, closes, wallets] = await Promise.all([
+      this.prisma.rosterPosition.findMany({ where: { mint, costSol: { gt: 0 } }, select: { wallet: true, costSol: true } }),
+      this.prisma.observedTrade.findMany({ where: { mint }, select: { wallet: true, pnlSol: true } }),
+      this.prisma.wallet.findMany({ where: { purgedAt: null }, select: { address: true, label: true, subscribed: true } }),
+    ]);
+    const byAddress = new Map(wallets.map((w) => [w.address, w]));
+    const holders: TokenRosterIntel['holders'] = positions
+      .filter((p) => byAddress.get(p.wallet)?.subscribed)
+      .map((p) => ({ address: p.wallet, label: byAddress.get(p.wallet)?.label ?? null, entrySol: p.costSol }));
+    const realized = new Map<string, number>();
+    for (const c of closes) realized.set(c.wallet, (realized.get(c.wallet) ?? 0) + c.pnlSol);
+    const traders: TokenRosterIntel['traders'] = [...realized].map(([address, pnl]) => ({
+      address,
+      label: byAddress.get(address)?.label ?? null,
+      realizedPnlSol: pnl,
+    }));
     holders.sort((a, b) => (b.entrySol ?? 0) - (a.entrySol ?? 0));
     traders.sort((a, b) => b.realizedPnlSol - a.realizedPnlSol);
     return { holders: holders.slice(0, 30), traders: traders.slice(0, 30) };
   }
+
 
   private toTracked(r: Token): TrackedToken {
     const report = r.lastReport ? (JSON.parse(r.lastReport) as TokenReport) : null;

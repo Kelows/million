@@ -251,3 +251,23 @@ model BacktestRun {
   ranAt   DateTime @default(now())
   payload String // JSON BacktestResult
 }
+
+/// Why a token event did or did not become a trade. One row per decision,
+/// persisted, so "why didn't it buy X?" still has an answer after a restart —
+/// including the quiet, high-volume exits (buy too small, tokens passed straight
+/// through a relay wallet) that used to leave no trace at all.
+model Decision {
+  id      Int      @id @default(autoincrement())
+  ts      DateTime @default(now())
+  mint    String?
+  symbol  String?
+  wallet  String?
+  stage   String // event | signal | gauntlet | execution | trade
+  outcome String // skip | shadow | fired | opened
+  code    String // stable key, e.g. below-min-size — filters and counts group on it
+  reason  String // the sentence the deck shows
+  quiet   Boolean  @default(false) // routine skips, hidden unless asked for
+
+  @@index([mint, ts])
+  @@index([ts])
+}

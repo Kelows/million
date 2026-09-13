@@ -1,4 +1,5 @@
 import { Link, useParams } from '@tanstack/react-router';
+import { DecisionLog } from '../components/DecisionLog';
 import { useCheckToken, useTokenDetail } from '../api';
 import { Addr, classicUrl } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -63,8 +64,10 @@ export function TokenDetail() {
         </div>
       )}
 
+      <DecisionLog mint={mint} />
+
       <div className="grid md:grid-cols-2 gap-4">
-        <IntelTable title={`Roster holders · ${intel.holders.length}`} empty="No tracked wallet holds this open.">
+        <IntelTable title={`Roster holders · ${intel.holders.length}`} empty="No subscribed wallet holds this.">
           {intel.holders.map((h) => (
             <tr key={h.address} className="border-t border-line hover:bg-deck2">
               <td className="pl-4 pr-0 py-2 w-8">
@@ -75,7 +78,7 @@ export function TokenDetail() {
             </tr>
           ))}
         </IntelTable>
-        <IntelTable title={`Roster traders · ${intel.traders.length}`} empty="No tracked wallet has closed this.">
+        <IntelTable title={`Roster traders · ${intel.traders.length}`} empty="No round trip in this token has been watched closing yet.">
           {intel.traders.map((t) => (
             <tr key={t.address} className="border-t border-line hover:bg-deck2">
               <td className="pl-4 pr-0 py-2 w-8">

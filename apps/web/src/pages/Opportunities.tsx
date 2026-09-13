@@ -12,6 +12,7 @@ import { Info } from '../components/Info';
 import { fmtAgo, truncAddr } from '../lib/format';
 import { usePagination } from '../lib/usePagination';
 import { Pagination } from '../components/Pagination';
+import { DecisionLog } from '../components/DecisionLog';
 
 function SubbedWalletsButton({ count }: { count: number }) {
   const [open, setOpen] = useState(false);
@@ -171,6 +172,8 @@ export function Opportunities() {
         )}
         <Pagination page={pag.page} pageCount={pag.pageCount} from={pag.from} to={pag.to} total={pag.total} onPage={pag.setPage} />
       </div>
+
+      <DecisionLog />
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 eyebrow">Rotations · last 5 · owners spawning fresh wallets</div>

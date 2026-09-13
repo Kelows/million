@@ -545,6 +545,23 @@ export interface OpportunityRow {
   ts: string; // ISO
 }
 
+/** Why a token event did or did not become a trade — the decision log. */
+export type DecisionStage = 'event' | 'signal' | 'gauntlet' | 'execution' | 'trade';
+export type DecisionOutcome = 'skip' | 'shadow' | 'fired' | 'opened';
+
+export interface DecisionRow {
+  id: number;
+  ts: string; // ISO
+  mint: string | null;
+  symbol: string | null;
+  wallet: string | null;
+  stage: DecisionStage;
+  outcome: DecisionOutcome;
+  code: string;
+  reason: string;
+  quiet: boolean; // routine skips, hidden unless asked for
+}
+
 /** A token that pumped recently — the blank-state seeding material. */
 export interface MoverToken {
   mint: string;

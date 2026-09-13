@@ -110,12 +110,13 @@ export class OpportunitiesService {
   /** Called by the live feed for every ingested buy. Cheap checks first, gauntlet last. */
   async evaluate(wallet: string, mint: string, buySol: number, ts: Date, eventId: number, whalePriceUsd: number | null = null): Promise<void> {
     const config = await this.getConfig();
-    const skip = (why: string) => this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${wallet.slice(0, 6)}…, ${buySol.toFixed(1)}◎): ${why}`);
+    const skip = (code: string, reason: string) => this.decisions.record({ mint, wallet, stage: 'signal', outcome: 'skip', code, reason });
     // Audited guards DEFER rather than return: a phantom must mean "this would
     // have been a real trade", so the signal keeps walking the gates (gauntlet
     // included) and the shadow is only recorded if everything else passed.
     // First blocker owns the attribution.
     let blockedBy: string | null = null;
+    let blockedWhy: string | null = null;
     // A guard turned OFF still computes its verdict and records it here, so one
     // run yields within-sample attribution: "how did the trades cycler would
     // have blocked actually do?" — far cheaper than sequential experiments.
@@ -127,7 +128,7 @@ export class OpportunitiesService {
     const block = (reason: string, why: string, enabled = true) => {
       objections.push(reason);
       if (!enabled) { wouldBlock.push(reason); return; }
-      if (!blockedBy) { blockedBy = reason; skip(why); }
+      if (!blockedBy) { blockedBy = reason; blockedWhy = why; } // recorded as a shadow once every other gate has had its say
     };
     // FIX: machine-speed triggers are adverse selection at human latency
     if (config.ignoreSniperTriggers) {
@@ -152,7 +153,14 @@ export class OpportunitiesService {
     if (cumulativeFired) return;
 
     // from here the COPY path only: one buy, judged on its own size
-    if (buySol < config.minBuySol) return; // silent — fires on most events, would drown the log
+    if (buySol < config.minBuySol) {
+      // the most common exit by far, so it is recorded as quiet: hidden by default, one click away
+      this.decisions.record({
+        mint, wallet, stage: 'signal', outcome: 'skip', code: 'below-min-size', quiet: true,
+        reason: `${buySol.toFixed(2)} ◎ buy. A copy needs ${config.minBuySol} ◎, and it doesn't add up to a consensus or ladder signal yet`,
+      });
+      return;
+    }
 
 
     // recency: must be NEW for this wallet — no prior live buy, not in its analyzed history
@@ -160,7 +168,7 @@ export class OpportunitiesService {
       where: { wallet, mint, kind: 'buy', id: { lt: eventId } },
       select: { id: true },
     });
-    if (priorLive) return skip('prior live buy in window — continuation, not news');
+    if (priorLive) return skip('prior-buy', 'this wallet already bought it earlier, so this is a top-up, not a new entry');
     // cycler guard: a wallet that SOLD this mint minutes ago isn't entering, it's
     // ping-ponging — copying a seconds-scale scalp cycle means buying their
     // impact spike and selling into their dump. Their profit, our fee.
@@ -180,7 +188,7 @@ export class OpportunitiesService {
     }
     if (walletRow?.metrics) {
       const m = JSON.parse(walletRow.metrics) as WalletMetrics;
-      if ((m.flags ?? []).includes('BOT_INFRA')) return skip('trigger wallet is BOT_INFRA'); // inventory moves, never signal
+      if ((m.flags ?? []).includes('BOT_INFRA')) return skip('bot-infra', 'the buyer is flagged as bot or infrastructure: its moves are inventory, not a signal'); // inventory moves, never signal
       // retention(δ/H) is ≤0 when the wallet's holds are shorter than our latency
       // horizon — H is a property of the trader, so gate on their median hold
       // reference bar when disabled, so the counterfactual stays measurable
@@ -189,10 +197,10 @@ export class OpportunitiesService {
         block('median-hold', `median hold ${Math.round(m.medianHoldMinutes)}m < ${holdBar}m`, config.minMedianHoldMinutes > 0);
       // still holding = a top-up, not news. A CLOSED position re-entered is the
       // whale's next trade — for active roster wallets that's 43% of all entries.
-      if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('whale already holds it (per metrics) — top-up');
+      if (m.tokens.some((t) => t.mint === mint && t.open)) return skip('already-holds', 'the buyer already held this token, so this is a top-up, not a new entry');
     }
 
-    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy, wouldBlock, objections);
+    await this.fire(mint, wallet, buySol, ts, 'copy', config, whalePriceUsd, blockedBy, wouldBlock, objections, blockedWhy);
   }
 
   /**
@@ -229,7 +237,10 @@ export class OpportunitiesService {
       const bought = flow('buy');
       const sold = flow('sell');
       if (sold >= bought) {
-        this.decisions.push(`[opps] skip ${mint.slice(0, 6)}... (consensus): ${bought.toFixed(1)} SOL bought vs ${sold.toFixed(1)} sold — distribution, not agreement`);
+        this.decisions.record({
+          mint, wallet, stage: 'signal', outcome: 'skip', code: 'consensus-distribution',
+          reason: `${voters.length} wallets bought, but ${sold.toFixed(1)} ◎ was sold against ${bought.toFixed(1)} ◎ bought: distribution, not agreement`,
+        });
         return false;
       }
     }
@@ -277,6 +288,7 @@ export class OpportunitiesService {
     blockedBy: string | null = null,
     wouldBlock: string[] = [],
     objections: string[] = [],
+    blockedWhy: string | null = null,
   ): Promise<void> {
     // dedupe: one opportunity per token per hour, whoever (and whichever signal) triggers it
     const recent = await this.prisma.opportunity.findFirst({
@@ -284,7 +296,7 @@ export class OpportunitiesService {
       select: { id: true },
     });
     if (recent) {
-      this.decisions.push(`[opps] skip ${mint.slice(0, 6)}… (${signal}): opportunity already fired for this mint <1h ago`);
+      this.decisions.record({ mint, wallet, stage: 'signal', outcome: 'skip', code: 'dedupe', reason: `${signal} signal, but this token was already signalled in the last hour` });
       return;
     }
 
@@ -292,11 +304,20 @@ export class OpportunitiesService {
     const crawlerRow = await this.prisma.crawlerConfig.findUnique({ where: { id: 1 } });
     const thresholds = CrawlerConfigSchema.parse(crawlerRow ? JSON.parse(crawlerRow.data) : {}).thresholds;
     const report = await this.tokenCheck.check(mint, thresholds).catch(() => null);
-    if (!report) return;
+    if (!report) {
+      this.decisions.record({ mint, wallet, stage: 'gauntlet', outcome: 'skip', code: 'gauntlet-error', reason: `${signal} signal, but the token checks could not run (a data source failed)` });
+      return;
+    }
     const allowed = report.verdict === 'pass' || (config.allowWarn && report.verdict === 'warn');
     if (!allowed) {
-      const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.id).join(',');
-      this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): gauntlet ${report.verdict}${failed ? ` [${failed}]` : ''}`);
+      const failed = report.checks.filter((c) => c.status === 'fail').map((c) => c.label).join(', ');
+      const warnOnly = report.verdict === 'warn' && !config.allowWarn;
+      this.decisions.record({
+        mint, symbol: report.symbol, wallet, stage: 'gauntlet', outcome: 'skip', code: warnOnly ? 'gauntlet-warn' : 'gauntlet',
+        reason: warnOnly
+          ? `${signal} signal, but the token checks came back WARN and your rules only allow PASS`
+          : `${signal} signal, but the token checks came back ${report.verdict.toUpperCase()}${failed ? `: ${failed}` : ''}`,
+      });
       return;
     }
 
@@ -306,10 +327,10 @@ export class OpportunitiesService {
     // whale's own buy spikes the quote, we book the spike, and it reverts
     // within a minute — five of seven such fills stopped out inside 60 seconds.
     if (config.minTradeLiquidityUsd >= 0 && (report.liquidityUsd ?? 0) < config.minTradeLiquidityUsd) {
-      this.decisions.push(
-        `[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): pool too thin to fill — ` +
-          `$${Math.round(report.liquidityUsd ?? 0).toLocaleString('en-US')} < $${config.minTradeLiquidityUsd.toLocaleString('en-US')}`,
-      );
+      this.decisions.record({
+        mint, symbol: report.symbol, wallet, stage: 'execution', outcome: 'skip', code: 'thin-pool',
+        reason: `${signal} signal, but the pool is too thin to fill: $${Math.round(report.liquidityUsd ?? 0).toLocaleString('en-US')} liquidity, your floor is $${config.minTradeLiquidityUsd.toLocaleString('en-US')}`,
+      });
       return;
     }
 
@@ -319,7 +340,7 @@ export class OpportunitiesService {
       const ageMinutes = (Date.now() - new Date(report.pairCreatedAt).getTime()) / 60_000;
       if (ageMinutes > config.maxPairAgeMinutes && !blockedBy) {
         blockedBy = 'pair-too-old';
-        this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): pool is ${Math.round(ageMinutes)}m old, ceiling ${config.maxPairAgeMinutes}m`);
+        blockedWhy = `the pool is ${Math.round(ageMinutes)} minutes old and your ceiling is ${config.maxPairAgeMinutes}`;
       }
     }
 
@@ -331,7 +352,7 @@ export class OpportunitiesService {
       if (impactPct > 5) objections.push('impact');
       if (impactPct > 5 && !blockedBy) {
         blockedBy = 'impact';
-        this.decisions.push(`[opps] skip ${report.symbol ?? mint.slice(0, 6)} (${signal}): whale's ${buySol.toFixed(1)}◎ is ${impactPct.toFixed(1)}% of the pool — their fill is their own footprint`);
+        blockedWhy = `the buy was ${impactPct.toFixed(1)}% of the pool, so its price was mostly its own footprint`;
       }
     }
 
@@ -339,6 +360,10 @@ export class OpportunitiesService {
     // traded — the phantom is now a fair test of the guard that stopped it
     if (blockedBy) {
       this.shadow.record(mint, report.symbol, wallet, blockedBy, objections.join(','));
+      this.decisions.record({
+        mint, symbol: report.symbol, wallet, stage: 'execution', outcome: 'shadow', code: blockedBy,
+        reason: `${signal} signal passed everything else, but ${blockedWhy ?? blockedBy}. Tracked as a shadow position to test that rule`,
+      });
       return;
     }
 
@@ -362,7 +387,10 @@ export class OpportunitiesService {
         fillGapPct,
       },
     });
-    this.decisions.push(`[opps] FIRED ${report.symbol ?? mint.slice(0, 6)} (${signal}) — ${buySol.toFixed(1)}◎ by ${wallet.slice(0, 6)}…, verdict ${report.verdict}`);
+    this.decisions.record({
+      mint, symbol: report.symbol, wallet, stage: 'signal', outcome: 'fired', code: signal,
+      reason: `${signal} signal: ${buySol.toFixed(2)} ◎ bought, token checks ${report.verdict.toUpperCase()}`,
+    });
     this.bus.emit('opportunity');
     // every opportunity is also a (paper) trade — this is where expectancy data comes from
     void this.trading.openFromOpportunity(mint, report.symbol, wallet, whalePriceUsd, buySol, signal, wouldBlock.join(',')).catch(() => undefined);

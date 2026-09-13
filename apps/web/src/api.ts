@@ -296,12 +296,24 @@ export function useSetSubscribed() {
   });
 }
 
-import type { OpportunityConfig, OpportunityRow } from '@million/shared';
+import type { DecisionRow, OpportunityConfig, OpportunityRow } from '@million/shared';
 
 export function useOpportunities() {
   return useQuery({
     queryKey: ['opportunities'],
     queryFn: () => request<OpportunityRow[]>('/opportunities'),
+    refetchInterval: 60_000, // backstop — SSE invalidates instantly
+  });
+}
+
+/** Why token events did or did not become trades. `quiet` adds the routine skips. */
+export function useDecisions(opts: { mint?: string; quiet?: boolean; limit?: number } = {}) {
+  const params = new URLSearchParams({ limit: String(opts.limit ?? 150) });
+  if (opts.mint) params.set('mint', opts.mint);
+  if (opts.quiet) params.set('quiet', 'true');
+  return useQuery({
+    queryKey: ['decisions', opts.mint ?? null, Boolean(opts.quiet), opts.limit ?? 150],
+    queryFn: () => request<DecisionRow[]>(`/opportunities/decisions?${params}`),
     refetchInterval: 60_000, // backstop — SSE invalidates instantly
   });
 }
@@ -385,6 +397,15 @@ export function useEventStream() {
       lastHeavy = Date.now();
       qc.invalidateQueries({ queryKey: ['wallets'] }); // 4.4MB — throttled; freshness comes from wallets-activity
     };
+    // decisions can arrive in bursts (one per gate on a busy token) — coalesce them
+    let decisionTimer: ReturnType<typeof setTimeout> | null = null;
+    const invalidateDecisions = () => {
+      if (decisionTimer) return;
+      decisionTimer = setTimeout(() => {
+        decisionTimer = null;
+        qc.invalidateQueries({ queryKey: ['decisions'] });
+      }, 1_500);
+    };
     const es = new EventSource('/api/live/stream');
     es.onmessage = (msg) => {
       try {
@@ -398,6 +419,8 @@ export function useEventStream() {
           qc.invalidateQueries({ queryKey: ['tokens', 'famous'] });
           qc.invalidateQueries({ queryKey: ['wallets-activity'] });
           invalidateHeavy(); // the 4.4MB roster stays throttled
+        } else if (type === 'decision') {
+          invalidateDecisions();
         } else if (type === 'opportunity') {
           qc.invalidateQueries({ queryKey: ['opportunities'] });
           qc.invalidateQueries({ queryKey: ['wallets'] }); // rotations add wallets

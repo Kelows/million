@@ -59,21 +59,24 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     wouldBlock: string = '',
   ): Promise<void> {
     const config = await this.config();
-    if (!config.paperEnabled || config.positionSol <= 0) return;
+    if (!config.paperEnabled || config.positionSol <= 0) {
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'trading-off', reason: 'opportunity fired, but trading is off (paper disabled or position size 0)' });
+      return;
+    }
     if (config.tradeSignals !== 'both' && signal !== config.tradeSignals) {
-      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: ${signal} signals not traded (tradeSignals=${config.tradeSignals})`);
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'signal-not-traded', reason: `opportunity fired, but your rules only trade ${config.tradeSignals} signals, not ${signal}` });
       return;
     }
     // two-key launch: the live executor refuses entries until autoTrade is ALSO
     // flipped in the UI — an env var alone must never spend real money. Exits
     // (tick/mirror) stay unaffected: an open live position must always be closable.
     if (this.executor.mode === 'live' && !config.autoTrade) {
-      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: live executor armed but autoTrade is OFF`);
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'autotrade-off', reason: 'opportunity fired, but the live executor is armed and autoTrade is off' });
       return;
     }
     const halt = await this.haltState(config);
     if (halt.halted) {
-      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: CIRCUIT BREAKER — ${halt.reason}`);
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'circuit-breaker', reason: `opportunity fired, but the circuit breaker has halted entries: ${halt.reason}` });
       return;
     }
     // conviction sizing, three flavors:
@@ -101,17 +104,20 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
     const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
     if (open.length >= config.maxOpenPositions) {
-      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: maxOpenPositions (${config.maxOpenPositions}) reached`);
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'max-positions', reason: `opportunity fired, but ${config.maxOpenPositions} positions are already open (your maximum)` });
       return;
     }
     // FIX: portfolio exposure cap — ten positions in one meta is one bet wearing ten hats
     const exposure = open.reduce((s, p) => s + p.sizeSol, 0);
     if (exposure + sizeSol > config.maxTotalExposureSol) {
-      this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: exposure cap (${config.maxTotalExposureSol}◎) reached`);
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'exposure-cap', reason: `opportunity fired, but it would take total exposure past your ${config.maxTotalExposureSol} ◎ cap` });
       return;
     }
     const dupe = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'open' } });
-    if (dupe) return;
+    if (dupe) {
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'already-open', reason: 'opportunity fired, but a position in this token is already open' });
+      return;
+    }
     // churn guard — RULES MODE ONLY: there, losses come from OUR stop logic and
     // serial re-stop-outs are our failure loop. In the mirror modes the whale's
     // judgment is the strategy, and that includes their judgment to re-enter a
@@ -119,12 +125,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     if (config.exitMode === 'rules') {
       const lastClosed = await this.prisma.paperPosition.findFirst({ where: { mint, status: 'closed' }, orderBy: { closedAt: 'desc' }, select: { closedAt: true, pnlSol: true } });
       if (lastClosed?.closedAt && (lastClosed.pnlSol ?? 0) < 0 && Date.now() - lastClosed.closedAt.getTime() < 3_600_000) {
-        this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: lost here under an hour ago (rules-mode churn guard)`);
+        this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'churn-guard', reason: 'opportunity fired, but this token stopped out at a loss under an hour ago' });
         return;
       }
     }
     const fill = await this.executor.buy(mint, sizeSol);
-    if (!fill) return;
+    if (!fill) {
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'no-fill', reason: `opportunity fired, but the ${this.executor.mode} buy of ${sizeSol} ◎ did not fill` });
+      return;
+    }
     // NOTE for the live executor: fidelity sizing must move BEFORE buy() there
     // (quote first, size, then execute) — paper fills are quotes, so post-hoc is safe.
     // fill fidelity, asymmetric — the two tails fail differently. Below their
@@ -136,7 +145,10 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       const limit = gap < 0 ? 0.3 : 0.25;
       if (Math.abs(gap) > limit) {
         this.shadow.record(mint, symbol, wallet, gap < 0 ? 'fill-deflation' : 'fill-chase');
-        this.decisions.push(`[trading] skipped ${symbol ?? mint.slice(0, 8)}: fill ${(gap * 100).toFixed(0)}% from whale's price — ${gap < 0 ? 'impact deflation' : 'chasing the move'}`);
+        this.decisions.record({
+          mint, symbol, wallet, stage: 'trade', outcome: 'shadow', code: gap < 0 ? 'fill-deflation' : 'fill-chase',
+          reason: `our fill would be ${(gap * 100).toFixed(0)}% ${gap < 0 ? 'below' : 'above'} the whale's price: ${gap < 0 ? 'buying the dip their own buy caused' : 'the move already ran without us'}. Tracked as a shadow position`,
+        });
         return;
       }
       const fidelity = Math.max(0.2, 1 - Math.abs(gap) / limit); // floor: a binary cliff at the boundary wastes information
@@ -145,7 +157,10 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.paperPosition.create({
       data: { mint, symbol, wallet, sizeSol, entryPriceUsd: fill.priceUsd, mode: this.executor.mode, whaleEntryPriceUsd, signal, wouldBlock: wouldBlock || null },
     });
-    this.decisions.push(`[trading] OPENED ${symbol ?? mint.slice(0, 8)} — ${sizeSol}◎ (${signal}) @ $${fill.priceUsd.toPrecision(3)}`);
+    this.decisions.record({
+      mint, symbol, wallet, stage: 'trade', outcome: 'opened', code: this.executor.mode,
+      reason: `opened ${sizeSol} ◎ (${this.executor.mode}, ${signal} signal) at $${fill.priceUsd.toPrecision(3)}`,
+    });
     this.bus.emit('paper_trade', { kind: 'open', symbol, mint, sizeSol, mode: this.executor.mode, signal });
   }
 
