@@ -11,11 +11,11 @@ rugs, and turns what's left into trade signals — paper first, live if you choo
 
 <sub>Counts from the first instance. Ribbon height is proportional to log(count): the narrowing is the filter.</sub>
 
-> **Status: experimental.** Nothing here has shown a proven edge. The measured
-> per-trade return on the backtest has a confidence interval that still includes
-> zero, and the first paper book lost money. Run it on paper. If you go live,
-> fund the executor wallet only with what you are prepared to lose. Nothing in
-> this repo is financial advice.
+> **Experimental. Provided as is, with no warranty.** This is a research tool,
+> not a money printer, and nothing in it is financial advice. Trading meme coins
+> can lose you everything you put in. If you trade real money with it, that is
+> your decision and your risk: the authors are not responsible for any loss.
+> Start on paper.
 
 ## How it works
 
@@ -145,21 +145,27 @@ Every opportunity that passes your rules opens a simulated position. Fills are
 priced at market plus the **measured** round-trip cost from a Jupiter quote for
 that token, so the paper book pays roughly what live would.
 
-Stops only fire while the API is running. The first instance was down for 13
-days, and when it came back 11 positions stopped out at once, at −68% on average
-against a 50% stop. The same is true for live positions: **nothing protects a
-position on-chain while the app is off.**
+**Stops only fire while the API is running.** Nothing protects a position
+on-chain while the app is off: if your machine sleeps for a day, every stop that
+should have fired in that day fires at once when it wakes, at whatever the price
+is by then. That goes for live positions too.
 
 ### Live
 
-Live trading needs two separate switches:
+Live entries are locked in code, on purpose. Unlocking them takes three steps,
+none of which can happen by accident:
 
 1. `EXECUTOR=local` and a keypair in `apps/api/.env`:
    ```sh
    EXECUTOR=local
    EXECUTOR_KEYPAIR_PATH=~/.million/keypair.json   # solana-keygen JSON, keep it outside the repo
    ```
-2. The **autoTrade** toggle in Trading rules.
+2. Remove the line in `apps/api/src/opportunities/opportunities.controller.ts`
+   that forces `autoTrade: false` whenever the rules are saved.
+3. Turn on **autoTrade** in Trading rules.
+
+Until all three are done, an armed executor still closes positions but opens
+nothing new.
 
 Swaps go through Jupiter and are signed locally; your keys never leave your
 machine. The executor enforces its own hard limits under whatever the strategy
