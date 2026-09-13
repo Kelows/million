@@ -7,6 +7,7 @@ import { TradingService } from '../trading/trading.service';
 import { toObserved } from '../wallets/wallets.service';
 import { EventsBus } from '../common/events.bus';
 import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
+import { ledgerStep } from '../analysis/ledger';
 import type { HeliusTx } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 
@@ -225,41 +226,31 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.wallet.update({ where: { address: wallet }, data: { lastEventAt: new Date() } }).catch(() => undefined);
   }
 
-  private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number): Promise<void> {
+  private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number, txType: string): Promise<void> {
     if (tokenDelta === 0) return;
     const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
     const existing = await this.prisma.rosterPosition.findUnique({ where: { wallet_mint: { wallet, mint } } });
-    if (tokenDelta > 0) {
-      const spent = Math.max(0, -sol) + Math.max(0, -usd) / solUsd;
-      // A "buy" with no quote currency leaving is a transfer, an airdrop, or a
-      // swap we misparsed — not a position. Recording it with ~zero cost makes
-      // the eventual sale read as pure profit: 28 such trades invented +80 SOL.
-      if (spent < 0.01) return;
+    // the arithmetic lives in ledgerStep so it can be checked against worked examples
+    const step = ledgerStep(existing, tokenDelta, sol, usd, solUsd, txType);
+    const { action } = step;
+    if (action.op === 'upsert') {
       await this.prisma.rosterPosition.upsert({
         where: { wallet_mint: { wallet, mint } },
-        create: { wallet, mint, qty: tokenDelta, costSol: spent, source: 'live' },
-        update: { qty: (existing?.qty ?? 0) + tokenDelta, costSol: (existing?.costSol ?? 0) + spent, source: 'live' },
+        create: { wallet, mint, qty: action.qty, costSol: action.costSol, source: 'live' },
+        update: { qty: action.qty, costSol: action.costSol, source: 'live' },
       });
-      return;
-    }
-    if (!existing) return; // selling something we never recorded — analysis will reconcile
-    const sold = Math.min(-tokenDelta, existing.qty);
-    const remaining = existing.qty - sold;
-    if (remaining <= existing.qty * 0.02) {
+    } else if (action.op === 'update' && existing) {
+      await this.prisma.rosterPosition
+        .update({ where: { id: existing.id }, data: { qty: action.qty, costSol: action.costSol, source: 'live' } })
+        .catch(() => undefined);
+    } else if (action.op === 'delete' && existing) {
       await this.prisma.rosterPosition.delete({ where: { id: existing.id } }).catch(() => undefined);
-      await this.creditObserved(wallet, Math.max(0, sol) + Math.max(0, usd) / solUsd - existing.costSol, existing.source === 'live', true, mint, existing.symbol, existing.costSol);
-      return; // position closed
     }
-    // average-cost: selling a fraction of the bag retires that fraction of the basis,
-    // and the difference between proceeds and retired cost IS the realized PnL
-    const fraction = existing.qty > 0 ? sold / existing.qty : 0;
-    const proceeds = Math.max(0, sol) + Math.max(0, usd) / solUsd;
-    await this.prisma.rosterPosition.update({
-      where: { id: existing.id },
-      data: { qty: remaining, costSol: existing.costSol * (1 - fraction), source: 'live' },
-    });
-    await this.creditObserved(wallet, proceeds - existing.costSol * fraction, existing.source === 'live', false);
+    if (step.realizedSol === null || !existing) return;
+    if (step.closed) await this.creditObserved(wallet, step.realizedSol, existing.source === 'live', true, mint, existing.symbol, existing.costSol);
+    else await this.creditObserved(wallet, step.realizedSol, existing.source === 'live', false);
   }
+
 
   private async deadmanCheck(): Promise<void> {
     if (!this.webhookMode) return;
@@ -483,7 +474,7 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       })
       .catch(() => null); // duplicate race is fine
     if (event) this.bus.emit('live_event');
-    if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd).catch(() => undefined);
+    if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd, tx.type).catch(() => undefined);
     if (event) void this.touchWallet(wallet).catch(() => undefined);
     if (event && kind === 'sell' && mint) {
       void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);

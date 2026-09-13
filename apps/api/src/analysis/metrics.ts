@@ -117,6 +117,15 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
         traded = true;
       } else if (delta < 0) {
         deliveries++; // token sent out with no proceeds — a delivery, not a trade
+        // ...but the tokens did leave. Moving a bag to a fresh wallet used to
+        // leave it here as "still held" at full cost. Retire that share of the
+        // basis; no proceeds means no realized PnL either way.
+        if (p.qty > 0) {
+          const fraction = Math.min(-delta, p.qty) / p.qty;
+          p.costSol *= 1 - fraction;
+          p.costUsd *= 1 - fraction;
+          p.qty = Math.max(0, p.qty + delta);
+        }
       }
       // delta > 0 with no payment: airdrop/incoming transfer — ignored for PnL
     }
@@ -261,7 +270,19 @@ export function txDeltas(wallet: string, tx: HeliusTx, counterparties?: Set<stri
   let usd = 0;
   const ad = tx.accountData?.find((a) => a.account === wallet);
   if (ad) {
+    // SOL moved = native balance change + net change of this wallet's WSOL token
+    // balance. NOT native change + WSOL transfers: a router that wraps SOL in,
+    // swaps, and unwraps out lists that SOL as a WSOL transfer AND lands it in
+    // the native balance, so summing both counted it twice. Checked against raw
+    // RPC pre/post balances on 36 real swaps across 11 routers: the old sum was
+    // off by ~100% on 26 of them (Jupiter, PUMP_AMM, Meteora, Raydium, Orca...),
+    // this is exact on all 36. A wrap-and-unwrap inside one tx nets to zero here.
     sol += ad.nativeBalanceChange / LAMPORTS;
+    for (const a of tx.accountData ?? []) {
+      for (const c of a.tokenBalanceChanges ?? []) {
+        if (c.userAccount === wallet && c.mint === WSOL) sol += Number(c.rawTokenAmount.tokenAmount) / 10 ** c.rawTokenAmount.decimals;
+      }
+    }
   } else {
     for (const t of tx.nativeTransfers ?? []) {
       if (t.toUserAccount === wallet) sol += t.amount / LAMPORTS;
@@ -276,7 +297,9 @@ export function txDeltas(wallet: string, tx: HeliusTx, counterparties?: Set<stri
     }
     const delta = (t.toUserAccount === wallet ? t.tokenAmount : 0) - (t.fromUserAccount === wallet ? t.tokenAmount : 0);
     if (delta === 0) continue;
-    if (t.mint === WSOL) sol += delta;
+    if (t.mint === WSOL) {
+      if (!ad) sol += delta; // with accountData, WSOL is already counted from the balance change above
+    }
     else if (t.mint === USDC || t.mint === USDT) usd += delta;
     else tokens.set(t.mint, (tokens.get(t.mint) ?? 0) + delta);
   }

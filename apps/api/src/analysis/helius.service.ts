@@ -29,7 +29,11 @@ export interface HeliusTx {
   feePayer?: string;
   tokenTransfers: HeliusTokenTransfer[];
   nativeTransfers: HeliusNativeTransfer[];
-  accountData?: { account: string; nativeBalanceChange: number }[];
+  accountData?: {
+    account: string;
+    nativeBalanceChange: number;
+    tokenBalanceChanges?: { userAccount: string; mint: string; rawTokenAmount: { tokenAmount: string; decimals: number } }[];
+  }[];
 }
 
 const BASE = 'https://api.helius.xyz/v0';

@@ -156,12 +156,14 @@ export class TokensService {
   async famous(): Promise<FamousTokens> {
     // "held" comes from the LIVE position ledger (analysis-seeded, event-updated);
     // "earned" still comes from metrics, since realized PnL is only known at analysis.
-    const [positions, wallets] = await Promise.all([
-      this.prisma.rosterPosition.findMany({ where: { costSol: { gt: 0 } } }), // cost, not qty — pre-qty analyses still count
+    const [positions, wallets, subscribed] = await Promise.all([
+      this.prisma.rosterPosition.findMany({ where: { costSol: { gt: 0 } } }),
       this.prisma.wallet.findMany({
         where: { metrics: { not: null }, purgedAt: null },
         select: { address: true, ownerId: true, metrics: true, subscribed: true },
       }),
+      // separate from `wallets`: a subscribed wallet not yet analyzed still has live rows we can see leave
+      this.prisma.wallet.findMany({ where: { subscribed: true, purgedAt: null }, select: { address: true } }),
     ]);
     const owners = new Map(wallets.map((w) => [w.address, w.ownerId != null ? `o${w.ownerId}` : w.address]));
     const infra = new Set(
@@ -190,9 +192,14 @@ export class TokensService {
       }
     }
 
+    // A position is only "still in" if we would SEE it leave. An unsubscribed or
+    // purged wallet's ledger rows are frozen at their last analysis — it may have
+    // sold an hour later — so they are not a claim this table can make. On
+    // 2026-09-13 those were 38 of 47 rows and 384 of 491 SOL.
+    const watched = new Set(subscribed.map((w) => w.address));
     const held = new Map<string, FamousTokenRow & { keys: Set<string> }>();
     for (const p of positions) {
-      if (isExcludedToken(p.mint) || infra.has(p.wallet) || p.costSol < 0.5) continue;
+      if (isExcludedToken(p.mint) || infra.has(p.wallet) || !watched.has(p.wallet) || p.costSol < 0.5) continue;
       const key = owners.get(p.wallet) ?? p.wallet;
       const symbol = p.symbol ?? symbols.get(p.mint) ?? null;
       const row = held.get(p.mint) ?? { mint: p.mint, symbol, owners: 0, sol: 0, keys: new Set<string>() };
