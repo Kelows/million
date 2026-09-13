@@ -16,6 +16,9 @@ claude            # or codex, gemini… whichever agent you use
 > set me up
 ```
 
+Or `npx create-million`: it clones, installs, checks your Helius key and starts
+the deck.
+
 | To start you need | You don't need |
 |---|---|
 | Node 24 | a webhook, tunnel, domain or Cloudflare account |
