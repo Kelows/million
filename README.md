@@ -90,6 +90,14 @@ Tested with Claude Code, which also gets the deck's state before you type
 anything (a session hook) and can relay live updates while you work. Codex and
 Cursor read the same instructions from `AGENTS.md`.
 
+**Prefer MCP?** [`million-mcp`](packages/million-mcp) exposes the deck as 14
+tools to Claude Desktop, Cursor, VS Code or any MCP client: status, positions,
+the decision log, rules, order flow, token checks and whale discovery.
+
+```sh
+claude mcp add million -- npx -y million-mcp     # or add npx -y million-mcp to your client's MCP config
+```
+
 Some things stay yours no matter how you ask. The agent never turns on live
 trading by itself: you have to type
 `I understand every signal will spend real SOL and I can lose all of it`
@@ -190,8 +198,8 @@ Any coding agent that can run commands on your machine. Everything the deck
 does is a plain local HTTP API, documented in `AGENTS.md` (read automatically
 by Codex and Cursor), and the playbooks in `.claude/skills` are plain Markdown.
 It's tested with Claude Code, which adds a session-start status and live
-updates in the chat. Chat-only assistants that can't run commands can't operate
-it.
+updates in the chat. Assistants that can't run commands can still use it through
+the MCP server, `million-mcp`, as long as the deck runs on the same machine.
 
 **Is it profitable?**
 Nobody can promise that, and this project's own measurements found past returns

@@ -11,6 +11,7 @@ Key facts: until live trading is switched on it paper-trades with measured slipp
 - [README](https://github.com/Kelows/million/blob/main/README.md): what it is, the agent-first start, how it works, comparison with hosted bots, FAQ
 - [Guide](https://github.com/Kelows/million/blob/main/docs/GUIDE.md): setup by hand, live feed and webhooks (Cloudflare Tunnel, ngrok), paper and live trading, developer fee, research tools, security, layout
 - [AGENTS.md](https://github.com/Kelows/million/blob/main/AGENTS.md): instructions for coding agents, the local API routes, safety rules
+- [million-mcp](https://github.com/Kelows/million/blob/main/packages/million-mcp/README.md): MCP server (`npx -y million-mcp`) with 14 tools for Claude Desktop, Cursor, VS Code and other MCP clients
 - [License (MIT)](https://github.com/Kelows/million/blob/main/LICENSE)
 
 ## Agent playbooks

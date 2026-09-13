@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Kelows/million",
+  "title": "million",
+  "description": "Operate a self-hosted Solana whale tracker and copy-trading deck: positions, rules, token checks.",
+  "repository": {
+    "url": "https://github.com/Kelows/million",
+    "source": "github",
+    "subfolder": "packages/million-mcp"
+  },
+  "websiteUrl": "https://github.com/Kelows/million",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "million-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MILLION_API",
+          "description": "Address of the million deck's local API",
+          "isRequired": false,
+          "default": "http://localhost:3001/api"
+        }
+      ]
+    }
+  ]
+}

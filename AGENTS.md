@@ -28,6 +28,10 @@ Markdown: any agent can follow them, not just Claude Code.
 
 Quick state of the deck at any time: `node tools/claude/status.mjs`.
 
+MCP clients (Claude Desktop, Cursor, VS Code…) get the same operations as tools
+from `packages/million-mcp` (`npx -y million-mcp`), a thin layer over the API
+below.
+
 What a user needs to start: Node 24 and a free Helius API key. What they don't:
 a webhook, tunnel, domain, wallet or SOL. Without a webhook the live feed uses a
 websocket for up to 25 followed wallets.

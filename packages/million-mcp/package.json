@@ -1,0 +1,43 @@
+{
+  "name": "million-mcp",
+  "version": "1.0.0",
+  "mcpName": "io.github.Kelows/million",
+  "description": "MCP server for million, the open-source self-hosted Solana whale tracker and copy-trading deck: status, positions, decision log, trading rules, order flow, token checks and whale discovery.",
+  "type": "module",
+  "bin": {
+    "million-mcp": "index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "solana",
+    "whale-tracker",
+    "copy-trading",
+    "solana-trading-bot",
+    "trading-bot",
+    "claude",
+    "cursor",
+    "ai-agents"
+  ],
+  "homepage": "https://github.com/Kelows/million/tree/main/packages/million-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kelows/million.git",
+    "directory": "packages/million-mcp"
+  },
+  "bugs": "https://github.com/Kelows/million/issues",
+  "license": "MIT",
+  "author": "Kelows"
+}
