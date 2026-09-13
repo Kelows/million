@@ -55,7 +55,7 @@ export function Shell() {
           <div className="font-bold text-2xl tracking-widest text-bright">
             MILLI<span className="text-neon">O</span>N
           </div>
-          <div className="eyebrow mt-1">whale deck · v0.1</div>
+          <div className="eyebrow mt-1">whale deck · v1.0</div>
         </div>
         <nav className="flex flex-col gap-6">
           {NAV.map((group) => (
