@@ -85,7 +85,7 @@ ${text(x3, 34, 'TRADE', { size: 11, fill: t.ink3, weight: 600, spacing: '1.5' })
 ${text(xEnd + 44, yM - 10, 'SOL', { size: 11, fill: t.trade, weight: 700, anchor: 'end', mono: true })}
 
 <!-- sources -->
-${text(x0, yW - hW0 / 2 - 10, 'live swaps · Helius webhook', { size: 11, fill: t.ink3, anchor: 'start' })}
+${text(x0, yW - hW0 / 2 - 10, 'live swaps · Helius', { size: 11, fill: t.ink3, anchor: 'start' })}
 ${text(x0, yT + hT0 / 2 + 20, 'crawler · DexScreener · Jupiter quotes', { size: 11, fill: t.ink3, anchor: 'start' })}
 
 <!-- the counts that go in -->

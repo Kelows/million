@@ -17,7 +17,7 @@
 <text x="969" y="245" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="700" fill="#0f8f62" text-anchor="end">SOL</text>
 
 <!-- sources -->
-<text x="40" y="127.09771204053646" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">live swaps · Helius webhook</text>
+<text x="40" y="127.09771204053646" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">live swaps · Helius</text>
 <text x="40" y="402.2494417631922" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">crawler · DexScreener · Jupiter quotes</text>
 
 <!-- the counts that go in -->
