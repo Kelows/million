@@ -79,7 +79,6 @@ export function Screener() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-dim mt-3">Full research list lives in TODO.md at the repo root.</p>
       </div>
     </div>
   );
