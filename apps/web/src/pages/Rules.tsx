@@ -67,7 +67,7 @@ export function Rules() {
       <div className="grid lg:grid-cols-2 gap-4">
         <RuleSection title="1 · Signals" subtitle="What turns a whale's buy into a trade of ours.">
           <RuleField label="Signal kinds that trade" hint="The feed always shows every signal; this only decides which kinds open positions. copy = one whale's entry · consensus = several owners agreeing · ladder = one wallet accumulating in repeated clips.">
-            <Choice value={c.tradeSignals} options={['both', 'copy', 'consensus', 'ladder'] as const} onChange={(v) => set({ tradeSignals: v })} />
+            <Choice value={c.tradeSignals} options={['all', 'copy', 'consensus', 'ladder'] as const} onChange={(v) => set({ tradeSignals: v })} />
           </RuleField>
           <RuleField label="Min buy size (copy only)" hint="A single buy must be at least this large to count as conviction. Applies ONLY to the copy path — consensus and ladder judge cumulative totals and run before this gate, so small clips still reach them.">
             <Num value={c.minBuySol} onChange={(v) => set({ minBuySol: v })} min={0} step={0.5} suffix="◎" />
@@ -172,13 +172,7 @@ export function Rules() {
           </RuleField>
         </RuleSection>
 
-        <RuleSection title="5 · Safety" subtitle="Book-level brakes, and the two keys that gate real money.">
-          <RuleField label="Paper trading enabled" hint="Every qualifying opportunity opens a simulated position. Turning this off stops the experiment collecting data.">
-            <Toggle value={c.paperEnabled} onChange={(v) => set({ paperEnabled: v })} />
-          </RuleField>
-          <RuleField label="Auto-trade (live)" hint="The second of two keys. Even with EXECUTOR=local set, live entries refuse until this is on — an env var alone must never spend real money. Exits are never gated: an open live position must always be closable.">
-            <Toggle value={c.autoTrade} onChange={(v) => set({ autoTrade: v })} />
-          </RuleField>
+        <RuleSection title="5 · Safety" subtitle="Book-level brakes. Paper or live is set by EXECUTOR in the API's .env, not here.">
           <RuleField label="Halt after consecutive losses" hint="Computed fresh from closed positions on every entry, so there is no stored flag to drift. Resume from the Trading page clears the streak.">
             <Num value={c.maxConsecutiveLosses} onChange={(v) => set({ maxConsecutiveLosses: v })} min={1} max={50} />
           </RuleField>

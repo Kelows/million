@@ -37,7 +37,6 @@ export class OpportunitiesController {
 
   @Put('config')
   setConfig(@Body(new ZodPipe(OpportunityConfigSchema)) config: OpportunityConfig) {
-    // autoTrade stays locked until the paper engine proves expectancy
-    return this.opportunities.setConfig({ ...config, autoTrade: false });
+    return this.opportunities.setConfig(config);
   }
 }

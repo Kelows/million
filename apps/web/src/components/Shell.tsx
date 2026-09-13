@@ -124,7 +124,7 @@ export function Shell() {
             {halted && <span className="text-loss font-bold tracking-widest animate-pulse">⛔ HALTED</span>}
             <span
               className={`font-bold tracking-widest px-2 py-0.5 border ${liveMode ? 'text-loss border-loss animate-pulse' : 'text-warn border-warn/50'}`}
-              title={liveMode ? 'LocalExecutor is signing real transactions' : 'simulated fills — flip EXECUTOR=local + autoTrade to go live'}
+              title={liveMode ? 'LocalExecutor is signing real transactions' : 'simulated fills — set EXECUTOR=local in apps/api/.env to go live'}
             >
               {liveMode ? '◉ LIVE' : 'PAPER'}
             </span>

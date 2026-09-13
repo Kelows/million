@@ -152,20 +152,17 @@ is by then. That goes for live positions too.
 
 ### Live
 
-Live entries are locked in code, on purpose. Unlocking them takes three steps,
-none of which can happen by accident:
+One switch in `apps/api/.env` decides paper or live:
 
-1. `EXECUTOR=local` and a keypair in `apps/api/.env`:
-   ```sh
-   EXECUTOR=local
-   EXECUTOR_KEYPAIR_PATH=~/.million/keypair.json   # solana-keygen JSON, keep it outside the repo
-   ```
-2. Remove the line in `apps/api/src/opportunities/opportunities.controller.ts`
-   that forces `autoTrade: false` whenever the rules are saved.
-3. Turn on **autoTrade** in Trading rules.
+```sh
+EXECUTOR=local
+EXECUTOR_KEYPAIR_PATH=~/.million/keypair.json   # solana-keygen JSON, keep it outside the repo
+```
 
-Until all three are done, an armed executor still closes positions but opens
-nothing new.
+With `EXECUTOR=local` set, **every opportunity that clears your rules is bought
+with real SOL**, with no further confirmation. Leave it unset and the same
+opportunities trade on paper. The deck's top bar shows which mode is running
+(`PAPER` or a pulsing `◉ LIVE`). Restart the API after changing it.
 
 Swaps go through Jupiter and are signed locally; your keys never leave your
 machine. The executor enforces its own hard limits under whatever the strategy

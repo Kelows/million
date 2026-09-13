@@ -59,19 +59,14 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     wouldBlock: string = '',
   ): Promise<void> {
     const config = await this.config();
-    if (!config.paperEnabled || config.positionSol <= 0) {
-      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'trading-off', reason: 'opportunity fired, but trading is off (paper disabled or position size 0)' });
+    // Every opportunity trades, in whichever mode EXECUTOR selected: paper by
+    // default, live with EXECUTOR=local. There is no second switch.
+    if (config.positionSol <= 0) {
+      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'size-zero', reason: 'opportunity fired, but position size is set to 0' });
       return;
     }
-    if (config.tradeSignals !== 'both' && signal !== config.tradeSignals) {
+    if (config.tradeSignals !== 'all' && signal !== config.tradeSignals) {
       this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'signal-not-traded', reason: `opportunity fired, but your rules only trade ${config.tradeSignals} signals, not ${signal}` });
-      return;
-    }
-    // two-key launch: the live executor refuses entries until autoTrade is ALSO
-    // flipped in the UI — an env var alone must never spend real money. Exits
-    // (tick/mirror) stay unaffected: an open live position must always be closable.
-    if (this.executor.mode === 'live' && !config.autoTrade) {
-      this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'autotrade-off', reason: 'opportunity fired, but the live executor is armed and autoTrade is off' });
       return;
     }
     const halt = await this.haltState(config);

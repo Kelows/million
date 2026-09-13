@@ -21,9 +21,9 @@ import { TradingService } from './trading.service';
     PaperExecutor,
     LocalExecutor,
     ShadowService,
-    // THE seam. EXECUTOR=local signs real transactions with the local keypair;
-    // anything else (or nothing) stays paper. Live entries additionally require
-    // the autoTrade toggle — the env var alone must never be enough.
+    // THE seam, and the only switch: EXECUTOR=local signs real transactions with
+    // the local keypair; anything else (or nothing) stays paper. Either way every
+    // opportunity that clears the rules trades.
     {
       provide: TRADE_EXECUTOR,
       inject: [ConfigService, PaperExecutor, LocalExecutor],

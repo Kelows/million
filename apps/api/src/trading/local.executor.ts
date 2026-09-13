@@ -25,9 +25,8 @@ const FEE_ACCOUNT_CHECK_MS = 10 * 60_000;
 /**
  * The real thing: signs with a locally-held keypair and swaps via Jupiter.
  * No approval prompts — that's the point — which is why the rails above are
- * hardcoded constants, not config. Selected only by EXECUTOR=local, and the
- * strategy layer additionally refuses to open entries until autoTrade is
- * flipped in the UI: two independent keys to turn.
+ * hardcoded constants, not config. Selected only by EXECUTOR=local: set it and
+ * every opportunity that clears the rules is bought with real SOL.
  *
  * Key setup: solana-keygen style JSON (64-byte array) at EXECUTOR_KEYPAIR_PATH
  * (default ~/.million/keypair.json). Keep it outside the repo. Fund it only

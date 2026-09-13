@@ -472,8 +472,6 @@ export const OpportunityConfigSchema = z.object({
   copyPct: z.coerce.number().min(0.1).max(100).default(5), // % of the whale's own entry, clamped to positionSol
   takeProfitPct: z.coerce.number().min(1).default(100),
   stopLossPct: z.coerce.number().min(1).max(100).default(50),
-  autoTrade: z.boolean().default(false), // locked until paper stats prove expectancy
-  paperEnabled: z.boolean().default(true), // every opportunity opens a simulated position
   slippagePct: z.coerce.number().min(0).max(50).default(2), // assumed cost per side
   // Timeout exit. 48h amputated the band the roster earns most from: measured
   // across 7.6k closed roster trades, holds past 24h carry 61% of all profit
@@ -497,7 +495,8 @@ export const OpportunityConfigSchema = z.object({
   // only one with a positive median (+3.3%) and majority win rate (57%).
   trailArmPct: z.coerce.number().min(0).max(100).default(20), // asymmetric mirror: winners trail this far off peak instead of exiting flat
   consensusOwners: z.coerce.number().int().min(0).max(10).default(2), // N distinct owners buying in the live window fires a consensus entry (0 = off)
-  tradeSignals: z.enum(['both', 'copy', 'consensus', 'ladder']).default('both'), // which signal kinds may OPEN positions — the feed always shows both
+  // which signal kinds may OPEN positions (the feed always shows every signal). Saved configs from before the rename say 'both'.
+  tradeSignals: z.preprocess((v) => (v === 'both' ? 'all' : v), z.enum(['all', 'copy', 'consensus', 'ladder'])).default('all'),
   minMedianHoldMinutes: z.coerce.number().min(0).max(1440).default(15), // trigger wallet's median hold must exceed this — retention(δ/H) is ≤0 for scalpers (0 = off)
   ladderBuys: z.coerce.number().int().min(0).max(50).default(3), // N buys of one mint by one wallet = accumulation in progress (0 = off)
   ladderWindowMinutes: z.coerce.number().min(1).max(120).default(10),
@@ -764,7 +763,7 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
     id: 'launch-surf',
     name: 'Launch Surf',
     tagline: 'young thin pools, skip anything over an hour old, trail the winners — high variance by design',
-    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'both', consensusOwners: 2, allowWarn: false, maxPairAgeMinutes: 60, maxHoldHours: 168 },
+    opportunity: { minBuySol: 5, minMedianHoldMinutes: 15, exitMode: 'mirror-trail', sizingMode: 'whale-frac', tradeSignals: 'all', consensusOwners: 2, allowWarn: false, maxPairAgeMinutes: 60, maxHoldHours: 168 },
     thresholds: { minLiquidityUsd: 25_000, minMarketCapUsd: 50_000, minTokenAgeMinutes: 20 },
   },
   {
@@ -804,7 +803,7 @@ export const STRATEGY_PRESETS: StrategyPreset[] = [
       minBuySol: 1.5,
       minMedianHoldMinutes: 15,
       sizingMode: 'whale-frac',
-      tradeSignals: 'both',
+      tradeSignals: 'all',
       consensusOwners: 2,
       allowWarn: false,
       maxPairAgeMinutes: -1,
