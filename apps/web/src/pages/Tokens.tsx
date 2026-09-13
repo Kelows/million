@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useCheckToken, useConvictionCohorts, useFamousTokens, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
+import { useCheckToken, useFamousTokens, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
 import { TokenLink, TokenName } from '../components/TokenName';
 import { Info } from '../components/Info';
 import { Addr } from '../components/Addr';
@@ -102,7 +102,6 @@ export function Tokens() {
       </div>
 
       <FamousPanel />
-      <ConvictionPanel />
 
       <div className="panel">
         <div className="px-4 pt-4 pb-2 flex items-center gap-4 flex-wrap">
@@ -309,54 +308,3 @@ function FamousPanel() {
   );
 }
 
-const COHORT_LABEL: Record<string, string> = {
-  '1-5': 'Top 5 conviction',
-  '6-10': 'Rank 6-10',
-  '11-20': 'Rank 11-20',
-  control: 'Control (random tracked)',
-};
-
-function ConvictionPanel() {
-  const { data: rows = [] } = useConvictionCohorts();
-  if (rows.length === 0) return null;
-  const cell = (v: number | null) =>
-    v === null ? <span className="text-dim">—</span> : <span className={v >= 0 ? 'text-profit' : 'text-loss'}>{v > 0 ? '+' : ''}{v}%</span>;
-  return (
-    <div className="panel">
-      <div className="px-4 pt-4 pb-2 eyebrow">
-        Does conviction predict? · phase 1
-        <Info text="Hourly snapshot of the conviction ranking against a random control of tracked tokens, marked to market at +6h and +24h. If the top cohorts beat the control, 'held across the roster' is a real signal and worth trading; if they match it, the ranking is descriptive only. Unquotable tokens count as -100%, not skipped." />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm font-mono">
-          <thead>
-            <tr className="text-left text-dim text-xs">
-              <th className="px-4 py-2 font-normal">cohort</th>
-              <th className="px-4 py-2 font-normal text-right">snapshots</th>
-              <th className="px-4 py-2 font-normal text-right">+6h avg</th>
-              <th className="px-4 py-2 font-normal text-right">+6h median</th>
-              <th className="px-4 py-2 font-normal text-right">+24h avg</th>
-              <th className="px-4 py-2 font-normal text-right">+24h median</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.cohort} className={`border-t border-line ${r.cohort === 'control' ? 'text-dim' : ''}`}>
-                <td className="px-4 py-2 text-bright">{COHORT_LABEL[r.cohort] ?? r.cohort}</td>
-                <td className="px-4 py-2 text-right text-dim">{r.snapshots}</td>
-                <td className="px-4 py-2 text-right">{cell(r.avgRet6hPct)}</td>
-                <td className="px-4 py-2 text-right">{cell(r.medianRet6hPct)}</td>
-                <td className="px-4 py-2 text-right">{cell(r.avgRet24hPct)}</td>
-                <td className="px-4 py-2 text-right">{cell(r.medianRet24hPct)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="px-4 py-3 text-xs text-dim">
-        Read the control row first: it is the "did everything just go up?" baseline. Conviction is only a signal if the
-        ranked cohorts beat it — and only worth trading if the gap survives a few days of snapshots.
-      </p>
-    </div>
-  );
-}

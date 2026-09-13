@@ -9,7 +9,7 @@ import { TokenLink } from '../components/TokenName';
 import { Info } from '../components/Info';
 import { FLAG_OPTIONS } from '../components/FlagChip';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
-import { useCohorts, useTrading } from '../api';
+import { useTrading } from '../api';
 import { usePagination } from '../lib/usePagination';
 import { loadMinOpenSol } from '../lib/settings';
 import { FilterModal } from '../components/FilterModal';
@@ -121,7 +121,6 @@ export function Dashboard() {
           )}
         </div>
       )}
-      <CohortPanel />
 
       <div className="text-xs text-dim">
         Address list stays local. Analysis reads public on-chain history via Helius — nothing is signed, no keys touch this app.
@@ -176,37 +175,3 @@ function TradingPanel() {
   );
 }
 
-function CohortPanel() {
-  const { data: cohorts = [] } = useCohorts();
-  if (cohorts.length < 2) return null; // needs at least two buckets to say anything
-  return (
-    <div className="panel">
-      <div className="px-4 pt-4 pb-2 eyebrow">
-        Cohort validation
-        <Info text="The science check: wallets are bucketed by their whale score AT absorption time, then we measure realized PnL earned SINCE. If higher buckets don't earn more going forward, the score is decorative and absorption criteria need rethinking. Grows more trustworthy as re-analyses accumulate." />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm font-mono">
-          <thead>
-            <tr className="text-left text-dim text-xs">
-              <th className="px-4 py-2 font-normal">score at absorb</th>
-              <th className="px-4 py-2 font-normal">wallets</th>
-              <th className="px-4 py-2 font-normal text-right">avg forward PnL</th>
-              <th className="px-4 py-2 font-normal text-right">median forward</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cohorts.map((c) => (
-              <tr key={c.bucket} className="border-t border-line">
-                <td className="px-4 py-2 text-bright">{c.bucket}</td>
-                <td className="px-4 py-2 text-dim">{c.wallets}</td>
-                <td className={`px-4 py-2 text-right ${c.avgForwardPnlSol >= 0 ? 'text-profit' : 'text-loss'}`}>{c.avgForwardPnlSol > 0 ? '+' : ''}{c.avgForwardPnlSol} ◎</td>
-                <td className={`px-4 py-2 text-right ${c.medianForwardPnlSol >= 0 ? 'text-profit' : 'text-loss'}`}>{c.medianForwardPnlSol > 0 ? '+' : ''}{c.medianForwardPnlSol} ◎</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}

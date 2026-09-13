@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { PaperPositionRow } from '@million/shared';
-import { useClosePosition, useDecisionLog, useResumeTrading, useShadowStats, useTrading } from '../api';
+import { useClosePosition, useResumeTrading, useShadowStats, useTrading } from '../api';
 import { Addr } from '../components/Addr';
 import { TokenName } from '../components/TokenName';
 import { TradingTiles } from '../components/TradingTiles';
@@ -79,7 +79,6 @@ export function Executor() {
         empty="Nothing closed yet — expectancy appears here as trades resolve."
       />
 
-      <DecisionLogPanel />
       <p className="text-xs text-dim">
         Position size, TP/SL, slippage, max hold and caps live on the{' '}
         <Link to="/opportunities" className="text-neon hover:underline">Opportunities page</Link>. Executor is pluggable:
@@ -225,15 +224,3 @@ function ShadowPanel() {
   );
 }
 
-function DecisionLogPanel() {
-  const { data: lines = [] } = useDecisionLog();
-  if (lines.length === 0) return null;
-  return (
-    <div className="panel p-4">
-      <div className="eyebrow mb-2">Decision log — every gate verdict, newest first</div>
-      <pre className="text-xs text-dim font-mono whitespace-pre-wrap bg-void border border-line p-3 overflow-x-auto">
-        {lines.map((l) => `${l.ts.slice(11, 19)}  ${l.line}`).join('\n')}
-      </pre>
-    </div>
-  );
-}
