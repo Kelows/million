@@ -6,6 +6,6 @@ procs:
     cwd: apps/web
     shell: npm run dev
   tunnel:
-    shell: cloudflared tunnel run --token ***REMOVED***
+    shell: sh -c 'set -a; . apps/api/.env; set +a; exec cloudflared tunnel run --token "$TUNNEL_TOKEN"'
   keepawake:
     shell: caffeinate -is

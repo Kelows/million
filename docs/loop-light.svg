@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" role="img" aria-label="The million loop: 1,917 wallets and 24,115 tokens feed each other, pass through their filters down to 51 subscribed wallets and 47 clean tokens, merge into 143 opportunities and 26 positions, and every trade's outcome loops back to re-score wallets and re-tune the rules.">
+<defs><marker id="a-ink" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#4e5860"/></marker><marker id="a-loop" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#7d878f"/></marker><marker id="a-trade" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#0f8f62"/></marker></defs>
+<rect width="1000" height="520" rx="14" fill="#ffffff"/>
+
+<text x="120" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7d878f" text-anchor="middle" letter-spacing="1.5">GATHER</text>
+<text x="300" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7d878f" text-anchor="middle" letter-spacing="1.5">FILTER</text>
+<text x="650" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7d878f" text-anchor="middle" letter-spacing="1.5">SIGNAL</text>
+<text x="850" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7d878f" text-anchor="middle" letter-spacing="1.5">TRADE</text>
+
+<!-- ribbons: height ∝ log10(count) -->
+<path d="M40,137.09771204053646 C240,137.09771204053646 240,150.48565350316755 440,150.48565350316755 L440,179.51434649683245 C240,179.51434649683245 240,192.90228795946354 40,192.90228795946354 Z" fill="#2a78d6" fill-opacity="0.22"/>
+<path d="M40,307.7505582368078 C240,307.7505582368078 240,330.7871682075464 440,330.7871682075464 L440,359.2128317924536 C240,359.2128317924536 240,382.2494417631922 40,382.2494417631922 Z" fill="#eb6834" fill-opacity="0.22"/>
+<path d="M440,150.48565350316755 C545,150.48565350316755 545,236.67964368154696 650,236.67964368154696 L650,255 C545,255 545,179.51434649683245 440,179.51434649683245 Z" fill="#2a78d6" fill-opacity="0.22"/>
+<path d="M440,330.7871682075464 C545,330.7871682075464 545,255 650,255 L650,273.32035631845304 C545,273.32035631845304 545,359.2128317924536 440,359.2128317924536 Z" fill="#eb6834" fill-opacity="0.22"/>
+<path d="M650,236.67964368154696 C770,236.67964368154696 770,242.97272654224804 890,242.97272654224804 L890,267.02727345775196 C770,267.02727345775196 770,273.32035631845304 650,273.32035631845304 Z" fill="#0f8f62" fill-opacity="0.22"/>
+<line x1="890" y1="255" x2="965" y2="255" stroke="#0f8f62" stroke-width="2.5" marker-end="url(#a-trade)"/>
+<text x="969" y="245" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="700" fill="#0f8f62" text-anchor="end">SOL</text>
+
+<!-- sources -->
+<text x="40" y="127.09771204053646" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">live swaps · Helius webhook</text>
+<text x="40" y="402.2494417631922" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">crawler · DexScreener · Jupiter quotes</text>
+
+<!-- the counts that go in -->
+<text x="120" y="166" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700" fill="#11161a" text-anchor="middle">1,917</text>
+<text x="120" y="181" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">wallets analyzed</text>
+<text x="120" y="346" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700" fill="#11161a" text-anchor="middle">24,115</text>
+<text x="120" y="361" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">tokens seen</text>
+
+<!-- cross-feed: the two lanes find each other -->
+<line x1="195" y1="193.71446064269398" x2="195" y2="310.677244600469" stroke="#4e5860" stroke-width="1.5" marker-end="url(#a-ink)"/>
+<line x1="219" y1="312.05944119871333" x2="219" y2="192.9111841549361" stroke="#4e5860" stroke-width="1.5" marker-end="url(#a-ink)"/>
+<text x="187" y="245" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="end">their new buys</text>
+<text x="187" y="259" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="end">become tokens</text>
+<text x="227" y="245" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="start">each token’s buyers</text>
+<text x="227" y="259" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="start">become wallets</text>
+
+<!-- the filters -->
+<line x1="295" y1="139.79987399124667" x2="305" y2="139.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="145.79987399124667" x2="305" y2="145.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="151.79987399124667" x2="305" y2="151.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="157.79987399124667" x2="305" y2="157.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="163.79987399124667" x2="305" y2="163.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="169.79987399124667" x2="305" y2="169.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="175.79987399124667" x2="305" y2="175.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="181.79987399124667" x2="305" y2="181.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="187.79987399124667" x2="305" y2="187.79987399124667" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="300" y1="137.79987399124667" x2="300" y2="192.20012600875333" stroke="#11161a" stroke-width="1.4"/>
+<line x1="295" y1="316.7243547177879" x2="305" y2="316.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="322.7243547177879" x2="305" y2="322.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="328.7243547177879" x2="305" y2="328.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="334.7243547177879" x2="305" y2="334.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="340.7243547177879" x2="305" y2="340.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="346.7243547177879" x2="305" y2="346.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="352.7243547177879" x2="305" y2="352.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="358.7243547177879" x2="305" y2="358.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="364.7243547177879" x2="305" y2="364.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="295" y1="370.7243547177879" x2="305" y2="370.7243547177879" stroke="#11161a" stroke-width="1.4" stroke-linecap="round"/><line x1="300" y1="314.7243547177879" x2="300" y2="375.2756452822121" stroke="#11161a" stroke-width="1.4"/>
+<text x="266" y="206.20012600875333" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="start">bot &amp; infra flags</text>
+<text x="266" y="220.20012600875333" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="start">hold style · copyability</text>
+<text x="266" y="292.7243547177879" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="start">gauntlet: authorities · liquidity</text>
+<text x="266" y="306.7243547177879" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="start">holders · sell-sim · 369 of 416 rejected</text>
+
+<!-- what survives -->
+<text x="434" y="170" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#11161a" text-anchor="end">51 subscribed</text>
+<text x="434" y="350" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#11161a" text-anchor="end">47 clean</text>
+
+<!-- signal -->
+<text x="650" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#11161a" text-anchor="middle">143 opportunities</text>
+<text x="684" y="204.67964368154696" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">a subscribed wallet</text>
+<text x="684" y="218.67964368154696" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">buys a clean token</text>
+<text x="684" y="295.32035631845304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">copy · consensus · ladder</text>
+<text x="684" y="310.32035631845304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">one vote per owner</text>
+<text x="684" y="325.32035631845304" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7d878f" text-anchor="middle">10,213 co-entry edges</text>
+
+<!-- trade -->
+<text x="842" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#11161a" text-anchor="middle">26 positions</text>
+<text x="812" y="224.97272654224804" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">trail 10% · stop 50%</text>
+<text x="812" y="289.02727345775196" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">paper, or live</text>
+<text x="812" y="304.02727345775196" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">via Jupiter</text>
+
+<!-- the loop back: outcomes change what gets through next time -->
+<path d="M890,238.97272654224804 V86 Q890,72 876,72 H314 Q300,72 300,86 V133.79987399124667" fill="none" stroke="#7d878f" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a-loop)"/>
+<path d="M890,271.02727345775196 V456 Q890,470 876,470 H314 Q300,470 300,456 V379.2756452822121" fill="none" stroke="#7d878f" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a-loop)"/>
+<text x="595" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">every round trip re-scores its wallet · dead styles churn out · 7,882 observed</text>
+<text x="595" y="492" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4e5860" text-anchor="middle">skipped trades and backtests re-tune the gauntlet and exits · 33 shadow · 759 paths</text>
+</svg>
