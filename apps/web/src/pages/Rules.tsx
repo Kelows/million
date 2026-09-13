@@ -46,11 +46,11 @@ export function Rules() {
           Presets{c.strategyPreset && <span className="normal-case tracking-normal text-neon"> · based on {c.strategyPreset}</span>}
         </div>
         <p className="text-xs text-dim mt-1 mb-3">A coherent starting point, not a lock — every knob below stays editable after applying.</p>
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           {STRATEGY_PRESETS.map((p) => (
             <button
               key={p.id}
-              className={`btn py-1.5! px-3! text-left ${c.strategyPreset === p.name ? '' : 'opacity-60'}`}
+              className={`btn py-2! px-3! text-left h-full ${c.strategyPreset === p.name ? '' : 'opacity-60'}`}
               onClick={() => {
                 if (!window.confirm(`Apply "${p.name}"?\n\n${p.tagline}\n\nOverwrites the settings it defines and the gauntlet thresholds. Consider resetting the book — rule changes mid-experiment fork the data.`)) return;
                 setC({ ...c, ...p.opportunity, strategyPreset: p.name });
@@ -58,7 +58,7 @@ export function Rules() {
               }}
             >
               <span className="font-bold block">{p.name}</span>
-              <span className="text-xs text-dim block max-w-52">{p.tagline}</span>
+              <span className="text-[0.7rem] leading-snug normal-case tracking-normal text-dim block mt-1">{p.tagline}</span>
             </button>
           ))}
         </div>
