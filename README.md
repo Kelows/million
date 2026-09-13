@@ -8,16 +8,16 @@ the signals that survive.
 
 ![The million deck: roster, open positions and PnL at a glance](docs/deck.png)
 
-**Start in three lines** (Node 24 and an AI coding agent):
+**Start in two commands** (Node 24 or nvm):
 
 ```sh
-git clone https://github.com/Kelows/million && cd million
-claude            # or codex, gemini… whichever agent you use
-> set me up
+npx create-million       # clones, installs, checks your Helius key, starts the deck
+cd million && claude     # or codex, gemini…, then type: set me up
 ```
 
-Or `npx create-million`: it clones, installs, checks your Helius key and starts
-the deck.
+Or clone it yourself and let the agent do everything:
+`git clone https://github.com/Kelows/million && cd million`, open your agent and
+type `set me up`.
 
 | To start you need | You don't need |
 |---|---|
@@ -70,7 +70,7 @@ agent   OPENED FRIES · 0.2 SOL · copy signal from AgmL…zN51,
 
 (An illustration of the conversation, not a record of trades.)
 
-Start with the three lines at the top of this page. The agent reads the
+Start with the commands at the top of this page. The agent reads the
 project, follows the setup playbook, and asks you for what only you can decide: your Helius key, your size, your style, the wallets to
 start from. Everything it runs is in the open, in this repo.
 
@@ -140,13 +140,14 @@ similar) are fast and polished. million makes different trade-offs:
 |---|---|---|
 | Where it runs | their servers | your machine |
 | Trading keys | usually generated or held by the service | a keypair file on your disk, only if you go live |
-| Fee | typically 0.5–1% per trade | 0.25% per live swap, `FEE_BPS=0` turns it off |
+| Fee | typically 0.5–1% per trade | 0.25% per live swap |
 | Code | closed | open source, MIT |
 | Why a trade did or didn't happen | usually not shown | every decision logged with its reason |
-| Rules | the settings they expose | every threshold, in code you can change |
+| Rules | the settings they expose | every threshold, in code that you can change |
 
-What million doesn't do: sniping new launches, a mobile app, or hosting for
-you. If a stop has to fire, the deck has to be running.
+What million isn't: a block-0 sniper (it follows wallets, so it buys after they
+do, even on fresh launches), a mobile app, or a hosted service. If a stop has
+to fire, the deck has to be running.
 
 ## FAQ
 
