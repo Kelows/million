@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow, type TradingHalt, type TradingStats } from '@million/shared';
+import type { PaperPosition } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { HeliusService } from '../analysis/helius.service';
@@ -8,7 +9,17 @@ import { ShadowService } from './shadow.service';
 import { DecisionLog } from '../common/decision-log';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
-const TICK_MS = 60_000;
+// Exits are a race against the price. At a 60s poll, Stunk's -50% stop filled
+// at -73.7% (13 Sep): a meme coin can fall a quarter between two looks. One
+// batched DexScreener call covers the whole book, so 5s costs 12 requests a
+// minute against a 300/min limit. Roster trades in a held token check it at
+// once (checkMint), so the poll is the floor, not the reaction time.
+const GUARD_MS = 5_000;
+// the trail's volatility band is measured at a 1-minute timescale (see
+// dynamicTrailPct), so the price history keeps sampling once a minute
+const HISTORY_SAMPLE_MS = 60_000;
+// an unquotable position is probed for "no pairs" at most once a minute
+const DEAD_PROBE_MS = 60_000;
 
 /**
  * The strategy engine: opens a position per opportunity, monitors TP/SL/timeout
@@ -34,9 +45,16 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   // last ~30 tick quotes per open position: realized volatility for the dynamic
   // trail, computed from prices we were fetching anyway — zero extra calls
   private readonly priceHistory = new Map<number, number[]>();
+  private readonly lastSampleAt = new Map<number, number>();
+  private readonly lastProbeAt = new Map<number, number>();
+  // one exit at a time per position: the poll, a roster event and a mirror sell
+  // can all decide to close in the same second, and live that is two swaps
+  private readonly closing = new Set<number>();
+  private heldMints = new Set<string>();
+  private readonly checkingMint = new Set<string>();
 
   onModuleInit() {
-    this.timer = setInterval(() => void this.tick(), TICK_MS);
+    this.timer = setInterval(() => void this.tick(), GUARD_MS);
   }
 
   onModuleDestroy() {
@@ -203,79 +221,103 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** The monitor. Rules mode: TP/SL/timeout. Mirror mode: the whale is the TP; SL and timeout stay as brakes. */
+  /** The monitor, every few seconds. Rules mode: TP/SL/timeout. Mirror mode: the whale is the TP; SL and timeout stay as brakes. */
   private async tick(): Promise<void> {
     if (this.ticking) return;
     this.ticking = true;
     try {
       const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' } });
+      this.heldMints = new Set(open.map((p) => p.mint));
+      for (const map of [this.priceHistory, this.lastSampleAt, this.lastProbeAt]) {
+        for (const id of [...map.keys()]) if (!open.some((p) => p.id === id)) map.delete(id); // closed — drop the buffers
+      }
       if (!open.length) return;
       const config = await this.config();
-      for (const id of [...this.priceHistory.keys()]) {
-        if (!open.some((p) => p.id === id)) this.priceHistory.delete(id); // closed — drop the buffer
-      }
-      for (const p of open) {
-        const price = await this.executor.quote(p.mint);
-        if (price !== null) {
-          const hist = this.priceHistory.get(p.id) ?? [];
-          hist.push(price);
-          if (hist.length > 240) hist.shift(); // 4h at a 60s tick — long enough to contain the swing band
-          this.priceHistory.set(p.id, hist);
-        }
-        if (price === null) {
-          // A missing quote is NOT evidence of death. Booking -100% on it cost
-          // us 2.36 SOL of fabricated loss in one night across five positions
-          // that were all still quoting -- including a $46M market cap that we
-          // recorded as a total loss while it was up 3%. Confirm with a probe
-          // that separates "no pairs exist" from "we could not reach the API",
-          // and only the first one closes the position.
-          if (Date.now() - p.openedAt.getTime() > 3_600_000) {
-            const probe = await this.dexscreener.probePairs(p.mint).catch(() => 'unreachable' as const);
-            if (probe === 'no-pairs') await this.close(p.id, 'dead', 0);
-            else this.decisions.push(`[trade] ${p.mint.slice(0, 6)}… unquotable but ${probe} — holding, not booking a loss`);
-          }
-          continue;
-        }
-        const changePct = (price / p.entryPriceUsd - 1) * 100;
-        // The peak ratchets on EVERY tick, for every open position — the trail
-        // used to arm only when the whale sold, so a position that ran +40% and
-        // reversed while the whale sat still had no protection above the -50%
-        // stop, and the "a winner never finishes red" ratchet never applied.
-        // Price, not the whale, is what the trail should react to.
-        const peak = Math.max(p.peakPriceUsd ?? p.entryPriceUsd, price);
-        if (peak > (p.peakPriceUsd ?? 0)) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
-        if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * (1 + config.trailArmPct / 100)) {
-          // The leash widens to the token's OWN drawdown band (see
-          // dynamicTrailPct), with the configured pct as a floor and cold-start
-          // fallback, plus a breakeven ratchet: once a real winner, never red.
-          //
-          // 1.25 -> 1.02 is measured, not chosen. An exhaustive sweep of 640
-          // combinations across both horizons — trail × arm × stop × ratchet,
-          // where the ratchet options were none, 1.25->1.02, 1.50->1.10 and
-          // 2.00->1.30 — put 1.25->1.02 in nearly every top-ranked row on
-          // minute AND hourly paths. The later ratchets arm too rarely to
-          // matter; no ratchet gives back the whole peak on a fader.
-          //
-          // What that sweep could NOT fix is the giveback: median 29-35% of the
-          // peak handed back in every one of the 640 combinations. A trailing
-          // exit only reacts after the turn, so cutting that requires knowing
-          // which positions will not run — prediction, not parameters.
-          const trailPct = this.dynamicTrailPct(p.id, config.trailStopPct);
-          const trailLine = peak * (1 - trailPct / 100);
-          const breakevenLine = peak >= p.entryPriceUsd * 1.25 ? p.entryPriceUsd * 1.02 : 0;
-          if (price <= Math.max(trailLine, breakevenLine)) {
-            await this.closeWithFill(p.id, p.mint, p.sizeSol, 'trail');
-            continue;
-          }
-        }
-        if (config.exitMode === 'rules' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
-        else if (changePct <= -config.stopLossPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'sl');
-        else if (Date.now() - p.openedAt.getTime() > config.maxHoldHours * 3_600_000)
-          await this.closeWithFill(p.id, p.mint, p.sizeSol, 'timeout');
-      }
+      const prices = await this.dexscreener.fetchPrices([...this.heldMints]).catch(() => new Map<string, number>());
+      // concurrently: a slow live sell on one position must not delay the stop on another
+      await Promise.all(open.map((p) => this.guard(p, prices.get(p.mint) ?? null, config)));
     } finally {
       this.ticking = false;
     }
+  }
+
+  /**
+   * A roster wallet just traded a token we hold, which is when its price moves:
+   * run that position's exits now rather than at the next tick.
+   */
+  async checkMint(mint: string): Promise<void> {
+    if (!this.heldMints.has(mint) || this.checkingMint.has(mint)) return;
+    this.checkingMint.add(mint);
+    try {
+      const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint } });
+      if (!positions.length) return;
+      const [config, prices] = await Promise.all([this.config(), this.dexscreener.fetchPrices([mint]).catch(() => new Map<string, number>())]);
+      await Promise.all(positions.map((p) => this.guard(p, prices.get(mint) ?? null, config)));
+    } finally {
+      this.checkingMint.delete(mint);
+    }
+  }
+
+  private async guard(p: PaperPosition, price: number | null, config: OpportunityConfig): Promise<void> {
+    if (this.closing.has(p.id)) return;
+    if (price !== null && Date.now() - (this.lastSampleAt.get(p.id) ?? 0) >= HISTORY_SAMPLE_MS) {
+      const hist = this.priceHistory.get(p.id) ?? [];
+      hist.push(price);
+      if (hist.length > 240) hist.shift(); // 4h at one sample a minute — long enough to contain the swing band
+      this.priceHistory.set(p.id, hist);
+      this.lastSampleAt.set(p.id, Date.now());
+    }
+    if (price === null) {
+      // A missing quote is NOT evidence of death. Booking -100% on it cost
+      // us 2.36 SOL of fabricated loss in one night across five positions
+      // that were all still quoting -- including a $46M market cap that we
+      // recorded as a total loss while it was up 3%. Confirm with a probe
+      // that separates "no pairs exist" from "we could not reach the API",
+      // and only the first one closes the position.
+      if (Date.now() - p.openedAt.getTime() > 3_600_000 && Date.now() - (this.lastProbeAt.get(p.id) ?? 0) >= DEAD_PROBE_MS) {
+        this.lastProbeAt.set(p.id, Date.now());
+        const probe = await this.dexscreener.probePairs(p.mint).catch(() => 'unreachable' as const);
+        if (probe === 'no-pairs') await this.close(p.id, 'dead', 0);
+        else this.decisions.push(`[trade] ${p.mint.slice(0, 6)}… unquotable but ${probe} — holding, not booking a loss`);
+      }
+      return;
+    }
+    const changePct = (price / p.entryPriceUsd - 1) * 100;
+    // The peak ratchets on EVERY tick, for every open position — the trail
+    // used to arm only when the whale sold, so a position that ran +40% and
+    // reversed while the whale sat still had no protection above the -50%
+    // stop, and the "a winner never finishes red" ratchet never applied.
+    // Price, not the whale, is what the trail should react to.
+    const peak = Math.max(p.peakPriceUsd ?? p.entryPriceUsd, price);
+    if (peak > (p.peakPriceUsd ?? 0)) await this.prisma.paperPosition.update({ where: { id: p.id }, data: { peakPriceUsd: peak } });
+    if (config.exitMode !== 'rules' && peak >= p.entryPriceUsd * (1 + config.trailArmPct / 100)) {
+      // The leash widens to the token's OWN drawdown band (see
+      // dynamicTrailPct), with the configured pct as a floor and cold-start
+      // fallback, plus a breakeven ratchet: once a real winner, never red.
+      //
+      // 1.25 -> 1.02 is measured, not chosen. An exhaustive sweep of 640
+      // combinations across both horizons — trail × arm × stop × ratchet,
+      // where the ratchet options were none, 1.25->1.02, 1.50->1.10 and
+      // 2.00->1.30 — put 1.25->1.02 in nearly every top-ranked row on
+      // minute AND hourly paths. The later ratchets arm too rarely to
+      // matter; no ratchet gives back the whole peak on a fader.
+      //
+      // What that sweep could NOT fix is the giveback: median 29-35% of the
+      // peak handed back in every one of the 640 combinations. A trailing
+      // exit only reacts after the turn, so cutting that requires knowing
+      // which positions will not run — prediction, not parameters.
+      const trailPct = this.dynamicTrailPct(p.id, config.trailStopPct);
+      const trailLine = peak * (1 - trailPct / 100);
+      const breakevenLine = peak >= p.entryPriceUsd * 1.25 ? p.entryPriceUsd * 1.02 : 0;
+      if (price <= Math.max(trailLine, breakevenLine)) {
+        await this.closeWithFill(p.id, p.mint, p.sizeSol, 'trail');
+        return;
+      }
+    }
+    if (config.exitMode === 'rules' && changePct >= config.takeProfitPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'tp');
+    else if (changePct <= -config.stopLossPct) await this.closeWithFill(p.id, p.mint, p.sizeSol, 'sl');
+    else if (Date.now() - p.openedAt.getTime() > config.maxHoldHours * 3_600_000)
+      await this.closeWithFill(p.id, p.mint, p.sizeSol, 'timeout');
   }
 
   /**
@@ -308,9 +350,15 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async closeWithFill(id: number, mint: string, sizeSol: number, reason: string): Promise<void> {
-    const fill = await this.executor.sell(mint, sizeSol);
-    if (!fill) return; // retry next tick
-    await this.close(id, reason, fill.priceUsd);
+    if (this.closing.has(id)) return; // an exit for this position is already in flight
+    this.closing.add(id);
+    try {
+      const fill = await this.executor.sell(mint, sizeSol);
+      if (!fill) return; // retry next tick
+      await this.close(id, reason, fill.priceUsd);
+    } finally {
+      this.closing.delete(id);
+    }
   }
 
   private async close(id: number, reason: string, exitPriceUsd: number): Promise<void> {

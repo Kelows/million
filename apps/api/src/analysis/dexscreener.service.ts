@@ -31,6 +31,7 @@ export class DexScreenerService {
   /** Prices for many mints at once — 30 per request, so a whole open book costs one call. */
   async fetchPrices(mints: string[]): Promise<Map<string, number>> {
     const out = new Map<string, number>();
+    const depth = new Map<string, number>();
     for (let i = 0; i < mints.length; i += 30) {
       const batch = mints.slice(i, i + 30).join(',');
       const res = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${batch}`, {
@@ -44,7 +45,12 @@ export class DexScreenerService {
         const price = p.priceUsd ? Number(p.priceUsd) : null;
         if (!mint || !price) continue;
         // several pools per mint — keep the deepest, which is the honest mark
-        if (!out.has(mint) || (p.liquidity?.usd ?? 0) > 0) out.set(mint, price);
+        // (the old check kept whichever pool with any liquidity came last)
+        const liq = p.liquidity?.usd ?? 0;
+        if (!out.has(mint) || liq > (depth.get(mint) ?? -1)) {
+          out.set(mint, price);
+          depth.set(mint, liq);
+        }
       }
     }
     return out;
