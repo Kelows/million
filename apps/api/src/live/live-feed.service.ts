@@ -65,7 +65,13 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
         if (!this.webhookSynced) {
           this.edgeDead = true; // tunnel down at boot? never go deaf — WS fallback
           this.connect();
+          return;
         }
+        // Helius accepts the webhook whether or not the tunnel is up, so a
+        // successful sync says nothing about delivery. Probe now: waiting for the
+        // first 5-minute deadman left the feed deaf (and "connected") after every
+        // start with the tunnel pane stopped.
+        void this.deadmanCheck();
       });
       // drift guard: rotations and edits keep the address set moving
       setInterval(() => void this.syncWebhook(), 5 * 60_000);
@@ -505,6 +511,8 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd, tx.type).catch(() => undefined);
     if (event) void this.touchWallet(wallet).catch(() => undefined);
     if (event && mint && kind === 'other') this.explainNonBuy(wallet, mint, tokens.get(mint) ?? 0, tx.type);
+    // a roster trade in a token we hold is when its price moves: check its exits now
+    if (event && mint) void this.trading.checkMint(mint).catch(() => undefined);
     if (event && kind === 'sell' && mint) {
       void this.trading.onTriggerSell(wallet, mint).catch(() => undefined);
       // every roster sell is a distribution vote, not just the wallet we copied
