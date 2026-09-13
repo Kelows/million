@@ -20,8 +20,7 @@ Check, and fix what you can:
   them to https://github.com/nvm-sh/nvm. Then `nvm install && nvm use` (reads
   `.nvmrc`, Node 24) and run every later `npm` command in that same shell.
 - `npm -v` works.
-- Optional, only needed later: `mprocs` (one terminal for everything),
-  `cloudflared` (webhook feed). Don't install these unprompted.
+- Optional, only needed later: `cloudflared` (webhook feed). Don't install it unprompted.
 
 ## 2. Install
 
@@ -53,7 +52,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://mainnet.helius-rpc.com
 
 ## 4. Start it
 
-Recommend they run `nvm use && mprocs` (or `nvm use && npm run dev`) in their own
+Recommend they run `nvm use && npm start` in their own
 terminal, so it keeps running after this conversation on the right Node. Then wait for:
 
 ```sh

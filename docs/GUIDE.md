@@ -40,7 +40,6 @@ this for you.
   The key is yours and never leaves your machine except to call Helius.
 - **Optional:** a public URL for webhooks, only to follow more than 25 wallets
   (see [Live feed](#live-feed)). Without one, the `tunnel` pane just idles.
-- [mprocs](https://github.com/pvolok/mprocs) (optional) to run everything in one terminal
 
 ## Setup
 
@@ -48,7 +47,7 @@ this for you.
 nvm use         # Node 24 from .nvmrc, in the same terminal as the rest
 npm install     # builds packages/shared, creates apps/api/.env and the database
                 # then add your HELIUS_API_KEY to apps/api/.env
-mprocs          # or: npm run dev
+npm start       # api, deck and optional tunnel in one terminal (mprocs, installed with the rest)
 ```
 
 The deck is at http://localhost:5173.

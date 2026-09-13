@@ -14,7 +14,7 @@ Turn one token into a short list of wallets worth following.
 curl -s -m 5 http://localhost:3001/api/live/status
 ```
 
-If that fails, tell the user to start it (`mprocs` or `npm run dev`) and stop.
+If that fails, tell the user to start it (`nvm use && npm start`) and stop.
 
 ## 2. Work out the arguments
 

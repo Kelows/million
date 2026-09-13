@@ -18,7 +18,7 @@
  *
  * recent = the latest buyers; deep = buyers sampled across the token's whole life.
  *
- * Needs the API running (mprocs / npm run dev).
+ * Needs the API running (npm start).
  */
 const args = process.argv.slice(2);
 const input = args.find((a) => !a.startsWith('--'));

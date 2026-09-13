@@ -170,7 +170,7 @@ async function main() {
   const next = () => {
     console.log(`\n${bold('Next')}`);
     console.log(`  cd ${rel} && claude        ${dim('(or codex, gemini…) then type: set me up')}`);
-    console.log(`  cd ${rel} && nvm use && ${has('mprocs') ? 'mprocs' : 'npm run dev'}   ${dim('to start the deck by hand')}`);
+    console.log(`  cd ${rel} && nvm use && npm start   ${dim('to start the deck by hand')}`);
     console.log(`  ${dim('The deck opens at http://localhost:5173 · guide: docs/GUIDE.md')}\n`);
   };
 
@@ -185,7 +185,7 @@ async function main() {
     return;
   }
   console.log(dim(`\nStarting. The deck opens at http://localhost:5173 · Ctrl+C to stop.\n`));
-  const runner = has('mprocs') ? 'mprocs' : 'npm run dev';
+  const runner = 'npm start'; // mprocs comes with the install
   const nvm = nvmScript();
   const child = nvm
     ? spawn('bash', ['-c', `. "${nvm}" >/dev/null && nvm use >/dev/null && exec ${runner}`], { cwd: target, stdio: 'inherit' })

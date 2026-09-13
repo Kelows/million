@@ -10,4 +10,5 @@ procs:
     shell: |
       sh -c 'set -a; . apps/api/.env; set +a; if [ -z "$TUNNEL_TOKEN" ]; then echo "No TUNNEL_TOKEN: no webhook needed, the live feed uses the websocket (up to 25 wallets). Nothing to do here."; exec tail -f /dev/null; fi; exec cloudflared tunnel run --token "$TUNNEL_TOKEN"'
   keepawake:
-    shell: caffeinate -is
+    # macOS: keep the machine awake while the deck runs; elsewhere this pane just waits
+    shell: sh -c 'if command -v caffeinate >/dev/null; then exec caffeinate -is; else exec tail -f /dev/null; fi'

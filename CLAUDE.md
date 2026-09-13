@@ -40,10 +40,10 @@ docs/            README images
 ```sh
 nvm use        # Node 24, from .nvmrc — before every install and start
 npm install    # tools/postinstall.mjs: builds shared, creates apps/api/.env if missing, db push
-mprocs         # or: npm run dev   (HELIUS_API_KEY must be set in apps/api/.env)
+npm start      # api, deck and optional tunnel in one terminal (mprocs); HELIUS_API_KEY must be set in apps/api/.env
 ```
 
-Use nvm, and run `nvm use` in the same shell before `npm` or `mprocs`: processes
+Use nvm, and run `nvm use` in the same shell before `npm`: processes
 inherit the shell's Node, and a newer default (e.g. 23) runs the deck on the
 wrong version. Tell users without nvm to install it
 (https://github.com/nvm-sh/nvm) rather than working around the pin.

@@ -29,7 +29,7 @@ async function main() {
   try {
     health = await get('/health');
   } catch {
-    console.log('million: the deck is not running (nothing on localhost:3001). To start it: `nvm use && mprocs` in a terminal.');
+    console.log('million: the deck is not running (nothing on localhost:3001). To start it: `nvm use && npm start` in a terminal.');
     return;
   }
 

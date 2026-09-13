@@ -18,7 +18,7 @@ curl -s 'localhost:3001/api/live/flows?minutes=60'               # what the rost
 ```
 
 If the deck isn't running, say so in one line and offer the start command
-(`nvm use && mprocs`). Stop there.
+(`nvm use && npm start`). Stop there.
 
 ## 2. Tell it like a person would
 
