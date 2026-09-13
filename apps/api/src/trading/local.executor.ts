@@ -7,6 +7,7 @@ import { OpportunityConfigSchema } from '@million/shared';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { PrismaService } from '../prisma.service';
 import type { Fill, TradeExecutor } from './executor.interface';
+import { FEE_ACCOUNT, feeBps } from './fee';
 
 const WSOL = 'So11111111111111111111111111111111111111112';
 const JUP = 'https://lite-api.jup.ag/swap/v1';
@@ -19,6 +20,7 @@ const DEFAULT_MIN_BALANCE_SOL = 0.05;
 const BUY_SLIPPAGE_CAP_BPS = 1_000; // 10% — a buy that needs more is a buy we don't want
 const SELL_SLIPPAGE_BPS = 2_500; // 25% — exits prioritize OUT over price
 const CONFIRM_TIMEOUT_MS = 60_000;
+const FEE_ACCOUNT_CHECK_MS = 10 * 60_000;
 
 /**
  * The real thing: signs with a locally-held keypair and swaps via Jupiter.
@@ -36,6 +38,7 @@ export class LocalExecutor implements TradeExecutor {
   readonly mode = 'live' as const;
   private readonly log = new Logger(LocalExecutor.name);
   private keypair: Keypair | null = null;
+  private feeAccountOk: { ok: boolean; at: number } | null = null;
 
   constructor(
     private readonly env: ConfigService,
@@ -99,29 +102,14 @@ export class LocalExecutor implements TradeExecutor {
 
   /** Quote → build → sign → send → confirm. Null on any refusal or failure — never a partial state. */
   private async swap(kp: Keypair, inputMint: string, outputMint: string, amountRaw: number, slippageBps: number): Promise<string | null> {
-    const q = await fetch(
-      `${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountRaw}&slippageBps=${slippageBps}&swapMode=ExactIn`,
-      { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) },
-    ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    if (!q?.outAmount) {
-      this.log.warn(`no route ${inputMint.slice(0, 6)}→${outputMint.slice(0, 6)}`);
-      return null;
-    }
-    const swap = (await fetch(`${JUP}/swap`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-      body: JSON.stringify({
-        quoteResponse: q,
-        userPublicKey: kp.publicKey.toBase58(),
-        wrapAndUnwrapSol: true,
-        dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: 'auto',
-      }),
-    }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { swapTransaction?: string } | null;
-    if (!swap?.swapTransaction) return null;
+    const bps = (await this.feeAccountReady()) ? feeBps(this.env) : 0;
+    let built = bps > 0 ? await this.build(kp, inputMint, outputMint, amountRaw, slippageBps, bps) : null;
+    // The fee must never be the reason a trade fails — least of all an exit.
+    // If Jupiter will not build it with the fee, build it without.
+    if (!built) built = await this.build(kp, inputMint, outputMint, amountRaw, slippageBps, 0);
+    if (!built) return null;
 
-    const tx = VersionedTransaction.deserialize(Buffer.from(swap.swapTransaction, 'base64'));
+    const tx = VersionedTransaction.deserialize(Buffer.from(built, 'base64'));
     tx.sign([kp]);
     const b64 = Buffer.from(tx.serialize()).toString('base64');
     const sig = await this.rpc<string>('sendTransaction', [b64, { encoding: 'base64', skipPreflight: false, maxRetries: 3 }]);
@@ -143,6 +131,48 @@ export class LocalExecutor implements TradeExecutor {
     return null;
   }
 
+  /** Quote and build one swap transaction; `feeBps` 0 builds it without the developer fee. */
+  private async build(kp: Keypair, inputMint: string, outputMint: string, amountRaw: number, slippageBps: number, fee: number): Promise<string | null> {
+    const feeParam = fee > 0 ? `&platformFeeBps=${fee}` : '';
+    const q = await fetch(
+      `${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountRaw}&slippageBps=${slippageBps}&swapMode=ExactIn${feeParam}`,
+      { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) },
+    ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (!q?.outAmount) {
+      this.log.warn(`no route ${inputMint.slice(0, 6)}→${outputMint.slice(0, 6)}${fee ? ' (with fee)' : ''}`);
+      return null;
+    }
+    const swap = (await fetch(`${JUP}/swap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        quoteResponse: q,
+        userPublicKey: kp.publicKey.toBase58(),
+        wrapAndUnwrapSol: true,
+        dynamicComputeUnitLimit: true,
+        prioritizationFeeLamports: 'auto',
+        ...(fee > 0 ? { feeAccount: FEE_ACCOUNT } : {}),
+      }),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { swapTransaction?: string } | null;
+    return swap?.swapTransaction ?? null;
+  }
+
+  /**
+   * Jupiter rejects a fee into an account that does not exist, and a wrapped-SOL
+   * account disappears if its owner unwraps it. Check before charging, cached so
+   * a tick loop does not spend an RPC call per swap.
+   */
+  private async feeAccountReady(): Promise<boolean> {
+    if (feeBps(this.env) === 0) return false;
+    if (this.feeAccountOk && Date.now() - this.feeAccountOk.at < FEE_ACCOUNT_CHECK_MS) return this.feeAccountOk.ok;
+    const info = await this.rpc<{ value: unknown }>('getAccountInfo', [FEE_ACCOUNT, { encoding: 'base64' }]);
+    const ok = Boolean(info?.value);
+    if (!ok) this.log.warn(`fee account ${FEE_ACCOUNT.slice(0, 8)} not found — swapping without the developer fee`);
+    this.feeAccountOk = { ok, at: Date.now() };
+    return ok;
+  }
+
   /** The honest fill: actual token amounts from the confirmed tx, not the quote's promise. */
   private async fillFromChain(sig: string, mint: string, side: 'buy' | 'sell', sizeSol: number): Promise<Fill> {
     const at = new Date();
@@ -157,11 +187,37 @@ export class LocalExecutor implements TradeExecutor {
     const tokens = (tx?.[0]?.tokenTransfers ?? [])
       .filter((t) => t.mint === mint)
       .reduce((s, t) => Math.max(s, Math.abs(t.tokenAmount)), 0);
-    if (tokens > 0) return { priceUsd: (sizeSol * solUsd) / tokens, at };
+    if (tokens > 0 && side === 'buy') return { priceUsd: (sizeSol * solUsd) / tokens, at };
+    // A sell is priced by the SOL that actually came back. Dividing the ENTRY
+    // size by the tokens sold returned the entry price whatever happened, so
+    // every live close booked ~0% and the loss breakers could never trip.
+    const received = tokens > 0 && side === 'sell' ? await this.solReceived(sig) : null;
+    if (received !== null && received > 0) return { priceUsd: (received * solUsd) / tokens, at };
     // enhanced parse unavailable — market price is the least-wrong fallback
     const market = await this.quote(mint);
     this.log.warn(`fill for ${sig} not parseable — falling back to market price`);
     return { priceUsd: market ?? 0, at };
+  }
+
+  /**
+   * SOL the executor wallet netted from a confirmed swap: its own lamport change,
+   * with the network fee added back so a sell is priced like a buy (swap
+   * economics — slippage, developer fee, tips — but not the signature fee).
+   * Not summed from parsed transfers: an unwrap lists the same SOL twice, once
+   * as a WSOL transfer and once as a native one. Checked against five real
+   * Jupiter sells, where the transfer sum came out at double.
+   */
+  private async solReceived(sig: string): Promise<number | null> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const tx = await this.rpc<{ meta: { fee: number; preBalances: number[]; postBalances: number[] } | null }>('getTransaction', [
+        sig,
+        { encoding: 'json', maxSupportedTransactionVersion: 0, commitment: 'confirmed' },
+      ]);
+      // the fee payer — our keypair — is always account 0
+      if (tx?.meta) return (tx.meta.postBalances[0] - tx.meta.preBalances[0] + tx.meta.fee) / LAMPORTS;
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
+    return null;
   }
 
   private async balanceSol(address: string): Promise<number | null> {

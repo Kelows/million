@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { OpportunityConfigSchema } from '@million/shared';
 import { DexScreenerService } from '../analysis/dexscreener.service';
 import { JupiterService } from '../analysis/jupiter.service';
 import { PrismaService } from '../prisma.service';
 import type { Fill, TradeExecutor } from './executor.interface';
+import { feeBps } from './fee';
 
 /**
  * Simulated fills at DexScreener market price with a configurable slippage
@@ -17,6 +19,7 @@ export class PaperExecutor implements TradeExecutor {
     private readonly dexscreener: DexScreenerService,
     private readonly prisma: PrismaService,
     private readonly jupiter: JupiterService,
+    private readonly env: ConfigService,
   ) {}
 
   async quote(mint: string): Promise<number | null> {
@@ -65,15 +68,20 @@ export class PaperExecutor implements TradeExecutor {
   async buy(mint: string, sizeSol: number): Promise<Fill | null> {
     const price = await this.quote(mint);
     if (price === null) return null;
-    const slip = await this.perSideSlippage(mint, sizeSol);
+    const slip = (await this.perSideSlippage(mint, sizeSol)) + this.feePct();
     return { priceUsd: price * (1 + slip / 100), at: new Date() };
   }
 
   async sell(mint: string, sizeSol: number): Promise<Fill | null> {
     const price = await this.quote(mint);
     if (price === null) return null;
-    const slip = await this.perSideSlippage(mint, sizeSol);
+    const slip = (await this.perSideSlippage(mint, sizeSol)) + this.feePct();
     return { priceUsd: price * (1 - slip / 100), at: new Date() };
+  }
+
+  /** The live developer fee, charged on both paper legs so paper matches what live would have netted. */
+  private feePct(): number {
+    return feeBps(this.env) / 100;
   }
 
   private async slippage(): Promise<number> {
