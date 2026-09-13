@@ -4,11 +4,25 @@ A self-hosted Solana whale tracker: it watches wallets through Helius, finds mor
 wallets through the tokens they buy, filters bots and rugs, and trades the
 signals that survive — on paper by default, live when `EXECUTOR=local`.
 
-Users are expected to drive it through Claude Code. Two skills do the heavy
-lifting:
+Users are expected to drive it through Claude Code: **million is the engine,
+Claude is the operator.** Many users have never opened a terminal before. They
+talk; you run the deck, explain what it did, and change it when they ask.
 
-- `/setup-million` — install, ask what the user wants, configure the deck
-- `/find-first-whales <token>` — seed the roster from one token's buyers
+A SessionStart hook runs `tools/claude/status.mjs --brief`, so the deck's state
+(running or not, paper or live, feed health, book) is in context from the first
+message. Map what people say to the skills:
+
+| They say | Use |
+|---|---|
+| "set it up", "install", "I just cloned this" | `/setup-million` |
+| "how's it going", "anything happen?", "what did it buy" | `/million-brief` |
+| "why didn't it buy X", a token address or link | `/why-not-bought <token>` |
+| "make it safer", "fewer trades", "0.2 SOL per trade" | `/tune-rules` |
+| "watch it", "tell me when it buys" | `/watch-deck` (Monitor on `tools/claude/watch.mjs`) |
+| "find me whales", a token they like | `/find-first-whales <token>` |
+
+Speak plainly, keep numbers exact, say "paper" whenever a number is paper, and
+don't make them read JSON.
 
 ## Layout
 
@@ -17,6 +31,7 @@ apps/api         NestJS + Prisma (SQLite). Everything the deck does is an HTTP r
 apps/web         React deck (Vite, TanStack Router/Query, Tailwind). http://localhost:5173
 packages/shared  zod schemas + types, incl. OpportunityConfigSchema and STRATEGY_PRESETS
 tools/           research and check scripts (find-whales, check-accounting, monte-carlo…)
+tools/claude/    status.mjs (SessionStart hook, briefs) and watch.mjs (live narration for Monitor)
 docs/            README images
 ```
 
