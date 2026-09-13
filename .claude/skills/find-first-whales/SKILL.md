@@ -47,6 +47,9 @@ Each analysis spends Helius credits (about 10 per page of history, see
 - If the script warns that most buyers are brand-new wallets, lead with that:
   it usually means one operator, not a crowd of whales, and none of them should
   be followed on this token's evidence.
+- If it reports a cluster (wallets that traded mostly the same tokens), say they
+  are one operator: at most one of them is worth following, and their shared win
+  rate counts once, not once per address.
 - If nothing fits, say so plainly and suggest an older token with organic buyers.
 
 Every analyzed wallet is now in the roster, **unsubscribed**. Never present a win

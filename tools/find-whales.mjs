@@ -9,7 +9,8 @@
  *
  * Wallets it analyzes are added to the roster UNSUBSCRIBED — following one is
  * still your call. Each analysis costs Helius credits (~10 per page, see
- * ANALYSIS_MAX_PAGES), so --analyze caps how many it looks at.
+ * ANALYSIS_MAX_PAGES), so --analyze caps how many it looks at; a wallet already
+ * analyzed in the last 24h is reused instead.
  *
  *   node tools/find-whales.mjs <token-or-pool> [--min-hold 5] [--max-hold 30]
  *        [--min-sol 1] [--min-closed 5] [--analyze 12] [--mode recent|deep] [--pages 3]
@@ -96,7 +97,10 @@ async function main() {
 
   const rows = [];
   for (const c of candidates) {
-    const rec = await getJson(`${API}/wallets/${c.address}/analyze`, { method: 'POST' }).catch((e) => ({ error: String(e.message ?? e) }));
+    // a wallet analyzed in the last day is reused: history doesn't move that fast, credits do
+    const known = c.inRoster ? await getJson(`${API}/wallets/${c.address}`).catch(() => null) : null;
+    const recent = known?.metrics && known.lastAnalyzedAt && Date.now() - new Date(known.lastAnalyzedAt).getTime() < 24 * 3600e3;
+    const rec = recent ? known : await getJson(`${API}/wallets/${c.address}/analyze`, { method: 'POST' }).catch((e) => ({ error: String(e.message ?? e) }));
     const m = rec.metrics;
     if (!m) {
       console.log(`  ${c.address.slice(0, 6)}…  analysis failed: ${(rec.error ?? 'no metrics').slice(0, 80)}`);
@@ -104,7 +108,7 @@ async function main() {
     }
     const hold = m.medianHoldMinutes;
     const fits = hold !== null && hold >= MIN_HOLD && hold <= MAX_HOLD && m.closedTokens >= MIN_CLOSED && !m.flags.some((f) => EXCLUDE.has(f));
-    rows.push({ address: c.address, bought: c.boughtSol, hold, winRate: m.winRate, closed: m.closedTokens, flags: m.flags, fits });
+    rows.push({ address: c.address, bought: c.boughtSol, hold, winRate: m.winRate, closed: m.closedTokens, flags: m.flags, fits, mints: new Set(m.tokens.map((t) => t.mint)) });
     console.log(`  ${c.address.slice(0, 6)}…  bought ${c.boughtSol.toFixed(1).padStart(6)} ◎  median hold ${hold === null ? '   —' : String(Math.round(hold)).padStart(4) + 'm'}  ${fits ? '← fits' : ''}`);
   }
 
@@ -116,6 +120,29 @@ async function main() {
     console.log(`\n⚠ ${fresh} of ${rows.length} buyers are brand-new wallets with almost no history. That usually means one`);
     console.log('  operator spread across wallets, not independent whales. Try an older token with organic buyers.');
   }
+  // Wallets that traded mostly the same tokens are one operator (or one bot's
+  // copies), however many addresses it uses. On CATE, four "whales" shared 63 of
+  // ~65 tokens and were all created the same day. Group them; follow one at most.
+  const clusterOf = new Map();
+  for (let i = 0; i < picks.length; i++) {
+    for (let j = i + 1; j < picks.length; j++) {
+      const a = picks[i].mints, b = picks[j].mints;
+      const shared = [...a].filter((m) => b.has(m)).length;
+      if (shared / Math.min(a.size, b.size) >= 0.8) {
+        const id = clusterOf.get(picks[i].address) ?? clusterOf.get(picks[j].address) ?? picks[i].address;
+        clusterOf.set(picks[i].address, id);
+        clusterOf.set(picks[j].address, id);
+      }
+    }
+  }
+  const clusters = [...new Set(clusterOf.values())].map((id) => picks.filter((p) => clusterOf.get(p.address) === id));
+  for (const group of clusters) {
+    console.log(`\n⚠ ${group.length} of these wallets traded mostly the same tokens: one operator, not ${group.length} whales.`);
+    console.log(`  ${group.map((g) => g.address.slice(0, 6) + '…').join(', ')}`);
+  }
+  for (const r of picks) if (clusterOf.has(r.address)) r.flags = [...r.flags, `CLUSTER×${clusters.find((g) => g.includes(r)).length}`];
+  picks.sort((a, b) => Number(clusterOf.has(a.address)) - Number(clusterOf.has(b.address))); // independent wallets first
+
   console.log(`\n${picks.length} of ${rows.length} analyzed wallets hold ${MIN_HOLD}–${MAX_HOLD} min with ≥ ${MIN_CLOSED} closed tokens:\n`);
   for (const r of picks) {
     console.log(`  ${r.address}`);
