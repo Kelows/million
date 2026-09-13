@@ -138,7 +138,7 @@ export function Discover() {
                 days
                 <input type="number" min={1} max={365} value={sinceDays} onChange={(e) => setSinceDays(Number(e.target.value))} className="w-16 text-right" />
               </label>
-              <label className="flex items-center gap-2 text-xs text-dim" title="Time checkpoints sampled across the window — denser = better coverage, ~4 credits each">
+              <label className="flex items-center gap-2 text-xs text-dim" title="Points sampled across the time window. More means better coverage, about 4 credits each.">
                 buckets
                 <input type="number" min={6} max={96} value={buckets} onChange={(e) => setBuckets(Number(e.target.value))} className="w-16 text-right" />
               </label>
@@ -191,7 +191,7 @@ export function Discover() {
                     <tr className="text-left text-dim text-xs">
                       <th className="pl-4 pr-0 py-2 w-8"></th>
                       <th className="px-4 py-2 font-normal">wallet</th>
-                      <SortHeader label="score" colKey="score" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} hint="Buyer quality from the preview analysis: win rate + PnL, bots hard-penalized. The whale signal — size alone is mostly routers." />
+                      <SortHeader label="score" colKey="score" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} hint="Buyer quality from a quick analysis: win rate and PnL, with bots pushed down. Size alone is mostly routers." />
                       <SortHeader label="bought" colKey="bought" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
                       <SortHeader label="buys" colKey="buys" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
                       <SortHeader label="first buy" colKey="firstBuy" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />

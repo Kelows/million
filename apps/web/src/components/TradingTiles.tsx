@@ -26,7 +26,7 @@ export function TradingTiles({ stats, open }: { stats: TradingStats; open: Paper
         value={stats.expectancySolPerTrade != null ? `${stats.expectancySolPerTrade > 0 ? '+' : ''}${stats.expectancySolPerTrade} ◎` : '—'}
         sub="the number that unlocks live"
         tone={stats.expectancySolPerTrade != null ? (stats.expectancySolPerTrade > 0 ? 'profit' : 'loss') : 'default'}
-        hint="Total realized PnL divided by closed trades. Positive over a real sample (weeks, not days) is the only thing that justifies flipping auto-trade on."
+        hint="Realized PnL divided by closed trades. Judge it over weeks of trades, not a few days."
       />
       <StatTile label="Win rate" value={stats.winRate != null ? `${Math.round(stats.winRate * 100)}%` : '—'} sub={`${stats.wins} wins`} />
       <StatTile label="Avg trade" value={stats.avgPnlPct != null ? `${stats.avgPnlPct > 0 ? '+' : ''}${stats.avgPnlPct}%` : '—'} sub="mean closed PnL %" />

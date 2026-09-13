@@ -94,7 +94,7 @@ export function Crawler() {
             <button
               className="btn py-1! px-2! text-[0.6rem]!"
               disabled={runOnce.isPending || status?.running || status?.deepRunning}
-              title="One pass through the loop, capped by the per-iteration budget"
+              title="One pass through the loop, within the per-pass budget."
               onClick={() => runOnce.mutate('once')}
             >
               {status?.running && !status?.deepRunning ? 'running…' : 'quick run'}
@@ -102,7 +102,7 @@ export function Crawler() {
             <button
               className="btn py-1! px-2! text-[0.6rem]!"
               disabled={runOnce.isPending || status?.running || status?.deepRunning}
-              title="Chains passes back-to-back until the deep-run budget is spent or nothing productive remains"
+              title="Runs passes back to back until the budget is spent or nothing new turns up."
               onClick={() => runOnce.mutate('deep')}
             >
               {status?.deepRunning ? 'deep running…' : `deep run (~${config.deepRunCredits.toLocaleString('en-US')} cr)`}

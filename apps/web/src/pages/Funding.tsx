@@ -117,7 +117,7 @@ export function Funding() {
         <>
           <FundingTable
             title={`Funded by this wallet · ${outLinks.length}`}
-            hint="candidate new addresses of the same actor"
+            hint="Possible new addresses of the same trader."
             links={outLinks}
             action={
               addableOut.length > 1 ? (
@@ -132,7 +132,7 @@ export function Funding() {
           />
           <FundingTable
             title={`Funded this wallet · ${inLinks.length}`}
-            hint="who bankrolls them — possibly their older address"
+            hint="Who funds them, possibly their older address."
             links={inLinks}
             action={null}
             onAdd={(a) => addToRoster([a])}

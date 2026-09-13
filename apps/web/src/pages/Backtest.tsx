@@ -34,7 +34,7 @@ export function Backtest() {
           <button className="btn" disabled={running || run.isPending} onClick={() => run.mutate({ sample })}>
             {running ? `Replaying ${data?.done ?? 0}/${data?.total ?? 0}…` : 'Fetch + replay'}
           </button>
-          <button className="btn" disabled={tune.isPending} onClick={() => tune.mutate()} title="Exhaustive search over a discrete grid of round values, using cached paths — instant">
+          <button className="btn" disabled={tune.isPending} onClick={() => tune.mutate()} title="Tries every combination on a grid of round values, using cached paths.">
             {tune.isPending ? 'Searching…' : 'Tune parameters'}
           </button>
         </span>
@@ -53,7 +53,7 @@ export function Backtest() {
         <div className="panel">
           <div className="px-4 pt-4 pb-2 eyebrow">
             Exit rules, ranked
-            <Info text="Each rule replayed over the same entries, so differences are the rule and not the sample. Median matters as much as average: a strategy can have a great mean from one huge winner while losing on most trades — that is tradeable, but only if you can survive the losing streak." />
+            <Info text="Each rule replayed on the same entries, so differences come from the rule. Check the median too: one big winner can hide many losers." />
             <span className="normal-case tracking-normal text-dim"> · {r.replayed} of {r.sampled} entries had candle data</span>
           </div>
           <div className="overflow-x-auto">
@@ -108,7 +108,7 @@ function SwingPanel() {
       <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-4 flex-wrap">
         <span className="eyebrow">
           Swing — multi-day holds
-          <Info text="Hourly bars instead of minute bars, which is the only way past the minute endpoint's 8.3-hour ceiling. This is the band the roster actually earns in: holds beyond 24h carry 61% of their profit, and every earlier conclusion here was blind to it. Entries are sampled only from trades old enough to have days of history." />
+          <Info text="Hourly candles reach days past entry, where minute data stops at 8 hours. Too coarse to judge a trailing stop fairly." />
         </span>
         <button className="btn py-1! px-2! text-[0.65rem]!" disabled={run.isPending} onClick={() => run.mutate({ sample: 80 })}>
           {run.isPending ? 'Fetching…' : 'Fetch hourly paths'}
@@ -164,7 +164,7 @@ function HoldPanel() {
     <div className="panel">
       <div className="px-4 pt-4 pb-2 eyebrow">
         Where the roster's profit lives, by hold time
-        <Info text="Every closed roster trade of 1+ SOL, bucketed by how long it was held. This is the fact that invalidated our first backtest: the median hold is under an hour, but most of the profit sits in a long tail — so a short replay horizon measures the least profitable slice and concludes the strategy loses. PnL here comes from historical analysis, so treat the shape as the signal rather than the absolute SOL." />
+        <Info text="Closed roster trades of 1+ ◎, grouped by how long they were held. Read the shape; the SOL amounts come from historical analysis." />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm font-mono">
@@ -239,7 +239,7 @@ function MatrixPanel() {
                 <td className="px-4 py-2 text-bright">
                   {s.strategy}
                   {/LOOK-AHEAD/.test(s.strategy) && (
-                    <Info text="Contaminated: the gauntlet reads liquidity, market cap, holders and the sell simulation as they are TODAY. A token that rugged after entry now fails its own sell-sim, so this filter deletes the losers from the sample. Shown to size the bias, never to justify a gate." />
+                    <Info text="Biased: the checks read today's liquidity and holders, so tokens that later rugged fail and drop out. Shows the size of that bias only." />
                   )}
                 </td>
                 <td className="px-4 py-2 text-right text-dim">{s.trades}</td>
@@ -328,7 +328,7 @@ function TunePanel({ result }: { result: import('@million/shared').BacktestTuneR
     <div className="panel">
       <div className="px-4 pt-4 pb-2 eyebrow">
         Parameter search
-        <Info text="Random search over cached paths. Candidates are ranked by TRAIN performance, as any real search would be — the test column is held out and untouched by the ranking. A row whose train number is far above its test number memorised noise; only the test column is evidence." />
+        <Info text="Random search on cached paths, ranked on the training set. Trust the test column: train far above test means overfitting." />
         <span className="normal-case tracking-normal text-dim"> · {result.tried} combinations over {result.paths} cached entries</span>
       </div>
       <MarginalsGrid rows={result.marginals} />

@@ -52,7 +52,7 @@ export function DecisionLog({ mint }: { mint?: string }) {
               {f.label}
             </button>
           ))}
-          <label className="flex items-center gap-1.5 text-dim cursor-pointer" title="Buys below your copy size, tokens received for free, transfers out — the high-volume exits">
+          <label className="flex items-center gap-1.5 text-dim cursor-pointer" title="Small buys, tokens received for free, transfers out: the frequent, routine skips.">
             <input type="checkbox" checked={quiet} onChange={(e) => setQuiet(e.target.checked)} />
             routine skips
           </label>

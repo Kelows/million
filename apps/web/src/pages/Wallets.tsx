@@ -291,7 +291,7 @@ export function Wallets() {
             )}
             <button
               className="btn btn-danger py-1! px-2! text-[0.6rem]!"
-              title="Choose which flags to sweep from the roster (soft-delete — knowledge kept)"
+              title="Remove wallets with these flags from the roster. Their data is kept."
               onClick={() => setPurgeOpen(true)}
             >
               purge…
@@ -426,12 +426,12 @@ export function Wallets() {
                   <th className="pl-4 pr-0 py-2 w-8"></th>
                   <th className="px-4 py-2 font-normal">wallet</th>
                   <SortHeader label="label" colKey="label" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="score" colKey="score" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Observed win rate + observed PnL. Blank until the wallet has closed at least 3 round trips in front of us — unmeasured, not unpromising. Bots and farmed wallets are unscored; their flags say why." />
-                  <SortHeader label="obs. WR" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of WATCHED round trips that ended profitable — we saw both the buy and the sell." />
-                  <SortHeader label="observed PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Realized PnL from round trips we watched end to end, so the cost basis is real." />
-                  <SortHeader label="unrealized" colKey="unrealized" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Open book marked to market, refreshed every 5 minutes. Positions we cannot price are excluded from both value and cost, so the number never flatters itself by dropping its losers." />
+                  <SortHeader label="score" colKey="score" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Watched win rate and PnL. Blank until 3 round trips have been watched. Bots and farmed wallets aren't scored." />
+                  <SortHeader label="obs. WR" colKey="winRate" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Share of watched round trips that made money." />
+                  <SortHeader label="observed PnL" colKey="pnl" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="PnL from round trips watched from buy to sell." />
+                  <SortHeader label="unrealized" colKey="unrealized" sortKey={sortKey} dir={dir} onToggle={toggle} right hint="Open positions at current prices, refreshed every 5 minutes. Positions with no price are left out of both value and cost." />
                   <SortHeader label="med. hold" colKey="hold" sortKey={sortKey} dir={dir} onToggle={toggle} />
-                  <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Positions bought and never sold, excluding stablecoins and entries under the min size set in Screener → Analytics." />
+                  <SortHeader label="open" colKey="open" sortKey={sortKey} dir={dir} onToggle={toggle} hint="Positions still held, excluding stablecoins and dust below the size set in Screener → Analytics." />
                   <SortHeader label="last active" colKey="lastSeen" sortKey={sortKey} dir={dir} onToggle={toggle} />
                   <th className="px-4 py-2 font-normal">flags</th>
                   <th className="px-4 py-2 font-normal"></th>

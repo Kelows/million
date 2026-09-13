@@ -202,7 +202,7 @@ function ShadowPanel() {
                 <td className={`px-4 py-2 text-right ${g.avgPnlPct == null ? 'text-dim' : g.avgPnlPct < 0 ? 'text-profit' : 'text-loss'}`}>
                   {g.avgPnlPct == null ? '—' : `${g.avgPnlPct > 0 ? '+' : ''}${g.avgPnlPct}%`}
                 </td>
-                <td className={`px-4 py-2 text-right ${(g.avgPeakPct ?? 0) > 0 ? 'text-loss' : 'text-dim'}`} title="best the skipped trades ever showed — what a trailing exit could have caught">
+                <td className={`px-4 py-2 text-right ${(g.avgPeakPct ?? 0) > 0 ? 'text-loss' : 'text-dim'}`} title="The best the skipped trade got: what a trailing exit could have caught.">
                   {g.avgPeakPct == null ? '—' : `+${g.avgPeakPct}%`}
                 </td>
                 <td className={`px-4 py-2 text-right font-bold ${g.avoidedSol > 0 ? 'text-profit' : g.avoidedSol < 0 ? 'text-loss' : 'text-dim'}`}>

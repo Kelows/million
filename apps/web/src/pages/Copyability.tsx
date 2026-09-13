@@ -60,7 +60,7 @@ export function Copyability() {
         <div className="panel">
           <div className="px-4 pt-4 pb-2 eyebrow">
             Edge retention
-            <Info text="Size-weighted average return over the whale's own closed trades vs the same trades one candle later. Retention = copier ÷ whale × 100. Null when the whale's measured edge is under 5% — dividing by noise. Click a row for the per-token replay." />
+            <Info text="The whale's average return vs the same trades bought one candle later. Retention = copy ÷ whale. Blank when their edge is under 5%." />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-mono">

@@ -110,7 +110,7 @@ export function Tokens() {
           <button
             className="btn py-1! px-2! text-[0.6rem]!"
             disabled={recheckJob.data?.running || startRecheck.isPending}
-            title="Re-run the gauntlet on every tracked token — server-side, survives leaving the page"
+            title="Re-run the token checks on every tracked token. Keeps going if you leave the page."
             onClick={() => startRecheck.mutate()}
           >
             {recheckJob.data?.running ? `re-checking ${recheckJob.data.done}/${recheckJob.data.total}…` : 're-check all'}
@@ -129,7 +129,7 @@ export function Tokens() {
             <button
               className="btn btn-danger py-1! px-2! text-[0.6rem]!"
               disabled={purgeJunk.isPending}
-              title="Delete checked tokens with a FAIL verdict or zero liquidity — unchecked tokens are untouched"
+              title="Remove checked tokens that failed or have no liquidity. Unchecked tokens stay."
               onClick={() => {
                 if (window.confirm(`Delete ${junkCount} junk token${junkCount === 1 ? '' : 's'} (failed check or dead liquidity)?`)) {
                   purgeJunk.mutate();
@@ -262,10 +262,10 @@ function HeldTable({ rows }: { rows: FamousTokenRow[] }) {
                 <SortHeader label="token" colKey="token" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} />
                 <SortHeader label="owners" colKey="owners" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
                 <SortHeader label="still in ◎" colKey="stillin" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right
-                  hint="Remaining cost basis of what each owner still holds — every sell already subtracted. Not what they put in originally: what's still on the table." />
+                  hint="What owners still have in the token at cost, after their sells." />
                 <SortHeader label="realized ◎" colKey="realized" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right />
                 <SortHeader label="score" colKey="score" sortKey={sort.sortKey} dir={sort.dir} onToggle={sort.toggle} right
-                  hint="Conviction: owners × √entry, discounted by profit the roster already took here. High = broadly held and still fresh — positioned, not yet milked. Low despite big holdings = the echo bag of a play that already paid." />
+                  hint="Owners × size, reduced where the roster already took profit. High = widely held and still fresh." />
               </tr>
             </thead>
             <tbody>
@@ -299,7 +299,7 @@ function FamousPanel() {
       <HeldTable rows={data.held} />
       <FamousTable
         title="Where the roster printed"
-        hint="Realized PnL summed across owners that closed trades here. History, not a signal — but it shows which hunting grounds actually paid."
+        hint="PnL from round trips we watched close in this token. History, not a signal."
         rows={data.earned}
         solLabel="realized ◎"
         pnlTone={true}

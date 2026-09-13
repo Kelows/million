@@ -35,14 +35,14 @@ export function Flows() {
           title="Accumulating"
           tone="profit"
           rows={data?.accumulating ?? []}
-          hint="Distinct owners buying the same token repeatedly inside the window, net of any selling. This is what the ladder signal trades on."
+          hint="Different owners buying this token repeatedly in the window, net of selling. The ladder signal trades on this."
           empty="Nothing being accumulated in this window."
         />
         <FlowTable
           title="Distributing"
           tone="loss"
           rows={data?.distributing ?? []}
-          hint="Owners laddering OUT. Mirror exits only watch the single wallet that triggered our entry — this is the only place you can see the whole roster leaving a token, which is the exit signal that view cannot give you."
+          hint="Owners selling out in pieces: the roster leaving a token, which one wallet's exit won't show you."
           empty="Nothing being distributed in this window."
         />
       </div>

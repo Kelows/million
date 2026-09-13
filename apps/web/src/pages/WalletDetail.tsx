@@ -136,7 +136,7 @@ export function WalletDetail() {
                 <button
                   className="btn py-1! px-2! text-[0.6rem]!"
                   disabled={subscribeOwner.isPending}
-                  title="Subscribe every wallet of this owner to the live feed (each uses one of the 25 slots)"
+                  title="Subscribe every wallet this owner uses."
                   onClick={() =>
                     subscribeOwner.mutate({
                       address: wallet.address,
@@ -223,7 +223,7 @@ export function WalletDetail() {
                   : 'unmeasured — no round trip watched yet'
               }
               tone={(observedPnlSol(wallet) ?? 0) > 0 ? 'profit' : (observedPnlSol(wallet) ?? 0) < 0 ? 'loss' : 'default'}
-              hint="Realized PnL from round trips we watched end to end — we saw the buy and the sell, so the cost basis is real. Historical PnL from a truncated scan is not shown: sells of bags bought before our window have no cost basis and read as pure profit, which inflated 36 wallets by 5,685 SOL."
+              hint="PnL from round trips we watched from buy to sell, so the cost is known. Older history isn't counted: its cost basis can't be trusted."
             />
             {wallet.unrealized && (
               <StatTile
@@ -231,11 +231,11 @@ export function WalletDetail() {
                 value={`${wallet.unrealized.pnlSol > 0 ? '+' : ''}${wallet.unrealized.pnlSol} \u25ce`}
                 sub={`${wallet.unrealized.priced}/${wallet.unrealized.positions} valued \u00b7 ${wallet.unrealized.costSol} \u25ce at cost${wallet.unrealized.pnlPct !== null ? ` \u00b7 ${wallet.unrealized.pnlPct > 0 ? '+' : ''}${wallet.unrealized.pnlPct}%` : ''}`}
                 tone={wallet.unrealized.pnlSol > 0 ? 'profit' : wallet.unrealized.pnlSol < 0 ? 'loss' : 'default'}
-                hint={`Open positions marked to market right now: ${wallet.unrealized.priced} of ${wallet.unrealized.positions} could be valued. Unquotable mints (delisted, dead pools) count as worthless; positions analysed before quantities were recorded are held at cost until re-analysis, so they neither flatter nor penalise the number. Realized PnL only ever sees completed round trips \u2014 a wallet still accumulating shows 0 there no matter how well it is doing.`}
+                hint={`Open positions at today's prices (${wallet.unrealized.priced} of ${wallet.unrealized.positions} priced). Tokens with no price count as worthless.`}
               />
             )}
-            <StatTile label="Win rate" value={fmtPct(m.winRate)} sub={`${m.closedTokens} closed tokens`} hint="Profitable closed tokens / all closed tokens. A token counts as closed once it has at least one buy and one sell in the window." />
-            <StatTile label="Median hold" value={fmtHold(m.medianHoldMinutes)} sub="first buy → last sell" hint="Median time from a token's first buy to its last sell, across closed tokens. Under 5 minutes on 5+ tokens earns the sniper flag — uncopyable by hand." />
+            <StatTile label="Win rate" value={fmtPct(m.winRate)} sub={`${m.closedTokens} closed tokens`} hint="Share of closed tokens that made money. Closed = at least one buy and one sell." />
+            <StatTile label="Median hold" value={fmtHold(m.medianHoldMinutes)} sub="first buy → last sell" hint="Median time from first buy to last sell. Under 5 minutes across 5+ tokens earns the sniper flag." />
             <StatTile label="Last active" value={fmtAgo(m.lastSeen)} sub={`${fmtDate(m.firstSeen)} → ${fmtDate(m.lastSeen)}`} />
           </div>
 
@@ -251,8 +251,8 @@ export function WalletDetail() {
                     <SortHeader label="SOL out" colKey="solOut" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
                     <SortHeader label="realized" colKey="realized" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} right />
                     <SortHeader label="hold" colKey="hold" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
-                    <SortHeader label="opened" colKey="opened" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="When the position was first bought. For open positions this is the holding time." />
-                    <SortHeader label="last activity" colKey="activity" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="Most recent buy or sell of this token. Recent = the position is alive; long ago = probably a dead bag." />
+                    <SortHeader label="opened" colKey="opened" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="When the position was first bought." />
+                    <SortHeader label="last activity" colKey="activity" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} hint="Last buy or sell. Recent means still active." />
                     <SortHeader label="state" colKey="state" sortKey={tokenSort.sortKey} dir={tokenSort.dir} onToggle={tokenSort.toggle} />
                   </tr>
                 </thead>

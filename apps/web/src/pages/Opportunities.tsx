@@ -160,7 +160,7 @@ export function Opportunities() {
                   {o.fillGapPct !== null && o.fillGapPct !== undefined && (
                     <span
                       className={`text-xs font-mono ${Math.abs(o.fillGapPct) > 30 ? 'text-loss' : 'text-dim'}`}
-                      title="Our quotable price versus the whale's fill, recorded at decision time. Large negative gaps are either a real price spike we would be buying into, or a lagging price feed — this column is what tells them apart."
+                      title="Our price vs the whale's fill when the signal fired. A big gap means a real price spike, or a lagging price feed."
                     >
                       fill {o.fillGapPct > 0 ? '+' : ''}{o.fillGapPct}%
                     </span>
