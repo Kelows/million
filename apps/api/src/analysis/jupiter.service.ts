@@ -18,8 +18,45 @@ export interface SellSimulation {
  * (v2, TODO: simulateTransaction as a real holder to catch transfer-hook
  * honeypots that quote fine but revert on execution.)
  */
+const PRICE_API = 'https://lite-api.jup.ag/price/v3';
+const PRICE_BATCH = 50;
+// Jupiter reprices every ~5s (measured 13 Sep: open-book prices changed on 5s
+// boundaries); a shorter cache would only re-read the same number
+const PRICE_CACHE_MS = 2_000;
+
 @Injectable()
 export class JupiterService {
+  private readonly priceCache = new Map<string, { price: number; at: number }>();
+
+  /**
+   * USD prices for many mints, fresh. The exit guard's mark: DexScreener's batch
+   * endpoint served the same snapshot for ~30s (13 Sep: 60 one-second polls,
+   * every open token changed twice, on the same polls), so a stop checked
+   * against it could only react every half minute however often we asked.
+   * Missing mints are simply absent: the caller falls back.
+   */
+  async fetchPrices(mints: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const stale: string[] = [];
+    for (const mint of new Set(mints)) {
+      const hit = this.priceCache.get(mint);
+      if (hit && Date.now() - hit.at < PRICE_CACHE_MS) out.set(mint, hit.price);
+      else stale.push(mint);
+    }
+    for (let i = 0; i < stale.length; i += PRICE_BATCH) {
+      const ids = stale.slice(i, i + PRICE_BATCH).join(',');
+      const res = await fetch(`${PRICE_API}?ids=${ids}`, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
+      if (!res?.ok) continue;
+      const body = (await res.json().catch(() => ({}))) as Record<string, { usdPrice?: number } | null>;
+      for (const [mint, row] of Object.entries(body ?? {})) {
+        if (!row?.usdPrice || !(row.usdPrice > 0)) continue;
+        out.set(mint, row.usdPrice);
+        this.priceCache.set(mint, { price: row.usdPrice, at: Date.now() });
+      }
+    }
+    return out;
+  }
+
   async sellSimulation(mint: string): Promise<SellSimulation | null> {
     const buy = await this.quote(WSOL, mint, PROBE_LAMPORTS);
     if (buy === null) return { buyRoute: false, sellRoute: false, roundTripLossPct: null };

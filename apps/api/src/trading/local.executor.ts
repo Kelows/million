@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { Keypair, VersionedTransaction } from '@solana/web3.js';
 import { OpportunityConfigSchema } from '@million/shared';
 import { DexScreenerService } from '../analysis/dexscreener.service';
+import { JupiterService } from '../analysis/jupiter.service';
 import { PrismaService } from '../prisma.service';
 import type { Fill, TradeExecutor } from './executor.interface';
 import { FEE_ACCOUNT, feeBps } from './fee';
@@ -43,9 +44,14 @@ export class LocalExecutor implements TradeExecutor {
     private readonly env: ConfigService,
     private readonly dexscreener: DexScreenerService,
     private readonly prisma: PrismaService,
+    private readonly jupiter: JupiterService,
   ) {}
 
   async quote(mint: string): Promise<number | null> {
+    // Jupiter first: DexScreener's price can be ~30s old, and a paper exit filled
+    // at a stale mark books a better price than the stop could have got
+    const fresh = await this.jupiter.fetchPrices([mint]).catch(() => new Map<string, number>());
+    if (fresh.has(mint)) return fresh.get(mint)!;
     const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
     return pair?.priceUsd ?? null;
   }

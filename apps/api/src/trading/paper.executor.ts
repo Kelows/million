@@ -23,6 +23,10 @@ export class PaperExecutor implements TradeExecutor {
   ) {}
 
   async quote(mint: string): Promise<number | null> {
+    // Jupiter first: DexScreener's price can be ~30s old, and a paper exit filled
+    // at a stale mark books a better price than the stop could have got
+    const fresh = await this.jupiter.fetchPrices([mint]).catch(() => new Map<string, number>());
+    if (fresh.has(mint)) return fresh.get(mint)!;
     const pair = await this.dexscreener.fetchBestPair(mint).catch(() => null);
     return pair?.priceUsd ?? null;
   }

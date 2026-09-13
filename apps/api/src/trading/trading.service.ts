@@ -3,6 +3,7 @@ import { OpportunityConfigSchema, type OpportunityConfig, type PaperPositionRow,
 import type { PaperPosition } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
+import { JupiterService } from '../analysis/jupiter.service';
 import { HeliusService } from '../analysis/helius.service';
 import { EventsBus } from '../common/events.bus';
 import { ShadowService } from './shadow.service';
@@ -10,10 +11,11 @@ import { DecisionLog } from '../common/decision-log';
 import { TRADE_EXECUTOR, type TradeExecutor } from './executor.interface';
 
 // Exits are a race against the price. At a 60s poll, Stunk's -50% stop filled
-// at -73.7% (13 Sep): a meme coin can fall a quarter between two looks. One
-// batched DexScreener call covers the whole book, so 5s costs 12 requests a
-// minute against a 300/min limit. Roster trades in a held token check it at
-// once (checkMint), so the poll is the floor, not the reaction time.
+// at -73.7% (13 Sep): a meme coin can fall a quarter between two looks. The
+// mark is Jupiter's price API, which reprices every ~5s, so a faster poll
+// would re-read the same number; one batched call covers the whole book.
+// Roster trades in a held token check it at once (checkMint), so the poll is
+// the floor, not the reaction time.
 const GUARD_MS = 5_000;
 // the trail's volatility band is measured at a 1-minute timescale (see
 // dynamicTrailPct), so the price history keeps sampling once a minute
@@ -40,7 +42,19 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     private readonly shadow: ShadowService,
     private readonly decisions: DecisionLog,
     private readonly dexscreener: DexScreenerService,
+    private readonly jupiter: JupiterService,
   ) {}
+
+  /** Fresh marks from Jupiter; DexScreener (slower to update) for anything Jupiter can't price. */
+  private async marks(mints: string[]): Promise<Map<string, number>> {
+    const out = await this.jupiter.fetchPrices(mints).catch(() => new Map<string, number>());
+    const missing = mints.filter((m) => !out.has(m));
+    if (missing.length) {
+      const fallback = await this.dexscreener.fetchPrices(missing).catch(() => new Map<string, number>());
+      for (const [m, px] of fallback) out.set(m, px);
+    }
+    return out;
+  }
 
   // last ~30 tick quotes per open position: realized volatility for the dynamic
   // trail, computed from prices we were fetching anyway — zero extra calls
@@ -233,7 +247,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       }
       if (!open.length) return;
       const config = await this.config();
-      const prices = await this.dexscreener.fetchPrices([...this.heldMints]).catch(() => new Map<string, number>());
+      const prices = await this.marks([...this.heldMints]);
       // concurrently: a slow live sell on one position must not delay the stop on another
       await Promise.all(open.map((p) => this.guard(p, prices.get(p.mint) ?? null, config)));
     } finally {
@@ -251,7 +265,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     try {
       const positions = await this.prisma.paperPosition.findMany({ where: { status: 'open', mint } });
       if (!positions.length) return;
-      const [config, prices] = await Promise.all([this.config(), this.dexscreener.fetchPrices([mint]).catch(() => new Map<string, number>())]);
+      const [config, prices] = await Promise.all([this.config(), this.marks([mint])]);
       await Promise.all(positions.map((p) => this.guard(p, prices.get(mint) ?? null, config)));
     } finally {
       this.checkingMint.delete(mint);
