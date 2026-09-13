@@ -13,7 +13,7 @@ npx create-million my-deck      # into ./my-deck
 npx create-million --no-start   # set up, don't start
 ```
 
-Then open the folder in [Claude Code](https://claude.com/claude-code) and type `set me up`: Claude configures your rules, wallets and feed by conversation.
+Then open the folder in your AI coding agent (Claude Code, Codex, Cursor, Gemini CLI…) and type `set me up`: it configures your rules, wallets and feed by conversation.
 
 **You need:** git, Node 24 or nvm, a free Helius key.
 **You don't need:** a webhook, tunnel, domain, wallet or SOL.

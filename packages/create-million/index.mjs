@@ -169,7 +169,7 @@ async function main() {
   // ── 5. start ──
   const next = () => {
     console.log(`\n${bold('Next')}`);
-    console.log(`  cd ${rel} && claude        ${dim('then type: set me up')}`);
+    console.log(`  cd ${rel} && claude        ${dim('(or codex, gemini…) then type: set me up')}`);
     console.log(`  cd ${rel} && nvm use && ${has('mprocs') ? 'mprocs' : 'npm run dev'}   ${dim('to start the deck by hand')}`);
     console.log(`  ${dim('The deck opens at http://localhost:5173 · guide: docs/GUIDE.md')}\n`);
   };

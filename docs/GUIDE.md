@@ -2,8 +2,8 @@
 
 Everything the [README](../README.md) leaves out: running it by hand, the live
 feed and webhooks, paper and live trading, the research scripts, security, and
-the layout of the repo. If you use Claude Code, `set me up` does most of this
-for you.
+the layout of the repo. If you use an AI coding agent, `set me up` does most of
+this for you.
 
 - [What's in the deck](#whats-in-the-deck)
 - [Requirements](#requirements)

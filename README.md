@@ -1,17 +1,18 @@
 # million
 
 **An open-source, self-hosted Solana whale tracker and copy-trading deck that
-you run by talking to Claude Code.** It watches the wallets you follow, finds
+you run by talking to your AI coding agent** (Claude Code, Codex, Cursor, Gemini
+CLI…). It watches the wallets you follow, finds
 more wallets through the tokens they buy, filters out bots and rugs, and trades
 the signals that survive.
 
 ![The million deck: roster, open positions and PnL at a glance](docs/deck.png)
 
-**Start in three lines** (Node 24 and [Claude Code](https://claude.com/claude-code)):
+**Start in three lines** (Node 24 and an AI coding agent):
 
 ```sh
 git clone https://github.com/Kelows/million && cd million
-claude
+claude            # or codex, gemini… whichever agent you use
 > set me up
 ```
 
@@ -29,50 +30,51 @@ a webhook only lifts that cap.
 > can lose you everything you put in. If you trade real money with it, that is
 > your decision and your risk: the authors are not responsible for any loss.
 
-## Talk to it: million is the engine, Claude is the operator
+## Talk to it: million is the engine, your AI agent is the operator
 
 You don't need to know what a webhook is. You don't need to read a single line
 of this repo. If you can type a sentence, you can run a whale deck.
 
 Every whale you've watched buy a coin at 3am, while you were asleep, reading
 charts or doing it all by hand: that's the gap. million watches the wallets
-without blinking. Claude Code sits on top of it and does the part that used to
-need a developer: installing it, wiring it up, explaining what it did, changing
+without blinking. Your coding agent sits on top of it and does the part that
+used to need a developer: installing it, wiring it up, explaining what it did, changing
 it when you ask.
 
 ```text
 you     set it up. I have 5 SOL and I want to follow patient whales
-claude  installs the deck, checks your Helius key, asks three questions,
+agent   installs the deck, checks your Helius key, asks three questions,
         applies the Swing Copy preset, sizes it to your 5 SOL, starts the feed
 
 you     how's it going?
-claude  Feed healthy, 2 positions open. STONK closed +7% on the
+agent   Feed healthy, 2 positions open. STONK closed +7% on the
         trailing stop. CATE fired a ladder signal but was already bought an
         hour ago, so it waited.
 
 you     why didn't it buy K7Pa…pump? everyone was talking about it
-claude  Only one wallet you follow bought it, with 0.4 SOL: under your
+agent   Only one wallet you follow bought it, with 0.4 SOL: under your
         1.5 SOL minimum for a copy signal. Lowering it would also let in
         every small, noisy buy. Want to change it?
 
 you     find me whales from this token: <address>
-claude  pulls its biggest buyers, analyzes them, flags the four wallets
+agent   pulls its biggest buyers, analyzes them, flags the four wallets
         that are really one operator, and adds the rest for you to pick
 
 you     watch it and tell me when it buys
-claude  OPENED FRIES · 0.2 SOL · copy signal from AgmL…zN51,
+agent   OPENED FRIES · 0.2 SOL · copy signal from AgmL…zN51,
         a wallet you follow that bought 1.8 SOL of it a second ago
 ```
 
 (An illustration of the conversation, not a record of trades.)
 
-Start with the three lines at the top of this page. Claude reads the project,
-follows the setup skill, and asks you for what only you can decide: your Helius key, your size, your style, the wallets to
+Start with the three lines at the top of this page. The agent reads the
+project, follows the setup playbook, and asks you for what only you can decide: your Helius key, your size, your style, the wallets to
 start from. Everything it runs is in the open, in this repo.
 
-What Claude can do with it:
+What your agent can do with it, following the playbooks in `.claude/skills`
+(in Claude Code they are also slash commands):
 
-| You say | Claude runs |
+| You say | The agent runs |
 |---|---|
 | "set me up" | `/setup-million`: install, key, questions, presets, wallets, feed |
 | "how's it going?" | `/million-brief`: health, positions, results, the most telling skip |
@@ -81,16 +83,17 @@ What Claude can do with it:
 | "watch it" | `/watch-deck`: live updates in the chat when it opens, closes or goes blind |
 | "find me whales from this token" | `/find-first-whales`: a token's buyers, analyzed, clusters flagged |
 
-When you open Claude Code in the repo, a hook tells Claude the deck's state
-before you type anything, so "how's it going?" works from the first message.
+Tested with Claude Code, which also gets the deck's state before you type
+anything (a session hook) and can relay live updates while you work. Codex and
+Cursor read the same instructions from `AGENTS.md`.
 
-Some things stay yours no matter how you ask. Claude never turns on live
+Some things stay yours no matter how you ask. The agent never turns on live
 trading by itself: you have to type
 `I understand every signal will spend real SOL and I can lose all of it`
 yourself. It creates a trading wallet without ever showing its secret key, and
 it never prints your API keys back.
 
-No Claude Code? Everything works by hand too: see the [guide](docs/GUIDE.md).
+No agent? Everything works by hand too: see the [guide](docs/GUIDE.md).
 
 ## How it works
 
@@ -175,13 +178,16 @@ flag bots, relays and clusters of wallets run by one person (see
 more wallets.
 
 **Why didn't it buy a token I expected?**
-Ask Claude (`/why-not-bought <token>`) or open the token page: every decision is
+Ask your agent ("why didn't it buy <token>?") or open the token page: every decision is
 logged with the rule that stopped it.
 
-**Does it work with AI agents other than Claude Code?**
-Everything the deck does is a plain local HTTP API, documented in `AGENTS.md`,
-so any coding agent can drive it. The playbooks in `.claude/skills` are plain
-Markdown that any agent can follow.
+**Which AI agents does it work with?**
+Any coding agent that can run commands on your machine. Everything the deck
+does is a plain local HTTP API, documented in `AGENTS.md` (read automatically
+by Codex and Cursor), and the playbooks in `.claude/skills` are plain Markdown.
+It's tested with Claude Code, which adds a session-start status and live
+updates in the chat. Chat-only assistants that can't run commands can't operate
+it.
 
 **Is it profitable?**
 Nobody can promise that, and this project's own measurements found past returns
