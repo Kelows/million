@@ -87,7 +87,7 @@ export function Rules() {
           <RuleField label="Consensus needs net inflow" hint="Require more SOL bought than sold, not just more buyers than sellers.">
             <Toggle value={c.consensusNetFlow} onChange={(v) => set({ consensusNetFlow: v })} />
           </RuleField>
-          <RuleField label="Ladder: clips / window / total" hint="One wallet buying the same token this many times in the window, adding up to at least this much, with no sell. 0 buys = off." off={c.ladderBuys === 0}>
+          <RuleField label="Ladder: buys / window / total" hint="One wallet buying the same token this many times in the window, adding up to at least this much, with no sell. 0 buys = off." off={c.ladderBuys === 0}>
             <Num value={c.ladderBuys} onChange={(v) => set({ ladderBuys: v })} min={0} max={50} width="w-12" />
             <Num value={c.ladderWindowMinutes} onChange={(v) => set({ ladderWindowMinutes: v })} min={1} max={120} width="w-12" suffix="m" />
             <Num value={c.ladderMinSol} onChange={(v) => set({ ladderMinSol: v })} min={0} step={0.5} width="w-14" suffix="◎" />

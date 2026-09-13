@@ -66,7 +66,7 @@ function FlowTable({ title, tone, rows, hint, empty }: { title: string; tone: 'p
               <tr className="text-left text-dim text-xs">
                 <th className="px-4 py-2 font-normal">token</th>
                 <th className="px-4 py-2 font-normal text-right">owners</th>
-                <th className="px-4 py-2 font-normal text-right">clips</th>
+                <th className="px-4 py-2 font-normal text-right">orders</th>
                 <th className="px-4 py-2 font-normal text-right">net ◎</th>
               </tr>
             </thead>
@@ -77,7 +77,7 @@ function FlowTable({ title, tone, rows, hint, empty }: { title: string; tone: 'p
                     <TokenLink mint={r.mint} symbol={r.symbol} />
                   </td>
                   <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
-                  <td className="px-4 py-2 text-right text-dim" title={`${r.wallets} wallets`}>{r.clips}</td>
+                  <td className="px-4 py-2 text-right text-dim" title={`${r.clips} orders from ${r.wallets} wallets`}>{r.clips}</td>
                   <td className={`px-4 py-2 text-right font-bold text-${tone}`}>{r.netSol}</td>
                 </tr>
               ))}

@@ -140,7 +140,7 @@ export function Opportunities() {
                 <li key={o.id} className="border-t border-line px-4 py-3 flex items-baseline gap-4 flex-wrap">
                   <span className={`font-mono text-xs font-bold ${STATUS_STYLE[o.verdict].text}`}>{STATUS_STYLE[o.verdict].label}</span>
                   {o.signal === 'ladder' && (
-                    <span className="text-neon border border-neon/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="a wallet accumulating this mint in repeated clips right now">LADDER</span>
+                    <span className="text-neon border border-neon/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="a wallet accumulating this token in repeated buys right now">LADDER</span>
                   )}
                   {o.signal === 'consensus' && (
                     <span className="text-warn border border-warn/50 px-1 text-[0.6rem] font-mono font-bold tracking-widest" title="fired by owner breadth, not a single wallet's entry">CONSENSUS</span>
