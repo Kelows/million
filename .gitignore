@@ -17,3 +17,6 @@ id.json
 docs/monte-carlo.json
 docs/decision-clocks.json
 docs/kill-criterion.json
+
+# marketing drafts, screenshots and cards — local only
+marketing/
