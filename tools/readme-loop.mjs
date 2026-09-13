@@ -13,9 +13,11 @@
  */
 import fs from 'node:fs';
 
-const THEMES = {
+export const THEMES = {
   light: { bg: '#ffffff', ink: '#11161a', ink2: '#4e5860', ink3: '#7d878f', wal: '#2a78d6', tok: '#eb6834', trade: '#0f8f62', mesh: '#11161a', fill: 0.22 },
   dark: { bg: '#0d1117', ink: '#e6edf3', ink2: '#9aa5ad', ink3: '#6e7781', wal: '#3987e5', tok: '#d95926', trade: '#199e70', mesh: '#e6edf3', fill: 0.4 },
+  // the deck's own palette and fonts, for images rendered next to the deck (not written to docs/)
+  deck: { bg: '#0b121d', ink: '#f2f8ff', ink2: '#c9d8ea', ink3: '#64809f', wal: '#3987e5', tok: '#ff9f45', trade: '#34f5a4', mesh: '#c9d8ea', fill: 0.34, sans: "'Chakra Petch', sans-serif", mono: "'JetBrains Mono', monospace", noFile: true },
 };
 
 const N = {
@@ -40,14 +42,14 @@ function ribbon(xa, ya, ha, xb, yb, hb) {
 const lerp = (a, b, t) => a + (b - a) * t;
 const hAt = (x, xa, ha, xb, hb) => lerp(ha, hb, (x - xa) / (xb - xa));
 
-function draw(t) {
+export function draw(t) {
   const hW0 = H(N.wallets), hW1 = H(N.subscribed);
   const hT0 = H(N.tokens), hT1 = H(N.clean);
   const hM = H(N.opportunities), hX = H(N.positions);
   const hWf = hAt(xF, x0, hW0, x1, hW1), hTf = hAt(xF, x0, hT0, x1, hT1);
 
-  const SANS = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`;
-  const MONO = `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  const SANS = t.sans ?? `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`;
+  const MONO = t.mono ?? `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
   const text = (x, y, s, { size = 12, fill = t.ink2, anchor = 'middle', weight = 400, mono = false, spacing } = {}) =>
     `<text x="${x}" y="${y}" font-family="${mono ? MONO : SANS}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${spacing ? ` letter-spacing="${spacing}"` : ''}>${s}</text>`;
 
@@ -135,7 +137,9 @@ ${text((xF + x3 + 40) / 2, botY + 22, `skipped trades and backtests re-tune the 
 `;
 }
 
-for (const [name, theme] of Object.entries(THEMES)) {
+// write the README variants only when run directly, so draw() can be imported
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) for (const [name, theme] of Object.entries(THEMES)) {
+  if (theme.noFile) continue;
   const out = new URL(`../docs/loop-${name}.svg`, import.meta.url);
   fs.writeFileSync(out, draw(theme));
   console.log(`wrote docs/loop-${name}.svg`);
