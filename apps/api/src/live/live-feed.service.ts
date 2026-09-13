@@ -91,8 +91,25 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     const syncKey = `${url}|${addresses.slice().sort().join(',')}`;
     if (this.webhookSynced && syncKey === this.lastSyncKey && Date.now() - this.lastSyncAt < 3_600_000) return;
     const base = `https://api.helius.xyz/v0/webhooks?api-key=${key}`;
-    const list = (await fetch(base).then((r) => (r.ok ? r.json() : [])).catch(() => [])) as { webhookID: string; webhookURL: string }[];
-    const existing = list.find((w) => w.webhookURL === url);
+    const list = (await fetch(base).then((r) => (r.ok ? r.json() : [])).catch(() => [])) as {
+      webhookID: string;
+      webhookURL: string;
+      active?: boolean;
+      disabledReason?: string;
+    }[];
+    const matches = list.filter((w) => w.webhookURL === url);
+    // Helius auto-disables a webhook after 24h of failed deliveries (the API was
+    // down) and never re-enables it: a PUT still returns 200 and nothing is
+    // delivered — while the tunnel probe stays green, so the deadman calls it a
+    // quiet roster. Only a fresh webhook recovers, so replace disabled ones;
+    // duplicates would double-deliver. (The list endpoint omits addresses — read
+    // a webhook by id to see them.)
+    const live = matches.filter((w) => w.active !== false);
+    for (const w of [...matches.filter((m) => m.active === false), ...live.slice(1)]) {
+      console.error(`[live] removing webhook ${w.webhookID.slice(0, 8)} (${w.disabledReason ?? 'duplicate'})`);
+      await fetch(`https://api.helius.xyz/v0/webhooks/${w.webhookID}?api-key=${key}`, { method: 'DELETE' }).catch(() => undefined);
+    }
+    const existing = live[0];
     const body = JSON.stringify({
       webhookURL: url,
       transactionTypes: ['SWAP', 'TRANSFER'], // ANY burned the tunnel's monthly quota on vote/stake/NFT noise
