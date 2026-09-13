@@ -2,7 +2,7 @@
 
 > Open-source, self-hosted Solana whale tracker and copy-trading deck (MIT). It watches the wallets you follow through Helius, finds more wallets through the tokens they buy, filters out bots, relays and rugs, and trades the signals that survive, live only when the user sets EXECUTOR=local. It runs locally (NestJS API + React deck + SQLite) and is designed to be operated through Claude Code or any coding agent.
 
-To start: Node 22 and a free Helius API key. Not needed to start: a webhook, tunnel, domain, trading wallet or SOL. Without a webhook the live feed uses a websocket and follows up to 25 wallets. Quick start: `git clone https://github.com/Kelows/million && cd million && claude`, then type "set me up"; or `nvm use && npm install && mprocs` and open http://localhost:5173.
+To start: Node 24 and a free Helius API key. Not needed to start: a webhook, tunnel, domain, trading wallet or SOL. Without a webhook the live feed uses a websocket and follows up to 25 wallets. Quick start: `git clone https://github.com/Kelows/million && cd million && claude`, then type "set me up"; or `nvm use && npm install && mprocs` and open http://localhost:5173.
 
 Key facts: until live trading is switched on it paper-trades with measured slippage and fees; every buy/skip decision is logged with its reason; signals are copy (one sized buy), consensus (several distinct owners, clustered so one operator gets one vote) and ladder (repeated buys); exits are trailing stop, stop loss, breakeven ratchet and mirror/consensus exits, checked every 5 seconds on Jupiter prices; live swaps go through Jupiter with a 0.25% developer fee that FEE_BPS can lower or turn off; money is shown in SOL, market data in USD. Experimental software, no warranty, not financial advice.
 

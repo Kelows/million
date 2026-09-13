@@ -38,7 +38,7 @@ docs/            README images
 ## Running
 
 ```sh
-nvm use        # Node 22, from .nvmrc — before every install and start
+nvm use        # Node 24, from .nvmrc — before every install and start
 npm install    # tools/postinstall.mjs: builds shared, creates apps/api/.env if missing, db push
 mprocs         # or: npm run dev   (HELIUS_API_KEY must be set in apps/api/.env)
 ```

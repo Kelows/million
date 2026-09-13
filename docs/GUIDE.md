@@ -35,7 +35,7 @@ for you.
 
 ## Requirements
 
-- **Node 22** (`nvm use` reads `.nvmrc`)
+- **Node 24** (`nvm use` reads `.nvmrc`)
 - **A Helius API key.** The free tier is enough to start: [dashboard.helius.dev](https://dashboard.helius.dev).
   The key is yours and never leaves your machine except to call Helius.
 - **Optional:** a public URL for webhooks, only to follow more than 25 wallets
@@ -45,7 +45,7 @@ for you.
 ## Setup
 
 ```sh
-nvm use         # Node 22 from .nvmrc, in the same terminal as the rest
+nvm use         # Node 24 from .nvmrc, in the same terminal as the rest
 npm install     # builds packages/shared, creates apps/api/.env and the database
                 # then add your HELIUS_API_KEY to apps/api/.env
 mprocs          # or: npm run dev

@@ -1,0 +1,38 @@
+{
+  "name": "create-million",
+  "version": "1.0.0",
+  "description": "Set up million, the open-source self-hosted Solana whale tracker and copy-trading deck, in one command.",
+  "type": "module",
+  "bin": {
+    "create-million": "index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "solana",
+    "whale-tracker",
+    "copy-trading",
+    "solana-trading-bot",
+    "trading-bot",
+    "memecoin",
+    "helius",
+    "jupiter",
+    "claude-code",
+    "self-hosted",
+    "create"
+  ],
+  "homepage": "https://github.com/Kelows/million#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kelows/million.git",
+    "directory": "packages/create-million"
+  },
+  "bugs": "https://github.com/Kelows/million/issues",
+  "license": "MIT",
+  "author": "Kelows"
+}

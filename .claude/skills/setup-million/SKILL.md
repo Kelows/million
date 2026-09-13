@@ -18,7 +18,7 @@ Check, and fix what you can:
 
 - nvm installed (`command -v nvm` after sourcing `~/.nvm/nvm.sh`). If not, point
   them to https://github.com/nvm-sh/nvm. Then `nvm install && nvm use` (reads
-  `.nvmrc`, Node 22) and run every later `npm` command in that same shell.
+  `.nvmrc`, Node 24) and run every later `npm` command in that same shell.
 - `npm -v` works.
 - Optional, only needed later: `mprocs` (one terminal for everything),
   `cloudflared` (webhook feed). Don't install these unprompted.

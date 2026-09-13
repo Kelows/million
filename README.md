@@ -7,7 +7,7 @@ the signals that survive.
 
 ![The million deck: roster, open positions and PnL at a glance](docs/deck.png)
 
-**Start in three lines** (Node 22 and [Claude Code](https://claude.com/claude-code)):
+**Start in three lines** (Node 24 and [Claude Code](https://claude.com/claude-code)):
 
 ```sh
 git clone https://github.com/Kelows/million && cd million
@@ -17,7 +17,7 @@ claude
 
 | To start you need | You don't need |
 |---|---|
-| Node 22 | a webhook, tunnel, domain or Cloudflare account |
+| Node 24 | a webhook, tunnel, domain or Cloudflare account |
 | a free [Helius](https://dashboard.helius.dev) API key | a wallet or any SOL: it paper-trades until you switch live trading on |
 | | an account anywhere: it runs on your machine |
 
