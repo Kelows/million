@@ -304,17 +304,6 @@ export class OpportunitiesService {
     const crawlerRow = await this.prisma.crawlerConfig.findUnique({ where: { id: 1 } });
     const thresholds = CrawlerConfigSchema.parse(crawlerRow ? JSON.parse(crawlerRow.data) : {}).thresholds;
     const report = await this.tokenCheck.check(mint, thresholds).catch(() => null);
-    // keep the verdict: a token that traded on a PASS used to show "Not checked
-    // yet" on its own page, because only the manual check stored its report
-    if (report) {
-      await this.prisma.token
-        .upsert({
-          where: { mint },
-          create: { mint, symbol: report.symbol, name: report.name, source: 'opportunity', lastCheckedAt: new Date(), lastReport: JSON.stringify(report) },
-          update: { symbol: report.symbol ?? undefined, name: report.name ?? undefined, lastCheckedAt: new Date(), lastReport: JSON.stringify(report) },
-        })
-        .catch(() => undefined);
-    }
     if (!report) {
       this.decisions.record({ mint, wallet, stage: 'gauntlet', outcome: 'skip', code: 'gauntlet-error', reason: `${signal} signal, but the token checks could not run (a data source failed)` });
       return;
