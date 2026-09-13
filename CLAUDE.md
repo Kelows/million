@@ -23,11 +23,17 @@ docs/            findings behind the current rules
 ## Running
 
 ```sh
+nvm use                                  # Node 22, from .nvmrc — before every install and start
 npm install                              # also builds packages/shared
 cp apps/api/.env.example apps/api/.env   # HELIUS_API_KEY required
 npm run db:push
 mprocs                                   # or: npm run dev
 ```
+
+Use nvm, and run `nvm use` in the same shell before `npm` or `mprocs`: processes
+inherit the shell's Node, and a newer default (e.g. 23) runs the deck on the
+wrong version. Tell users without nvm to install it
+(https://github.com/nvm-sh/nvm) rather than working around the pin.
 
 After editing `packages/shared`, rebuild it: `npm run build -w packages/shared`.
 Health: `curl -s localhost:3001/api/health` → `{"ok":true,"heliusConfigured":true}`.

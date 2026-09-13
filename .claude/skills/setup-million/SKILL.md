@@ -16,7 +16,9 @@ and explain choices in one plain sentence each.
 
 Check, and fix what you can:
 
-- `node -v` → 22.x (`.nvmrc`). If not, suggest `nvm install 22 && nvm use`.
+- nvm installed (`command -v nvm` after sourcing `~/.nvm/nvm.sh`). If not, point
+  them to https://github.com/nvm-sh/nvm. Then `nvm install && nvm use` (reads
+  `.nvmrc`, Node 22) and run every later `npm` command in that same shell.
 - `npm -v` works.
 - Optional, only needed later: `mprocs` (one terminal for everything),
   `cloudflared` (webhook feed). Don't install these unprompted.
@@ -50,8 +52,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://mainnet.helius-rpc.com
 
 ## 4. Start it
 
-Recommend they run `mprocs` (or `npm run dev`) in their own terminal, so it keeps
-running after this conversation. Then wait for:
+Recommend they run `nvm use && mprocs` (or `nvm use && npm run dev`) in their own
+terminal, so it keeps running after this conversation on the right Node. Then wait for:
 
 ```sh
 curl -s localhost:3001/api/health        # {"ok":true,"heliusConfigured":true}
