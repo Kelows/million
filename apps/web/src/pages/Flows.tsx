@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { FlowRow } from '@million/shared';
 import { useFlows } from '../api';
-import { TokenName } from '../components/TokenName';
+import { TokenLink } from '../components/TokenName';
 import { Info } from '../components/Info';
 
 const WINDOWS = [15, 30, 60, 120];
@@ -74,9 +74,7 @@ function FlowTable({ title, tone, rows, hint, empty }: { title: string; tone: 'p
               {rows.map((r) => (
                 <tr key={r.mint} className="border-t border-line hover:bg-deck2">
                   <td className="px-4 py-2">
-                    <Link to="/tokens/$mint" params={{ mint: r.mint }} className="text-neon hover:underline">
-                      <TokenName mint={r.mint} symbol={r.symbol} />
-                    </Link>
+                    <TokenLink mint={r.mint} symbol={r.symbol} />
                   </td>
                   <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
                   <td className="px-4 py-2 text-right text-dim" title={`${r.wallets} wallets`}>{r.clips}</td>

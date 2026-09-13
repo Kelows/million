@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useCheckToken, useConvictionCohorts, useFamousTokens, useImportTokens, usePurgeJunkTokens, useRecheckAllJob, useStartRecheckAll, useTokens, useUntrackToken } from '../api';
-import { TokenName } from '../components/TokenName';
+import { TokenLink, TokenName } from '../components/TokenName';
 import { Info } from '../components/Info';
 import { Addr } from '../components/Addr';
 import { EyeIcon } from '../components/icons';
@@ -223,9 +223,7 @@ function FamousTable({ title, hint, rows, solLabel, pnlTone }: { title: string; 
               {rows.map((r) => (
                 <tr key={r.mint} className="border-t border-line hover:bg-deck2">
                   <td className="px-4 py-2">
-                    <Link to="/tokens/$mint" params={{ mint: r.mint }} className="text-neon hover:underline">
-                      <TokenName mint={r.mint} symbol={r.symbol} />
-                    </Link>
+                    <TokenLink mint={r.mint} symbol={r.symbol} />
                   </td>
                   <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
                   <td className={`px-4 py-2 text-right ${pnlTone ? (r.sol >= 0 ? 'text-profit' : 'text-loss') : 'text-bright'}`}>
@@ -275,9 +273,7 @@ function HeldTable({ rows }: { rows: FamousTokenRow[] }) {
               {sort.sorted.map((r) => (
                 <tr key={r.mint} className="border-t border-line hover:bg-deck2">
                   <td className="px-4 py-2">
-                    <Link to="/tokens/$mint" params={{ mint: r.mint }} className="text-neon hover:underline">
-                      <TokenName mint={r.mint} symbol={r.symbol} />
-                    </Link>
+                    <TokenLink mint={r.mint} symbol={r.symbol} />
                   </td>
                   <td className="px-4 py-2 text-right text-warn">{r.owners}</td>
                   <td className="px-4 py-2 text-right text-bright">{r.sol}</td>

@@ -5,7 +5,7 @@ import { TradingTiles } from '../components/TradingTiles';
 import { Addr } from '../components/Addr';
 import { fmtAgo, fmtPct, fmtSol, observedPnlSol, truncAddr } from '../lib/format';
 import { EyeIcon } from '../components/icons';
-import { TokenName } from '../components/TokenName';
+import { TokenLink } from '../components/TokenName';
 import { Info } from '../components/Info';
 import { FLAG_OPTIONS } from '../components/FlagChip';
 import { applyFilters, useStoredFilters, type FilterField } from '../lib/useTableFilters';
@@ -159,9 +159,7 @@ function TradingPanel() {
               {top.map((p) => (
                 <tr key={p.id} className="border-t border-line first:border-t-0 hover:bg-deck2">
                   <td className="px-4 py-2">
-                    <Link to="/tokens/$mint" params={{ mint: p.mint }} className="text-neon hover:underline">
-                      <TokenName mint={p.mint} symbol={p.symbol} />
-                    </Link>
+                    <TokenLink mint={p.mint} symbol={p.symbol} />
                   </td>
                   <td className="px-4 py-2 text-dim text-right">{p.sizeSol.toFixed(2)} ◎</td>
                   <td className={`px-4 py-2 text-right ${(p.unrealizedPct ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
