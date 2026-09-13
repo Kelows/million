@@ -28,7 +28,7 @@ export class ConsensusService {
     const byMint = new Map<string, ConsensusToken>();
     const ownersSeen = new Map<string, Set<string>>();
     for (const w of qualifying) {
-      for (const t of enteredPositions(w.metrics.tokens, minOpenSol, w.metrics.solPriceUsd ?? 200)) {
+      for (const t of enteredPositions(w.metrics, minOpenSol)) {
         let entry = byMint.get(t.mint);
         if (!entry) {
           entry = { mint: t.mint, symbol: t.symbol, count: 0, holders: [] };

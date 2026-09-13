@@ -3,6 +3,7 @@ import { summarizeMetrics, type FundingLink, type FundingReport, type WalletMetr
 import { computeMetrics } from '../analysis/metrics';
 import { HeliusService } from '../analysis/helius.service';
 import { PrismaService } from '../prisma.service';
+import { SolPriceService } from '../analysis/sol-price';
 
 const LAMPORTS = 1e9;
 const MAX_PAGES = 3;
@@ -15,6 +16,7 @@ export class FundingService {
   constructor(
     private readonly helius: HeliusService,
     private readonly prisma: PrismaService,
+    private readonly solPrices: SolPriceService,
   ) {}
 
   /**
@@ -88,12 +90,14 @@ export class FundingService {
 
     // quick swap analysis on the top unknown counterparties — the "worth adding" signal
     const candidates = links.filter((l) => !l.inRoster).slice(0, PREVIEW_CAP);
+    // $200 only if no SOL candles could be fetched at all
+    const priceAt = await this.solPrices.lookup(200);
     for (let i = 0; i < candidates.length; i += PREVIEW_CONCURRENCY) {
       await Promise.all(
         candidates.slice(i, i + PREVIEW_CONCURRENCY).map(async (link) => {
           const swaps = await this.helius.fetchSwaps(link.address, 1).catch(() => null);
           if (!swaps) return;
-          link.preview = summarizeMetrics(computeMetrics(link.address, swaps.txs, swaps.truncated));
+          link.preview = summarizeMetrics(computeMetrics(link.address, swaps.txs, swaps.truncated, priceAt));
         }),
       );
     }

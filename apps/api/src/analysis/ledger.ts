@@ -71,3 +71,66 @@ export function ledgerStep(
   if (dust) return { action: { op: 'delete' }, realizedSol: proceeds - existing.costSol, closed: true };
   return { action: { op: 'update', qty: remaining, costSol: existing.costSol - retired }, realizedSol: proceeds - retired, closed: false };
 }
+
+/**
+ * A token-for-token swap: tokens out, other tokens in, no real SOL or stablecoin
+ * leg. 8TWL sold ZCAT straight into CATE 23 times (9 Sep); each tx refunded a
+ * few thousandths of a SOL of account rent, so the ledger booked every one as
+ * a sale for dust. That invented a -671 SOL loss on ZCAT, and CATE's side
+ * counted as an airdrop with no cost.
+ */
+export const ROTATION_MAX_QUOTE_SOL = 0.05;
+
+export function isRotation(tokens: Map<string, number>, sol: number, usd: number, solUsd: number): boolean {
+  let out = false;
+  let into = false;
+  for (const d of tokens.values()) {
+    if (d < 0) out = true;
+    if (d > 0) into = true;
+  }
+  return out && into && Math.abs(sol) + Math.abs(usd) / solUsd < ROTATION_MAX_QUOTE_SOL;
+}
+
+/**
+ * The basis moves with the money: what the tokens given up cost is retired and
+ * carried into the tokens received, split evenly if there are several. Nothing
+ * is realized, because nothing was turned into SOL; the carried cost is
+ * realized when the new token is sold. A carry under the minimum spend (tokens
+ * we never saw bought) adds nothing, so a later sale stays unbacked instead of
+ * reading as pure profit.
+ */
+export function rotationSteps(positions: Map<string, LedgerPosition | null>, tokens: Map<string, number>): Map<string, LedgerAction> {
+  const actions = new Map<string, LedgerAction>();
+  let carried = 0;
+  const received: [string, number][] = [];
+  for (const [mint, delta] of tokens) {
+    if (delta > 0) {
+      received.push([mint, delta]);
+      continue;
+    }
+    const existing = positions.get(mint) ?? null;
+    if (delta === 0 || !existing || existing.qty <= 0) {
+      actions.set(mint, { op: 'none' });
+      continue;
+    }
+    const sold = Math.min(-delta, existing.qty);
+    const remaining = existing.qty - sold;
+    if (remaining <= existing.qty * LEDGER_DUST_FRACTION) {
+      carried += existing.costSol;
+      actions.set(mint, { op: 'delete' });
+    } else {
+      const retired = existing.costSol * (sold / existing.qty);
+      carried += retired;
+      actions.set(mint, { op: 'update', qty: remaining, costSol: existing.costSol - retired });
+    }
+  }
+  const share = received.length ? carried / received.length : 0;
+  for (const [mint, delta] of received) {
+    const existing = positions.get(mint) ?? null;
+    actions.set(
+      mint,
+      share >= LEDGER_MIN_SPEND_SOL ? { op: 'upsert', qty: (existing?.qty ?? 0) + delta, costSol: (existing?.costSol ?? 0) + share } : { op: 'none' },
+    );
+  }
+  return actions;
+}

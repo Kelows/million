@@ -10,19 +10,28 @@ import { usePagination } from '../lib/usePagination';
 import { EyeIcon } from '../components/icons';
 import { Pagination } from '../components/Pagination';
 import { SortHeader } from '../components/SortHeader';
-import type { TokenBreakdown } from '@million/shared';
+import { tokenRealizedSol, tokenSolIn, tokenSolOut, type TokenBreakdown, type WalletMetrics } from '@million/shared';
 
-const TOKEN_COLUMNS: SortColumn<TokenBreakdown>[] = [
+const NO_METRICS = { solEquivalent: true } as WalletMetrics;
+
+// Every amount in SOL, stablecoin legs included (see tokenSolIn in shared).
+const tokenColumns = (m: WalletMetrics = NO_METRICS): SortColumn<TokenBreakdown>[] => [
   { key: 'symbol', get: (t) => t.symbol },
   { key: 'trades', get: (t) => t.buys + t.sells },
-  { key: 'solIn', get: (t) => t.solIn },
-  { key: 'solOut', get: (t) => t.solOut },
-  { key: 'realized', get: (t) => t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / 200 },
+  { key: 'solIn', get: (t) => tokenSolIn(t, m) },
+  { key: 'solOut', get: (t) => tokenSolOut(t, m) },
+  { key: 'realized', get: (t) => tokenRealizedSol(t, m) },
   { key: 'hold', get: (t) => t.holdMinutes },
   { key: 'opened', get: (t) => (t.firstBuyAt ? new Date(t.firstBuyAt).getTime() : null) },
   { key: 'activity', get: (t) => (t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : null) },
   { key: 'state', get: (t) => (t.open ? 1 : 0) },
 ];
+
+/** Hover text for the stablecoin part of an amount, which the SOL figure already includes. */
+function stableNote(amountUsd: number | undefined, verb: 'paid' | 'received'): string | undefined {
+  if (!amountUsd || amountUsd < 1) return undefined;
+  return `includes $${Math.round(amountUsd).toLocaleString('en-US')} ${verb} in USDC/USDT, converted at the SOL price of each trade`;
+}
 
 export function WalletDetail() {
   const { address } = useParams({ from: '/wallets/$address' });
@@ -45,7 +54,7 @@ export function WalletDetail() {
   // hook must run on every render path, so it sits above the early returns
   const urlSearch = getRouteApi('/wallets/$address').useSearch();
   const navigate = useNavigate();
-  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], TOKEN_COLUMNS, urlSearch.sort ?? 'activity', urlSearch.dir ?? 'desc');
+  const tokenSort = useTableSort(wallet?.metrics?.tokens ?? [], tokenColumns(wallet?.metrics ?? undefined), urlSearch.sort ?? 'activity', urlSearch.dir ?? 'desc');
   useEffect(() => {
     void navigate({ to: '/wallets/$address', params: { address }, search: { sort: tokenSort.sortKey ?? undefined, dir: tokenSort.dir }, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,14 +277,9 @@ export function WalletDetail() {
                         </span>
                       </td>
                       <td className="px-4 py-2">{t.buys}/{t.sells}</td>
-                      <td className="px-4 py-2 text-right text-dim">{t.solIn.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-right text-dim">{t.solOut.toFixed(2)}</td>
-                      <td className={`px-4 py-2 text-right ${t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / 200 >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {fmtSol(t.realizedPnlSol)}
-                        {Math.abs(t.realizedPnlUsd ?? 0) >= 1 && (
-                          <span className="block text-xs opacity-80">{(t.realizedPnlUsd ?? 0) > 0 ? '+' : '−'}${Math.abs(Math.round(t.realizedPnlUsd ?? 0)).toLocaleString('en-US')}</span>
-                        )}
-                      </td>
+                      <td className="px-4 py-2 text-right text-dim" title={stableNote(t.usdIn, 'paid')}>{tokenSolIn(t, m).toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right text-dim" title={stableNote(t.usdOut, 'received')}>{tokenSolOut(t, m).toFixed(2)}</td>
+                      <td className={`px-4 py-2 text-right ${tokenRealizedSol(t, m) >= 0 ? 'text-profit' : 'text-loss'}`}>{fmtSol(tokenRealizedSol(t, m))}</td>
                       <td className="px-4 py-2">{fmtHold(t.holdMinutes)}</td>
                       <td className="px-4 py-2 text-dim whitespace-nowrap" title={t.firstBuyAt ?? ''}>{fmtAgo(t.firstBuyAt ?? null)}</td>
                       <td className="px-4 py-2 whitespace-nowrap" title={t.lastActivityAt ?? ''}>
@@ -286,7 +290,16 @@ export function WalletDetail() {
                           return <span className={cls}>{fmtAgo(t.lastActivityAt)}</span>;
                         })()}
                       </td>
-                      <td className="px-4 py-2 text-xs">{t.open ? <span className="text-warn">open</span> : <span className="text-dim">closed</span>}</td>
+                      <td className="px-4 py-2 text-xs">
+                        {t.open ? (
+                          <span className="text-warn">open</span>
+                        ) : t.sells === 0 ? (
+                          // bought, never sold, nothing left: sent to another wallet or swapped into another token
+                          <span className="text-dim" title="Bought, never sold for SOL or stablecoins, nothing left: sent to another wallet or swapped into another token.">moved out</span>
+                        ) : (
+                          <span className="text-dim">closed</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

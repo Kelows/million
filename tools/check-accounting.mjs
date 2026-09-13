@@ -31,7 +31,7 @@ execFileSync(
   { cwd: ROOT, stdio: 'inherit' },
 );
 const require = createRequire(import.meta.url);
-const { ledgerStep } = require(path.join(out, 'ledger.js'));
+const { ledgerStep, isRotation, rotationSteps } = require(path.join(out, 'ledger.js'));
 const { txDeltas, computeMetrics } = require(path.join(out, 'metrics.js'));
 
 let failed = 0;
@@ -148,6 +148,91 @@ console.log('\ncomputeMetrics — analysis replay, hand-computed');
   check('the transfer leaves nothing "still held": entrySol 0, closed', t?.entrySol === 0 && t?.open === false, JSON.stringify(t));
   const t2 = m.tokens.find((x) => x.mint === TOK2);
   check('selling tokens never seen bought realizes nothing (unbacked)', t2?.realizedPnlSol === 0, JSON.stringify(t2));
+}
+
+// ── 3b. stablecoin legs, converted at the SOL price of each trade ───────────
+console.log('\ncomputeMetrics — USDC legs in SOL at trade-time price');
+{
+  const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+  const TOK3 = 'Tok3333333333333333333333333333333333333333';
+  const TOK4 = 'Tok4444444444444444444444444444444444444444';
+  const H = 3600;
+  const priceAt = (ts) => (ts < 2 * H ? 100 : ts < 3 * H ? 125 : 150); // SOL: $100, then $125, then $150
+  const tx = (ts, type, sol, tokenTransfers) => ({
+    signature: `u${ts}`, timestamp: ts, type, source: 'TEST', feePayer: W, tokenTransfers, nativeTransfers: [],
+    accountData: [{ account: W, nativeBalanceChange: Math.round(sol * 1e9), tokenBalanceChanges: [] }],
+  });
+  const txs = [
+    // buy 1000 for $1,000 at SOL $100 → 10 SOL of cost
+    tx(1 * H, 'SWAP', 0, [{ fromUserAccount: W, toUserAccount: POOL, mint: USDC, tokenAmount: 1000 }, { fromUserAccount: POOL, toUserAccount: W, mint: TOK3, tokenAmount: 1000 }]),
+    // sell 500 for $750 at SOL $125 → 6 SOL in, 5 SOL of cost retired → +1
+    tx(2 * H, 'SWAP', 0, [{ fromUserAccount: W, toUserAccount: POOL, mint: TOK3, tokenAmount: 500 }, { fromUserAccount: POOL, toUserAccount: W, mint: USDC, tokenAmount: 750 }]),
+    // sell the other 500 for 3 native SOL at SOL $150 → 3 SOL in, 5 retired → -2
+    tx(3 * H, 'SWAP', 3, [{ fromUserAccount: W, toUserAccount: POOL, mint: TOK3, tokenAmount: 500 }]),
+    // the EMBER pattern: buy with $2,500 at SOL $150, then send every token to another wallet
+    tx(3 * H + 60, 'SWAP', 0, [{ fromUserAccount: W, toUserAccount: POOL, mint: USDC, tokenAmount: 2500 }, { fromUserAccount: POOL, toUserAccount: W, mint: TOK4, tokenAmount: 9000 }]),
+    tx(3 * H + 120, 'TRANSFER', 0, [{ fromUserAccount: W, toUserAccount: OTHER, mint: TOK4, tokenAmount: 9000 }]),
+  ];
+  const m = computeMetrics(W, txs, false, priceAt);
+  const t = m.tokens.find((x) => x.mint === TOK3);
+  check('SOL in = $1,000 / 100 = 10', near(t?.solIn ?? NaN, 10, 1e-3), JSON.stringify(t));
+  check('SOL out = $750 / 125 + 3 = 9', near(t?.solOut ?? NaN, 9, 1e-3), JSON.stringify(t));
+  check('the raw dollar legs are kept for display ($1,000 in, $750 out)', t?.usdIn === 1000 && t?.usdOut === 750, JSON.stringify(t));
+  // +$200 in dollars, but -1 SOL: SOL rose 50% while the money sat in the token
+  check('realized = (6 - 5) + (3 - 5) = -1 SOL, in one unit', near(t?.realizedPnlSol ?? NaN, -1, 1e-3), `got ${t?.realizedPnlSol}`);
+  check('no separate dollar PnL is left to add on top', t?.realizedPnlUsd === undefined && m.realizedPnlUsd === undefined, JSON.stringify({ t: t?.realizedPnlUsd, m: m.realizedPnlUsd }));
+  const t4 = m.tokens.find((x) => x.mint === TOK4);
+  check('stable-paid buy shows its SOL size ($2,500 / 150 = 16.667)', near(t4?.solIn ?? NaN, 16.667, 1e-3), JSON.stringify(t4));
+  check('...and sending the bag away leaves nothing held, no PnL', t4?.entrySol === 0 && t4?.open === false && t4?.realizedPnlSol === 0, JSON.stringify(t4));
+  check('wallet total matches the tokens (-1)', near(m.realizedPnlSol, -1, 1e-3) && m.realizedPnlTotalSol === m.realizedPnlSol && m.solEquivalent === true, JSON.stringify({ r: m.realizedPnlSol, t: m.realizedPnlTotalSol }));
+
+  // rows analyzed before the switch: the shared readers fold the dollar legs in once
+  const shared = require(path.join(ROOT, 'packages/shared/dist/index.js'));
+  const legacyM = { solPriceUsd: 200, tokens: [] };
+  const legacyT = { solIn: 0.008, usdIn: 17502, solOut: 0, usdOut: 0, realizedPnlSol: 1, realizedPnlUsd: 400 };
+  check('old row: SOL in = 0.008 + $17,502 / 200 = 87.518', near(shared.tokenSolIn(legacyT, legacyM), 87.518, 1e-6), `got ${shared.tokenSolIn(legacyT, legacyM)}`);
+  check('old row: realized = 1 + $400 / 200 = 3', near(shared.tokenRealizedSol(legacyT, legacyM), 3, 1e-9));
+  check('new row: readers add nothing (no double count)', near(shared.tokenSolIn(t, m), t.solIn) && near(shared.tokenRealizedSol(t, m), t.realizedPnlSol));
+}
+
+// ── 3c. token-for-token swaps ───────────────────────────────────────────────
+console.log('\ntoken-for-token swaps — the basis moves, nothing is realized');
+{
+  const A = 'TokA111111111111111111111111111111111111111';
+  const B = 'TokB111111111111111111111111111111111111111';
+  const C = 'TokC111111111111111111111111111111111111111';
+  const D = 'TokD111111111111111111111111111111111111111';
+  check('tokens out + tokens in + 0.006 SOL rent refund is a rotation', isRotation(new Map([[A, -1000], [B, 50]]), 0.006, 0, 100));
+  check('...but not with a real 0.5 SOL leg', !isRotation(new Map([[A, -1000], [B, 50]]), 0.5, 0, 100));
+  check('...and not a plain sell', !isRotation(new Map([[A, -1000]]), 0.006, 0, 100));
+
+  const live = rotationSteps(new Map([[A, { qty: 1000, costSol: 2 }], [B, null]]), new Map([[A, -500], [B, 300]]));
+  const la = live.get(A);
+  const lb = live.get(B);
+  check('live: half of A out retires 1.0 of its 2.0 cost', la?.op === 'update' && la.qty === 500 && near(la.costSol, 1), JSON.stringify(la));
+  check('live: B comes in carrying that 1.0', lb?.op === 'upsert' && lb.qty === 300 && near(lb.costSol, 1), JSON.stringify(lb));
+  const unknown = rotationSteps(new Map([[C, null], [D, null]]), new Map([[C, -10], [D, 10]]));
+  check('live: swapping a token never seen bought carries nothing', unknown.get(D)?.op === 'none', JSON.stringify([...unknown]));
+
+  const tx = (ts, type, sol, tokenTransfers) => ({
+    signature: `r${ts}`, timestamp: ts, type, source: 'TEST', feePayer: W, tokenTransfers, nativeTransfers: [],
+    accountData: [{ account: W, nativeBalanceChange: Math.round(sol * 1e9), tokenBalanceChanges: [] }],
+  });
+  const txs = [
+    tx(1, 'SWAP', -2.0, [{ fromUserAccount: POOL, toUserAccount: W, mint: A, tokenAmount: 1000 }]), // buy A for 2
+    tx(2, 'SWAP', 0.006, [{ fromUserAccount: W, toUserAccount: POOL, mint: A, tokenAmount: 1000 }, { fromUserAccount: POOL, toUserAccount: W, mint: B, tokenAmount: 40 }]), // A → B
+    tx(3, 'SWAP', 3.0, [{ fromUserAccount: W, toUserAccount: POOL, mint: B, tokenAmount: 40 }]), // sell B for 3
+    tx(4, 'SWAP', 0.007, [{ fromUserAccount: W, toUserAccount: POOL, mint: C, tokenAmount: 10 }, { fromUserAccount: POOL, toUserAccount: W, mint: D, tokenAmount: 10 }]), // C (never bought) → D
+    tx(5, 'SWAP', 1.0, [{ fromUserAccount: W, toUserAccount: POOL, mint: D, tokenAmount: 10 }]), // sell D for 1
+  ];
+  const m = computeMetrics(W, txs, false, 100);
+  const ta = m.tokens.find((x) => x.mint === A);
+  const tb = m.tokens.find((x) => x.mint === B);
+  const td = m.tokens.find((x) => x.mint === D);
+  check('analysis: A realizes nothing (was -1.994 as a dust sale)', ta?.realizedPnlSol === 0 && ta?.entrySol === 0 && ta?.open === false && ta?.sells === 0, JSON.stringify(ta));
+  check('analysis: B cost 2 (carried) and sold for 3: +1', near(tb?.solIn ?? NaN, 2, 1e-3) && near(tb?.realizedPnlSol ?? NaN, 1, 1e-3), JSON.stringify(tb));
+  check('analysis: D, from a token never seen bought, stays unbacked (no profit)', td === undefined || td.realizedPnlSol === 0, JSON.stringify(td));
+  check('analysis: wallet total +1', near(m.realizedPnlSol, 1, 1e-3), `got ${m.realizedPnlSol}`);
 }
 
 // ── 4. real chain ───────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { JUNK_FLAGS, openPositions, type OwnerAggregate, type WalletFlag, type W
 import { PrismaService } from '../prisma.service';
 import { HeliusService } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
+import { SolPriceService } from '../analysis/sol-price';
 import { TokenMetaService } from '../analysis/token-meta.service';
 import { OwnersService } from '../analysis/owners.service';
 import { EventsBus } from '../common/events.bus';
@@ -44,6 +45,7 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
     private readonly owners: OwnersService,
     private readonly config: ConfigService,
     private readonly bus: EventsBus,
+    private readonly solPrice: SolPriceService,
   ) {}
 
   private readonly log = new Logger(WalletsService.name);
@@ -279,7 +281,8 @@ export class WalletsService implements OnModuleInit, OnModuleDestroy {
         // rate-limited into emptiness — an empty 'done' analysis poisons scores silently
         throw new ServiceUnavailableException('rate limited while fetching history — re-run analysis');
       }
-      const metrics = computeMetrics(address, txs, truncated, solPrice);
+      // stable-paid trades convert at the SOL price of their own hour
+      const metrics = computeMetrics(address, txs, truncated, await this.solPrice.lookup(solPrice));
       if (stats) {
         metrics.lifetimeTxs = stats.txs;
         metrics.lifetimeCapped = stats.capped;

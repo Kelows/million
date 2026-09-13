@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   isExcludedToken,
+  tokenSolIn,
   whaleScore,
   type CopyabilityJobStatus,
   type CopyabilityResult,
@@ -103,7 +104,7 @@ export class CopyabilityService {
     if (!row?.metrics) return;
     const m = JSON.parse(row.metrics) as WalletMetrics;
     // size = what the whale actually spent buying (entrySol is REMAINING basis — zero once closed)
-    const sizeSol = (t: (typeof m.tokens)[number]) => t.solIn + (t.usdIn ?? 0) / (m.solPriceUsd ?? 200);
+    const sizeSol = (t: (typeof m.tokens)[number]) => tokenSolIn(t, m);
     const candidates = m.tokens
       .filter((t) => !t.open && t.sells > 0 && t.firstBuyAt && t.lastActivityAt && !isExcludedToken(t.mint))
       .filter((t) => sizeSol(t) >= MIN_ENTRY_SOL)

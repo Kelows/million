@@ -98,6 +98,14 @@ localhost only. The routes an agent needs:
 
 ## Conventions
 
+Money is SOL: everything a wallet or the deck spent, received, holds at cost or
+made. USDC/USDT legs convert at the SOL price of the trade's own hour
+(`SolPriceService`), and token-for-token swaps carry cost basis instead of
+realizing anything (`rotationSteps`). Dollars are for market data only: price,
+liquidity, market cap, volume. One number per cell; a dollar equivalent goes in
+a tooltip. Read old analysis rows through `tokenSolIn`/`tokenSolOut`/
+`tokenRealizedSol` in shared.
+
 Early returns, small modules, feature modules depend on `analysis/`, never the
 reverse. Comments explain why, including what was measured. Commit messages
 explain the defect and the evidence, not just the change.

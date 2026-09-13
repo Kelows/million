@@ -7,7 +7,7 @@ import { TradingService } from '../trading/trading.service';
 import { toObserved } from '../wallets/wallets.service';
 import { EventsBus } from '../common/events.bus';
 import { orchestratedDeltas, txDeltas } from '../analysis/metrics';
-import { ledgerStep } from '../analysis/ledger';
+import { isRotation, ledgerStep, rotationSteps } from '../analysis/ledger';
 import { DecisionLog } from '../common/decision-log';
 import type { HeliusTx } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
@@ -260,6 +260,27 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Token-for-token swap: carry the basis between the roster rows, book nothing (rotationSteps). */
+  private async applyRotation(wallet: string, tokens: Map<string, number>): Promise<void> {
+    const rows = await this.prisma.rosterPosition.findMany({ where: { wallet, mint: { in: [...tokens.keys()] } } });
+    const byMint = new Map(rows.map((r) => [r.mint, r]));
+    const actions = rotationSteps(new Map([...tokens.keys()].map((m) => [m, byMint.get(m) ?? null])), tokens);
+    for (const [mint, action] of actions) {
+      const existing = byMint.get(mint);
+      if (action.op === 'upsert') {
+        await this.prisma.rosterPosition.upsert({
+          where: { wallet_mint: { wallet, mint } },
+          create: { wallet, mint, qty: action.qty, costSol: action.costSol, source: 'live' },
+          update: { qty: action.qty, costSol: action.costSol, source: 'live' },
+        });
+      } else if (action.op === 'update' && existing) {
+        await this.prisma.rosterPosition.update({ where: { id: existing.id }, data: { qty: action.qty, costSol: action.costSol, source: 'live' } }).catch(() => undefined);
+      } else if (action.op === 'delete' && existing) {
+        await this.prisma.rosterPosition.delete({ where: { id: existing.id } }).catch(() => undefined);
+      }
+    }
+  }
+
   private async applyToLedger(wallet: string, mint: string, tokenDelta: number, sol: number, usd: number, txType: string): Promise<void> {
     if (tokenDelta === 0) return;
     const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
@@ -508,7 +529,12 @@ export class LiveFeedService implements OnModuleInit, OnModuleDestroy {
       })
       .catch(() => null); // duplicate race is fine
     if (event) this.bus.emit('live_event');
-    if (event && mint) void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd, tx.type).catch(() => undefined);
+    if (event && mint) {
+      // a token-for-token swap moves the basis across every mint in the tx, so it can't go one mint at a time
+      const solUsd = await this.dexscreener.fetchSolPriceUsd().catch(() => 200);
+      if (isRotation(tokens, sol, usd, solUsd)) void this.applyRotation(wallet, tokens).catch(() => undefined);
+      else void this.applyToLedger(wallet, mint, tokens.get(mint) ?? 0, sol, usd, tx.type).catch(() => undefined);
+    }
     if (event) void this.touchWallet(wallet).catch(() => undefined);
     if (event && mint && kind === 'other') this.explainNonBuy(wallet, mint, tokens.get(mint) ?? 0, tx.type);
     // a roster trade in a token we hold is when its price moves: check its exits now

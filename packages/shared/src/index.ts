@@ -37,13 +37,16 @@ export interface TokenBreakdown {
   symbol: string | null;
   buys: number;
   sells: number;
+  // Amounts are SOL. With `WalletMetrics.solEquivalent`, USDC/USDT legs are
+  // already converted at the SOL price of each trade's hour; older rows kept the
+  // stable legs apart — read them through tokenSolIn/tokenSolOut/tokenRealizedSol.
   solIn: number; // SOL spent buying
   solOut: number; // SOL received selling
-  usdIn?: number; // USDC/USDT spent buying
-  usdOut?: number; // USDC/USDT received selling
+  usdIn?: number; // the USDC/USDT part of what was spent, raw dollars (display only)
+  usdOut?: number; // the USDC/USDT part of what was received, raw dollars (display only)
   realizedPnlSol: number;
-  realizedPnlUsd?: number;
-  entrySol?: number; // total entry cost expressed in SOL (usd leg converted at analysis-time price)
+  realizedPnlUsd?: number; // rows before solEquivalent only: the stable legs' PnL, kept apart
+  entrySol?: number; // remaining cost basis in SOL
   qty?: number; // tokens still held — without this, an open position's P&L is unmeasurable
   holdMinutes: number | null; // first buy -> last sell
   firstBuyAt?: string | null; // ISO — when the position was opened
@@ -59,8 +62,9 @@ export interface WalletMetrics {
   closedTokens: number;
   winRate: number | null; // profitable closed tokens / closed tokens
   realizedPnlSol: number;
-  realizedPnlUsd?: number;
+  realizedPnlUsd?: number; // rows before solEquivalent only
   realizedPnlTotalSol?: number;
+  solEquivalent?: boolean; // true: every amount is SOL with stable legs converted at trade time
   unbackedPnlSol?: number; // proceeds from selling tokens with no recorded buy — cash, not measured profit
   solPriceUsd?: number;
   medianHoldMinutes: number | null;
@@ -189,11 +193,17 @@ export const DEFAULT_MIN_OPEN_SOL = 1;
 
 /** Tokens a wallet ENTERED in its analysis window (>= minSol total entry, stables excluded).
  * The consensus signal: co-entry beats still-holding — meme wallets flip too fast to overlap on holds. */
-export function enteredPositions(tokens: TokenBreakdown[], minSol: number, solPriceUsd = 200): TokenBreakdown[] {
-  return tokens.filter(
-    (t) => t.buys > 0 && !isExcludedToken(t.mint, t.symbol) && t.solIn + (t.usdIn ?? 0) / solPriceUsd >= minSol,
-  );
+export function enteredPositions(m: WalletMetrics, minSol: number): TokenBreakdown[] {
+  return m.tokens.filter((t) => t.buys > 0 && !isExcludedToken(t.mint, t.symbol) && tokenSolIn(t, m) >= minSol);
 }
+
+// One unit everywhere: SOL. Rows analyzed before `solEquivalent` stored the
+// stablecoin legs separately; these fold them in at the price the row was
+// analyzed with, so old and new rows read the same way until re-analyzed.
+const legacyUsd = (m: WalletMetrics, usd: number | undefined) => (m.solEquivalent ? 0 : (usd ?? 0) / (m.solPriceUsd ?? 200));
+export const tokenSolIn = (t: TokenBreakdown, m: WalletMetrics) => t.solIn + legacyUsd(m, t.usdIn);
+export const tokenSolOut = (t: TokenBreakdown, m: WalletMetrics) => t.solOut + legacyUsd(m, t.usdOut);
+export const tokenRealizedSol = (t: TokenBreakdown, m: WalletMetrics) => t.realizedPnlSol + legacyUsd(m, t.realizedPnlUsd);
 
 /** A wallet's open positions — stablecoins and dust-sized entries excluded. */
 export function openPositions(tokens: TokenBreakdown[], minSol: number = DEFAULT_MIN_OPEN_SOL): TokenBreakdown[] {

@@ -57,7 +57,7 @@ export class OwnersService {
     for (const w of rows) {
       const m = JSON.parse(w.metrics as string) as WalletMetrics;
       if (m.flags.includes('BOT_INFRA')) continue;
-      const mints = new Set(enteredPositions(m.tokens, 0.5, m.solPriceUsd ?? 200).map((t) => t.mint));
+      const mints = new Set(enteredPositions(m, 0.5).map((t) => t.mint));
       if (mints.size) entered.set(w.address, mints);
     }
     const addrs = [...entered.keys()];

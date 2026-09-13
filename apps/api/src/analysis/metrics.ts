@@ -1,5 +1,7 @@
 import type { TokenBreakdown, WalletFlag, WalletMetrics } from '@million/shared';
 import type { HeliusTx } from './helius.service';
+import type { SolPriceAt } from './sol-price';
+import { isRotation } from './ledger';
 
 const WSOL = 'So11111111111111111111111111111111111111112';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -15,11 +17,12 @@ export interface TxDeltas {
 const SOL_EPS = 0.005;
 const USD_EPS = 0.5;
 
+// Every amount below is SOL, with USDC/USDT legs converted at the SOL price of
+// the trade's own hour. usdIn/usdOut keep the raw stablecoin legs, for display.
 interface Position {
   mint: string;
   qty: number;
   costSol: number;
-  costUsd: number;
   buys: number;
   sells: number;
   solIn: number;
@@ -27,9 +30,7 @@ interface Position {
   usdIn: number;
   usdOut: number;
   realSol: number;
-  realUsd: number;
   unbackedSol: number; // proceeds from selling tokens we never saw bought — not profit, just cash
-  unbackedUsd: number;
   firstBuyTs: number | null;
   lastBuyTs: number | null;
   lastSellTs: number | null;
@@ -41,7 +42,9 @@ interface Position {
  * stable-quoted traders are invisible to a SOL-only ledger). Also derives
  * infrastructure signals: sweeps, deliveries, external fee payers, counterparties.
  */
-export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boolean, solPriceUsd = 200): WalletMetrics {
+export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boolean, solPrice: number | SolPriceAt = 200): WalletMetrics {
+  const priceAt: SolPriceAt = typeof solPrice === 'number' ? () => solPrice : solPrice;
+  const solPriceUsd = priceAt(Date.now() / 1000);
   const ordered = [...txs].sort((a, b) => a.timestamp - b.timestamp);
   const positions = new Map<string, Position>();
   const counterparties = new Set<string>();
@@ -54,7 +57,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   const getPos = (mint: string): Position => {
     let p = positions.get(mint);
     if (!p) {
-      p = { mint, qty: 0, costSol: 0, costUsd: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, realUsd: 0, unbackedSol: 0, unbackedUsd: 0, firstBuyTs: null, lastBuyTs: null, lastSellTs: null };
+      p = { mint, qty: 0, costSol: 0, buys: 0, sells: 0, solIn: 0, solOut: 0, usdIn: 0, usdOut: 0, realSol: 0, unbackedSol: 0, firstBuyTs: null, lastBuyTs: null, lastSellTs: null };
       positions.set(mint, p);
     }
     return p;
@@ -73,37 +76,65 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       continue;
     }
 
+    const px = priceAt(tx.timestamp);
+
+    // token-for-token swap: carry the basis, realize nothing (see rotationSteps)
+    if (isRotation(tokenDeltas, sol, usd, px)) {
+      let carried = 0;
+      const received: [Position, number][] = [];
+      for (const [mint, delta] of tokenDeltas) {
+        const p = getPos(mint);
+        if (delta > 0) received.push([p, delta]);
+        else if (delta < 0 && p.qty > 0) {
+          const fraction = Math.min(-delta, p.qty) / p.qty;
+          carried += p.costSol * fraction;
+          p.costSol *= 1 - fraction;
+          p.qty = Math.max(0, p.qty + delta);
+        }
+      }
+      const share = received.length ? carried / received.length : 0;
+      if (share >= 0.01) {
+        for (const [p, delta] of received) {
+          p.buys++;
+          p.qty += delta;
+          p.costSol += share;
+          p.solIn += share; // what the position cost: the basis of the tokens given for it
+          if (p.firstBuyTs === null) p.firstBuyTs = tx.timestamp;
+          p.lastBuyTs = tx.timestamp;
+        }
+        tradeTxCount++;
+      }
+      continue;
+    }
+
     let traded = false;
     for (const [mint, delta] of tokenDeltas) {
       const p = getPos(mint);
       if (delta > 0 && (sol < -SOL_EPS || usd < -USD_EPS)) {
         // buy: token in, quote out
-        const cs = sol < 0 ? -sol : 0;
         const cu = usd < 0 ? -usd : 0;
+        const spent = (sol < 0 ? -sol : 0) + cu / px;
         p.buys++;
         p.qty += delta;
-        p.costSol += cs;
-        p.costUsd += cu;
-        p.solIn += cs;
+        p.costSol += spent;
+        p.solIn += spent;
         p.usdIn += cu;
         if (p.firstBuyTs === null) p.firstBuyTs = tx.timestamp;
         p.lastBuyTs = tx.timestamp;
         traded = true;
       } else if (delta < 0 && (sol > SOL_EPS || usd > USD_EPS)) {
         // sell: token out, quote in
-        const gs = sol > 0 ? sol : 0;
         const gu = usd > 0 ? usd : 0;
+        const got = (sol > 0 ? sol : 0) + gu / px;
         const sold = -delta;
         p.sells++;
-        p.solOut += gs;
+        p.solOut += got;
         p.usdOut += gu;
         p.lastSellTs = tx.timestamp;
         if (p.qty > 0) {
           const fraction = Math.min(sold, p.qty) / p.qty;
-          p.realSol += gs - p.costSol * fraction;
-          p.realUsd += gu - p.costUsd * fraction;
+          p.realSol += got - p.costSol * fraction;
           p.costSol *= 1 - fraction;
-          p.costUsd *= 1 - fraction;
           p.qty = Math.max(0, p.qty - sold);
         } else {
           // Sold tokens we never saw bought — acquired before our window, or
@@ -111,8 +142,7 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
           // phantom PnL across the roster and pushed those wallets to the top
           // of the scoring range. Profit needs a cost basis; this has none, so
           // it is tracked separately and kept out of realized.
-          p.unbackedSol += gs;
-          p.unbackedUsd += gu;
+          p.unbackedSol += got;
         }
         traded = true;
       } else if (delta < 0) {
@@ -123,7 +153,6 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
         if (p.qty > 0) {
           const fraction = Math.min(-delta, p.qty) / p.qty;
           p.costSol *= 1 - fraction;
-          p.costUsd *= 1 - fraction;
           p.qty = Math.max(0, p.qty + delta);
         }
       }
@@ -144,9 +173,8 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
       usdIn: round(p.usdIn),
       usdOut: round(p.usdOut),
       realizedPnlSol: round(p.realSol),
-      realizedPnlUsd: round(p.realUsd),
-      // remaining cost basis in SOL terms — the live exposure, not the total ever bought
-      entrySol: round(p.costSol + p.costUsd / solPriceUsd),
+      // remaining cost basis — the live exposure, not the total ever bought
+      entrySol: round(p.costSol),
       qty: p.qty,
       holdMinutes:
         p.firstBuyTs !== null && p.lastSellTs !== null && p.lastSellTs >= p.firstBuyTs
@@ -158,12 +186,12 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
           ? new Date(Math.max(p.lastBuyTs ?? 0, p.lastSellTs ?? 0) * 1000).toISOString()
           : null,
       // open = still holding a meaningful position; partial exits stay open (whales sell half and ride)
-      open: p.qty > 1e-9 && p.costSol + p.costUsd / solPriceUsd > 0.02,
+      open: p.qty > 1e-9 && p.costSol > 0.02,
     }))
-    .sort((a, b) => b.realizedPnlSol + (b.realizedPnlUsd ?? 0) / solPriceUsd - (a.realizedPnlSol + (a.realizedPnlUsd ?? 0) / solPriceUsd));
+    .sort((a, b) => b.realizedPnlSol - a.realizedPnlSol);
 
   const closed = tokens.filter((t) => t.buys > 0 && t.sells > 0);
-  const wins = closed.filter((t) => t.realizedPnlSol + (t.realizedPnlUsd ?? 0) / solPriceUsd > 0).length;
+  const wins = closed.filter((t) => t.realizedPnlSol > 0).length;
   const holds = closed.map((t) => t.holdMinutes).filter((h): h is number => h !== null).sort((a, b) => a - b);
   const timestamps = ordered.map((t) => t.timestamp);
   const firstSeen = timestamps.length ? timestamps[0] : null;
@@ -173,7 +201,6 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   const winRate = closed.length ? wins / closed.length : null;
   const medianHold = holds.length ? holds[Math.floor(holds.length / 2)] : null;
   const realizedPnlSol = round(tokens.reduce((s, t) => s + t.realizedPnlSol, 0));
-  const realizedPnlUsd = round(tokens.reduce((s, t) => s + (t.realizedPnlUsd ?? 0), 0));
 
   const spanDays = firstSeen !== null && lastSeen !== null ? Math.max((lastSeen - firstSeen) / 86400, 1 / 24) : 1 / 24;
   const txPerDay = ordered.length / spanDays;
@@ -199,10 +226,10 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
   if (firstSeen !== null && now - firstSeen < 7 * 86400 && !truncated) flags.push('FRESH_WALLET');
   if (medianHold !== null && medianHold < 5 && closed.length >= 5) flags.push('SNIPER_SPEED');
   if (winRate !== null && winRate > 0.9 && closed.length >= 20) flags.push('HIGH_WINRATE_SUS');
-  const unbackedTotal = [...positions.values()].reduce((sum, p) => sum + p.unbackedSol + p.unbackedUsd / solPriceUsd, 0);
+  const unbackedTotal = [...positions.values()].reduce((sum, p) => sum + p.unbackedSol, 0);
   // history truncation makes a wallet look brilliant: it sells bags we never saw
   // it buy, and every sale reads as pure profit. Flag it rather than trust it.
-  if (unbackedTotal > 1 && unbackedTotal > Math.abs(realizedPnlSol + realizedPnlUsd / solPriceUsd)) flags.push('UNBACKED_HISTORY');
+  if (unbackedTotal > 1 && unbackedTotal > Math.abs(realizedPnlSol)) flags.push('UNBACKED_HISTORY');
   if (closed.length < 5) flags.push('LOW_ACTIVITY');
   if (lastSeen !== null && now - lastSeen > 14 * 86400) flags.push('DORMANT');
 
@@ -216,12 +243,10 @@ export function computeMetrics(wallet: string, txs: HeliusTx[], truncated: boole
     closedTokens: closed.length,
     winRate: winRate !== null ? round(winRate) : null,
     realizedPnlSol,
-    realizedPnlUsd,
-    realizedPnlTotalSol: round(realizedPnlSol + realizedPnlUsd / solPriceUsd),
-    unbackedPnlSol: round(
-      [...positions.values()].reduce((sum, p) => sum + p.unbackedSol + p.unbackedUsd / solPriceUsd, 0),
-    ),
+    realizedPnlTotalSol: realizedPnlSol, // the same number now; kept for rows written before the switch
+    unbackedPnlSol: round(unbackedTotal),
     solPriceUsd: round(solPriceUsd),
+    solEquivalent: true,
     medianHoldMinutes: medianHold,
     firstSeen: firstSeen !== null ? new Date(firstSeen * 1000).toISOString() : null,
     lastSeen: lastSeen !== null ? new Date(lastSeen * 1000).toISOString() : null,

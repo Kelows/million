@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { summarizeMetrics, type DiscoveryReport, type WhaleCandidate } from '@million/shared';
 import { HeliusService, type HeliusTx } from '../analysis/helius.service';
 import { DexScreenerService } from '../analysis/dexscreener.service';
+import { SolPriceService, type SolPriceAt } from '../analysis/sol-price';
 import { computeMetrics } from '../analysis/metrics';
 import { PrismaService } from '../prisma.service';
 
@@ -34,6 +35,7 @@ export class DiscoveryService {
     private readonly helius: HeliusService,
     private readonly dexscreener: DexScreenerService,
     private readonly prisma: PrismaService,
+    private readonly solPrices: SolPriceService,
   ) {}
 
   /** Pool accounts and their vaults for this mint, plus the routers everything trades through. */
@@ -62,7 +64,7 @@ export class DiscoveryService {
     sinceDays = 30,
     buckets = DEFAULT_DEEP_BUCKETS,
   ): Promise<DiscoveryReport> {
-    const solPrice = await this.dexscreener.fetchSolPriceUsd();
+    const solPrice = await this.solPrices.lookup(await this.dexscreener.fetchSolPriceUsd());
     const { txs, truncated } = mode === 'deep' ? await this.deepSample(mint, sinceDays, buckets) : await this.helius.fetchHistory(mint, pages);
 
     // The pool is on both sides of every swap, so it always looks like the
@@ -202,7 +204,7 @@ export class DiscoveryService {
   }
 
   /** Per tx: accounts that received the mint -> how much of their own quote they paid. */
-  private buyersOf(tx: HeliusTx, mint: string, solPrice: number): Map<string, number> {
+  private buyersOf(tx: HeliusTx, mint: string, solPrice: SolPriceAt): Map<string, number> {
     const receivers = new Set<string>();
     for (const t of tx.tokenTransfers ?? []) {
       if (t.mint === mint && t.toUserAccount) receivers.add(t.toUserAccount);
@@ -215,7 +217,7 @@ export class DiscoveryService {
       for (const t of tx.tokenTransfers ?? []) {
         if (t.fromUserAccount !== receiver) continue;
         if (t.mint === WSOL) sol += t.tokenAmount;
-        else if (t.mint === USDC || t.mint === USDT) sol += t.tokenAmount / solPrice;
+        else if (t.mint === USDC || t.mint === USDT) sol += t.tokenAmount / solPrice(tx.timestamp);
       }
       if (sol > 0) spend.set(receiver, sol);
     }
