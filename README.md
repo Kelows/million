@@ -1,10 +1,33 @@
 # million
 
-A self-hosted Solana whale tracker that grew into a trading loop. It watches
-wallets, finds more wallets through the tokens they buy, filters out bots and
-rugs, and turns what's left into trade signals — paper first, live if you choose.
+**An open-source, self-hosted Solana whale tracker and copy-trading deck.** It
+watches the wallets you follow, finds more wallets through the tokens they buy,
+filters out bots and rugs, and trades the signals that survive: on paper by
+default, live only when you choose. You can run the whole thing by talking to
+Claude Code.
 
 ![The million deck: roster, open positions and PnL at a glance](docs/deck.png)
+
+**Start in three lines** (Node 22 and [Claude Code](https://claude.com/claude-code)):
+
+```sh
+git clone https://github.com/Kelows/million && cd million
+claude
+> set me up
+```
+
+Without Claude Code: `nvm use && npm install && mprocs`, put a free
+[Helius](https://dashboard.helius.dev) key in `apps/api/.env`, open
+http://localhost:5173.
+
+| To start you need | To start you don't need |
+|---|---|
+| Node 22 | a webhook, tunnel, domain or Cloudflare account |
+| a free Helius API key | a trading wallet or any SOL (paper trading is the default) |
+| | an account anywhere: it runs on your machine |
+
+Without a webhook the live feed uses a websocket and follows up to 25 wallets.
+A webhook only lifts that cap ([Live feed](#live-feed)).
 
 > **Experimental. Provided as is, with no warranty.** This is a research tool,
 > not a money printer, and nothing in it is financial advice. Trading meme coins
@@ -49,15 +72,7 @@ claude  OPENED FRIES · 0.2 SOL (paper) · copy signal from AgmL…zN51,
 
 (An illustration of the conversation, not a record of trades.)
 
-**Start in three lines:**
-
-```sh
-git clone https://github.com/Kelows/million && cd million
-claude
-> set me up
-```
-
-That's it. Claude reads the project, follows the setup skill, and asks you for
+Start with the three lines at the top of this page. Claude reads the project, follows the setup skill, and asks you for
 what only you can decide: your Helius key, your size, your style, the wallets to
 start from. Everything it runs is in the open, in this repo.
 
@@ -139,7 +154,8 @@ Everything feeds everything.
 - **Node 22** (`nvm use` reads `.nvmrc`)
 - **A Helius API key.** The free tier is enough to start: [dashboard.helius.dev](https://dashboard.helius.dev).
   The key is yours and never leaves your machine except to call Helius.
-- **A public URL for webhooks** (optional, see [Live feed](#live-feed))
+- **Optional:** a public URL for webhooks, only to follow more than 25 wallets
+  (see [Live feed](#live-feed)). Without one, the `tunnel` pane just idles.
 - [mprocs](https://github.com/pvolok/mprocs) (optional) to run everything in one terminal
 
 ## Setup
@@ -166,7 +182,7 @@ two ways to receive them.
 and subscribes wallet by wallet. It works from localhost, but it tops out at
 **25 wallets**.
 
-**Webhook (no cap).** Helius posts transactions to a public URL, so your machine
+**Webhook (optional, no cap).** Helius posts transactions to a public URL, so your machine
 needs one. This is the extra step, and it is deliberate: running a tunnel is a
 small commitment, and anyone who does is probably going to watch the book too.
 
@@ -278,8 +294,70 @@ apps/api         NestJS API — Prisma + SQLite, Helius, Jupiter, DexScreener
 apps/web         React deck — Vite, TanStack Router and Query, Tailwind
 packages/shared  zod schemas and types shared by both
 tools/           research and check scripts
+tools/claude/    deck status and live watcher used by the agent skills
+.claude/skills/  playbooks: setup, brief, why-not-bought, tune-rules, watch, find-first-whales
 docs/            README images
+CLAUDE.md        rules for Claude Code · AGENTS.md the same for other agents · llms.txt summary for AI crawlers
 ```
+
+## How it compares
+
+Hosted Solana trading bots and terminals (Photon, GMGN, Axiom, Trojan and
+similar) are fast and polished. million makes different trade-offs:
+
+| | Hosted bots and terminals | million |
+|---|---|---|
+| Where it runs | their servers | your machine |
+| Trading keys | usually generated or held by the service | a keypair file on your disk, only if you go live |
+| Fee | typically 0.5–1% per trade | 0.25% per live swap, `FEE_BPS=0` turns it off |
+| Code | closed | open source, MIT |
+| Why a trade did or didn't happen | usually not shown | every decision logged with its reason |
+| Paper trading | varies | the default, with measured slippage and fees |
+| Rules | the settings they expose | every threshold, in code you can change |
+
+What million doesn't do: sniping new launches, a mobile app, or hosting for
+you. If a stop has to fire, the deck has to be running.
+
+## FAQ
+
+**Is there an open-source Solana copy-trading bot I can self-host?**
+Yes, this one. Clone it, run it locally, read every line. MIT licensed.
+
+**Do I need a webhook, a tunnel or a domain?**
+No. The live feed works over a websocket for up to 25 followed wallets. A
+webhook (Cloudflare Tunnel or ngrok) is only for following more.
+
+**Do I need a Helius API key?**
+Yes, a free one. It's how the deck reads wallet histories and live
+transactions. It stays in `apps/api/.env` on your machine.
+
+**Does it hold my private key or my money?**
+No. Paper trading, the default, needs no wallet at all. Live trading signs with
+a keypair file on your own disk, and it only turns on when you set
+`EXECUTOR=local` yourself.
+
+**Can it trade real SOL automatically?**
+Only if you switch it on. Then every signal that passes your rules is bought
+with real SOL without asking, within the per-trade cap you set. Start on paper.
+
+**How does it find whales?**
+From tokens: pull a token's biggest buyers, analyze their trading history, and
+flag bots, relays and clusters of wallets run by one person (see
+`/find-first-whales`). From wallets: every token a followed wallet buys leads to
+more wallets.
+
+**Why didn't it buy a token I expected?**
+Ask Claude (`/why-not-bought <token>`) or open the token page: every decision is
+logged with the rule that stopped it.
+
+**Does it work with AI agents other than Claude Code?**
+Everything the deck does is a plain local HTTP API, documented in `AGENTS.md`,
+so any coding agent can drive it. The skills in `.claude/skills` are written for
+Claude Code.
+
+**Is it profitable?**
+Nobody can promise that, and this project's own measurements found past returns
+don't predict future ones. Treat it as a research tool and start on paper.
 
 ## License
 

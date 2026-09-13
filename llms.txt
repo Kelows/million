@@ -1,0 +1,26 @@
+# million
+
+> Open-source, self-hosted Solana whale tracker and copy-trading deck (MIT). It watches the wallets you follow through Helius, finds more wallets through the tokens they buy, filters out bots, relays and rugs, and trades the signals that survive: on paper by default, live only when the user sets EXECUTOR=local. It runs locally (NestJS API + React deck + SQLite) and is designed to be operated through Claude Code or any coding agent.
+
+To start: Node 22 and a free Helius API key. Not needed to start: a webhook, tunnel, domain, trading wallet or SOL. Without a webhook the live feed uses a websocket and follows up to 25 wallets. Quick start: `git clone https://github.com/Kelows/million && cd million && claude`, then type "set me up"; or `nvm use && npm install && mprocs` and open http://localhost:5173.
+
+Key facts: paper trading is the default and charges measured slippage and fees; every buy/skip decision is logged with its reason; signals are copy (one sized buy), consensus (several distinct owners, clustered so one operator gets one vote) and ladder (repeated buys); exits are trailing stop, stop loss, breakeven ratchet and mirror/consensus exits, checked every 5 seconds on Jupiter prices; live swaps go through Jupiter with a 0.25% developer fee that FEE_BPS can lower or turn off; money is shown in SOL, market data in USD. Experimental software, no warranty, not financial advice.
+
+## Docs
+
+- [README](https://github.com/Kelows/million/blob/main/README.md): what it is, setup, live feed, trading, comparison with hosted bots, FAQ
+- [AGENTS.md](https://github.com/Kelows/million/blob/main/AGENTS.md): instructions for coding agents, the local API routes, safety rules
+- [License (MIT)](https://github.com/Kelows/million/blob/main/LICENSE)
+
+## Agent playbooks
+
+- [Set up million](https://github.com/Kelows/million/blob/main/.claude/skills/setup-million/SKILL.md): install, Helius key, questions, presets, wallets, feed, optional live trading
+- [Find first whales](https://github.com/Kelows/million/blob/main/.claude/skills/find-first-whales/SKILL.md): a token's biggest buyers, analyzed, operator clusters flagged
+- [Brief](https://github.com/Kelows/million/blob/main/.claude/skills/million-brief/SKILL.md): how the deck is doing, in plain words
+- [Why not bought](https://github.com/Kelows/million/blob/main/.claude/skills/why-not-bought/SKILL.md): the decision log for one token
+- [Tune rules](https://github.com/Kelows/million/blob/main/.claude/skills/tune-rules/SKILL.md): change trading rules through conversation
+- [Watch the deck](https://github.com/Kelows/million/blob/main/.claude/skills/watch-deck/SKILL.md): live notifications of trades, signals and feed health
+
+## Optional
+
+- [Accounting checks](https://github.com/Kelows/million/blob/main/tools/check-accounting.mjs): worked examples and on-chain verification of the SOL ledger

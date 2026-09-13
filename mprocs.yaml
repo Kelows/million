@@ -5,7 +5,8 @@ procs:
   web:
     cwd: apps/web
     shell: npm run dev
+  # optional: only runs when TUNNEL_TOKEN is set; without it the feed uses the websocket (up to 25 wallets)
   tunnel:
-    shell: sh -c 'set -a; . apps/api/.env; set +a; exec cloudflared tunnel run --token "$TUNNEL_TOKEN"'
+    shell: sh -c 'set -a; . apps/api/.env; set +a; if [ -z "$TUNNEL_TOKEN" ]; then echo "No TUNNEL_TOKEN: no webhook needed, the live feed uses the websocket (up to 25 wallets). Nothing to do here."; exec tail -f /dev/null; fi; exec cloudflared tunnel run --token "$TUNNEL_TOKEN"'
   keepawake:
     shell: caffeinate -is
