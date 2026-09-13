@@ -13,7 +13,7 @@
  * analyzed in the last 24h is reused instead.
  *
  *   node tools/find-whales.mjs <token-or-pool> [--min-hold 5] [--max-hold 30]
- *        [--min-sol 1] [--min-closed 5] [--analyze 12] [--mode recent|deep] [--pages 3]
+ *        [--min-sol 1] [--min-closed 5] [--active-hours 24] [--analyze 12] [--mode recent|deep] [--pages 3]
  *        [--api http://localhost:3001/api]
  *
  * recent = the latest buyers; deep = buyers sampled across the token's whole life.
@@ -30,7 +30,8 @@ const MIN_HOLD = Number(opt('min-hold', 5));
 const MAX_HOLD = Number(opt('max-hold', 30));
 const MIN_SOL = Number(opt('min-sol', 1));
 const ANALYZE = Number(opt('analyze', 12));
-const MIN_CLOSED = Number(opt('min-closed', 5)); // a whale needs a track record: closed tokens, not one lucky hold
+const MIN_CLOSED = Number(opt('min-closed', 5));
+const ACTIVE_HOURS = Number(opt('active-hours', 0)); // 0 = any; otherwise the wallet must have traded within this many hours // a whale needs a track record: closed tokens, not one lucky hold
 const MODE = opt('mode', 'recent');
 const PAGES = Number(opt('pages', 3));
 const API = opt('api', 'http://localhost:3001/api');
@@ -107,8 +108,10 @@ async function main() {
       continue;
     }
     const hold = m.medianHoldMinutes;
-    const fits = hold !== null && hold >= MIN_HOLD && hold <= MAX_HOLD && m.closedTokens >= MIN_CLOSED && !m.flags.some((f) => EXCLUDE.has(f));
-    rows.push({ address: c.address, bought: c.boughtSol, hold, winRate: m.winRate, closed: m.closedTokens, flags: m.flags, fits, mints: new Set(m.tokens.map((t) => t.mint)) });
+    const idleHours = m.lastSeen ? (Date.now() - new Date(m.lastSeen).getTime()) / 3600e3 : Infinity;
+    const active = !ACTIVE_HOURS || idleHours <= ACTIVE_HOURS;
+    const fits = hold !== null && hold >= MIN_HOLD && hold <= MAX_HOLD && m.closedTokens >= MIN_CLOSED && active && !m.flags.some((f) => EXCLUDE.has(f));
+    rows.push({ address: c.address, bought: c.boughtSol, hold, winRate: m.winRate, closed: m.closedTokens, flags: m.flags, fits, idleHours, mints: new Set(m.tokens.map((t) => t.mint)) });
     console.log(`  ${c.address.slice(0, 6)}…  bought ${c.boughtSol.toFixed(1).padStart(6)} ◎  median hold ${hold === null ? '   —' : String(Math.round(hold)).padStart(4) + 'm'}  ${fits ? '← fits' : ''}`);
   }
 
@@ -146,7 +149,7 @@ async function main() {
   console.log(`\n${picks.length} of ${rows.length} analyzed wallets hold ${MIN_HOLD}–${MAX_HOLD} min with ≥ ${MIN_CLOSED} closed tokens:\n`);
   for (const r of picks) {
     console.log(`  ${r.address}`);
-    console.log(`    bought ${r.bought.toFixed(1)} ◎ of ${token.symbol} · median hold ${Math.round(r.hold)}m · win rate ${r.winRate === null ? '—' : Math.round(r.winRate * 100) + '%'} over ${r.closed} closed tokens${r.flags.length ? ` · flags ${r.flags.join(', ')}` : ''}`);
+    console.log(`    last trade ${r.idleHours < 1 ? `${Math.round(r.idleHours * 60)}m` : `${Math.round(r.idleHours)}h`} ago · bought ${r.bought.toFixed(1)} ◎ of ${token.symbol} · median hold ${Math.round(r.hold)}m · win rate ${r.winRate === null ? '—' : Math.round(r.winRate * 100) + '%'} over ${r.closed} closed tokens${r.flags.length ? ` · flags ${r.flags.join(', ')}` : ''}`);
   }
   console.log('\nAll analyzed wallets are in your roster, unsubscribed. Subscribe from a wallet\'s page in the deck.');
   console.log('Win rate here comes from recent history, not a guarantee; busy wallets can flood the live feed.');

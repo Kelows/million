@@ -95,7 +95,12 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       }
       const bankrollAtEntry = (balance ?? 0) + whaleBuySol;
       const fraction = bankrollAtEntry > 0 ? Math.min(0.25, whaleBuySol / bankrollAtEntry) : 0.05;
-      sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(config.bankrollSol * fraction * 100) / 100));
+      const bankroll = await this.bankroll(config);
+      if (bankroll === null) {
+        this.decisions.record({ mint, symbol, wallet, stage: 'trade', outcome: 'skip', code: 'no-balance', reason: 'opportunity fired, but the trading wallet balance could not be read' });
+        return;
+      }
+      sizeSol = Math.min(config.positionSol, Math.max(0.01, Math.round(bankroll * fraction * 100) / 100));
     }
     const open = await this.prisma.paperPosition.findMany({ where: { status: 'open' }, select: { sizeSol: true } });
     if (open.length >= config.maxOpenPositions) {
@@ -395,14 +400,24 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
     const weeklyPnlSol = closes
       .filter((p) => (p.closedAt?.getTime() ?? 0) > weekAgo)
       .reduce((sum, p) => sum + (p.pnlSol ?? 0), 0);
-    const weeklyLimitSol = (cfg.bankrollSol * cfg.weeklyLossLimitPct) / 100;
+    const bankroll = (await this.bankroll(cfg)) ?? cfg.bankrollSol;
+    const weeklyLimitSol = (bankroll * cfg.weeklyLossLimitPct) / 100;
     const reason =
       consecutiveLosses >= cfg.maxConsecutiveLosses
         ? `${consecutiveLosses} losses in a row (limit ${cfg.maxConsecutiveLosses})`
         : weeklyPnlSol <= -weeklyLimitSol
-          ? `7-day realized ${weeklyPnlSol.toFixed(2)} ◎ breaches -${cfg.weeklyLossLimitPct}% of ${cfg.bankrollSol} ◎ bankroll`
+          ? `7-day realized ${weeklyPnlSol.toFixed(2)} ◎ breaches -${cfg.weeklyLossLimitPct}% of ${bankroll.toFixed(2)} ◎ bankroll`
           : null;
     return { halted: reason !== null, reason, consecutiveLosses, weeklyPnlSol: Math.round(weeklyPnlSol * 1000) / 1000 };
+  }
+
+  /**
+   * The bankroll sizing and the weekly halt measure against. Paper: the number
+   * in the rules. Live: the trading wallet's actual SOL — a typed figure that
+   * drifted from the real balance would size every trade wrong.
+   */
+  private async bankroll(cfg: OpportunityConfig): Promise<number | null> {
+    return this.executor.mode === 'live' ? this.executor.walletBalanceSol().catch(() => null) : cfg.bankrollSol;
   }
 
   /** Manual resume: closes before now stop counting toward either breaker. */
@@ -452,6 +467,7 @@ export class TradingService implements OnModuleInit, OnModuleDestroy {
       halt,
       stats: {
         mode: this.executor.mode,
+        walletBalanceSol: this.executor.mode === 'live' ? await this.executor.walletBalanceSol().catch(() => null) : null,
         openCount: open.length,
         closedCount: closed.length,
         wins,

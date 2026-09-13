@@ -635,13 +635,14 @@ export interface CohortRow {
 
 export interface TradingStats {
   mode: string;
+  walletBalanceSol: number | null; // live only: the trading wallet's SOL, used as the bankroll
   openCount: number;
   closedCount: number;
   wins: number;
   winRate: number | null;
   totalPnlSol: number;
   avgPnlPct: number | null;
-  expectancySolPerTrade: number | null; // THE number — gates auto-trade
+  expectancySolPerTrade: number | null; // realized PnL per closed trade
   avgLatencyCostPct: number | null; // our entry vs the whale's own fill
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { STRATEGY_PRESETS, type OpportunityConfig } from '@million/shared';
-import { useCrawler, useOpportunityConfig, useSetCrawlerConfig, useSetOpportunityConfig } from '../api';
+import { useCrawler, useOpportunityConfig, useSetCrawlerConfig, useSetOpportunityConfig, useTrading } from '../api';
 import { Choice, Num, RuleField, RuleSection, Toggle } from '../components/RuleField';
 import { ThresholdFields } from '../components/ThresholdFields';
 
@@ -13,6 +13,8 @@ export function Rules() {
   const save = useSetOpportunityConfig();
   const { data: crawler } = useCrawler();
   const saveCrawler = useSetCrawlerConfig();
+  const { data: trading } = useTrading();
+  const live = trading?.stats.mode === 'live';
   const [c, setC] = useState<OpportunityConfig | null>(null);
 
   useEffect(() => {
@@ -123,8 +125,18 @@ export function Rules() {
           <RuleField label="Max per position" hint="Largest single position, whatever the sizing mode says.">
             <Num value={c.positionSol} onChange={(v) => set({ positionSol: v })} min={0} step={0.1} suffix="◎" />
           </RuleField>
-          <RuleField label="Our bankroll" hint="Your bankroll, used by normalized sizing." off={c.sizingMode !== 'whale-frac'}>
-            <Num value={c.bankrollSol} onChange={(v) => set({ bankrollSol: v })} min={0} suffix="◎" />
+          <RuleField
+            label={live ? 'Bankroll (trading wallet)' : 'Our bankroll'}
+            hint={live
+              ? "Live: your trading wallet's SOL balance is the bankroll, for normalized sizing and the weekly loss halt."
+              : 'Paper bankroll, for normalized sizing and the weekly loss halt. In live mode the trading wallet balance is used instead.'}
+            off={c.sizingMode !== 'whale-frac'}
+          >
+            {live ? (
+              <span className="font-mono text-sm text-bright">{trading?.stats.walletBalanceSol != null ? `${trading.stats.walletBalanceSol.toFixed(3)} ◎` : 'balance unavailable'}</span>
+            ) : (
+              <Num value={c.bankrollSol} onChange={(v) => set({ bankrollSol: v })} min={0} suffix="◎" />
+            )}
           </RuleField>
           <RuleField label="% of whale's entry" hint="Share of the whale's buy for % of whale sizing, capped by max per position." off={c.sizingMode !== 'whale-pct'}>
             <Num value={c.copyPct} onChange={(v) => set({ copyPct: v })} min={0.1} max={100} suffix="%" />
@@ -176,7 +188,7 @@ export function Rules() {
           <RuleField label="Halt after consecutive losses" hint="Stop opening positions after this many losses in a row. Resume from the Trading page.">
             <Num value={c.maxConsecutiveLosses} onChange={(v) => set({ maxConsecutiveLosses: v })} min={1} max={50} />
           </RuleField>
-          <RuleField label="Weekly loss halt" hint="Stop opening positions when the last 7 days lost this share of your bankroll.">
+          <RuleField label="Weekly loss halt" hint={live ? "Stop opening positions when the last 7 days lost this share of your trading wallet's balance." : 'Stop opening positions when the last 7 days lost this share of your bankroll.'}>
             <Num value={c.weeklyLossLimitPct} onChange={(v) => set({ weeklyLossLimitPct: v })} min={1} max={100} suffix="%" />
           </RuleField>
           <RuleField label="Min funding to follow" hint="A funding transfer must be at least this big to count as a new address.">

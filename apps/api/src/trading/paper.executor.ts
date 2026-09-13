@@ -84,6 +84,10 @@ export class PaperExecutor implements TradeExecutor {
     return feeBps(this.env) / 100;
   }
 
+  async walletBalanceSol(): Promise<number | null> {
+    return null; // paper has no wallet: the bankroll in the rules is the notional one
+  }
+
   private async slippage(): Promise<number> {
     const row = await this.prisma.opportunityConfig.findUnique({ where: { id: 1 } });
     return OpportunityConfigSchema.parse(row ? JSON.parse(row.data) : {}).slippagePct;

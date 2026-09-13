@@ -16,6 +16,8 @@ export interface TradeExecutor {
   buy(mint: string, sizeSol: number): Promise<Fill | null>;
   /** Exit a position fully. */
   sell(mint: string, sizeSol: number): Promise<Fill | null>;
+  /** SOL in the trading wallet — null on paper (the rules' bankroll stands in) or when unreadable. */
+  walletBalanceSol(): Promise<number | null>;
 }
 
 export const TRADE_EXECUTOR = Symbol('TRADE_EXECUTOR');

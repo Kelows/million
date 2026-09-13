@@ -58,7 +58,7 @@ export class LocalExecutor implements TradeExecutor {
     }
     const kp = this.loadKeypair();
     if (!kp) return null;
-    const balance = await this.balanceSol(kp.publicKey.toBase58());
+    const balance = await this.balanceOf(kp.publicKey.toBase58());
     const minBalance = Number(this.env.get('LOCAL_MIN_BALANCE_SOL') ?? DEFAULT_MIN_BALANCE_SOL);
     if (balance === null || balance - sizeSol < minBalance) {
       this.log.warn(`REFUSED buy ${mint.slice(0, 8)}: balance ${balance ?? '?'} ◎ would fall below the ${minBalance} ◎ fee reserve`);
@@ -219,7 +219,12 @@ export class LocalExecutor implements TradeExecutor {
     return null;
   }
 
-  private async balanceSol(address: string): Promise<number | null> {
+  async walletBalanceSol(): Promise<number | null> {
+    const kp = this.loadKeypair();
+    return kp ? this.balanceOf(kp.publicKey.toBase58()) : null;
+  }
+
+  private async balanceOf(address: string): Promise<number | null> {
     const r = await this.rpc<{ value: number }>('getBalance', [address]);
     return r ? r.value / LAMPORTS : null;
   }
