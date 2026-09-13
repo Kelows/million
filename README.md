@@ -9,7 +9,7 @@ rugs, and turns what's left into trade signals — paper first, live if you choo
   <img alt="The loop: 1,917 wallets and 24,115 tokens feed each other, pass through their filters down to 51 subscribed wallets and 47 clean tokens, merge into 143 opportunities and 26 positions, and every trade's outcome loops back to re-score wallets and re-tune the rules." src="docs/loop-light.svg">
 </picture>
 
-<sub>Counts from the first instance, 27 Aug – 13 Sep 2026. Ribbon height is proportional to log(count): the narrowing is the filter.</sub>
+<sub>Counts from the first instance. Ribbon height is proportional to log(count): the narrowing is the filter.</sub>
 
 > **Status: experimental.** Nothing here has shown a proven edge. The measured
 > per-trade return on the backtest has a confidence interval that still includes

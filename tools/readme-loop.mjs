@@ -7,7 +7,7 @@
  * from this one drawing so they cannot drift apart.
  *
  * Ribbon height is proportional to log10(count) — the narrowing IS the filter.
- * Counts are from the first instance's run, 2026-08-27 → 2026-09-13.
+ * Counts are from the first instance's run.
  *
  *   node tools/readme-loop.mjs
  */
