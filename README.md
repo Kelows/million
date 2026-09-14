@@ -1,9 +1,11 @@
 # million
 
-**An open-source, self-hosted Solana whale tracker and copy-trading deck that
-you run by talking to your AI coding agent** (Claude Code, Codex, Cursor, Gemini
-CLI…). It watches the wallets you follow, finds
-more wallets through the tokens they buy, filters out bots and rugs, and trades
+**Your personal Solana memecoin intelligence dashboard.**
+
+An open-source, self-hosted whale tracker and copy-trading deck that you run by
+talking to your AI coding agent (Claude Code, Codex, Cursor, Gemini CLI…). It
+watches the wallets you follow, finds more wallets through the tokens they buy,
+filters out bots and rugs, shows where the smart money is flowing, and trades
 the signals that survive.
 
 ![The million deck: roster, open positions and PnL at a glance](docs/deck.png)

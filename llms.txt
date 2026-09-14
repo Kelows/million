@@ -1,6 +1,6 @@
 # million
 
-> Open-source, self-hosted Solana whale tracker and copy-trading deck (MIT). It watches the wallets you follow through Helius, finds more wallets through the tokens they buy, filters out bots, relays and rugs, and trades the signals that survive, live only when the user sets EXECUTOR=local. It runs locally (NestJS API + React deck + SQLite) and is designed to be operated by talking to an AI coding agent (tested with Claude Code; Codex, Cursor and others read AGENTS.md).
+> A personal Solana memecoin intelligence dashboard: an open-source, self-hosted whale tracker and copy-trading deck (MIT). It watches the wallets you follow through Helius, finds more wallets through the tokens they buy, filters out bots, relays and rugs, and trades the signals that survive, live only when the user sets EXECUTOR=local. It runs locally (NestJS API + React deck + SQLite) and is designed to be operated by talking to an AI coding agent (tested with Claude Code; Codex, Cursor and others read AGENTS.md).
 
 To start: Node 24 and a free Helius API key. Not needed to start: a webhook, tunnel, domain, trading wallet or SOL. Without a webhook the live feed uses a websocket and follows up to 25 wallets. Quick start: `git clone https://github.com/Kelows/million && cd million`, open your coding agent there (claude, codex, gemini…) and type "set me up"; or `npx create-million` (clones, installs, checks the Helius key, starts the deck); or `nvm use && npm install && npm start` and open http://localhost:5173.
 
